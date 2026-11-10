@@ -5123,3 +5123,55 @@ queue v68 · done 59 / pending 11 / superseded 7 · **in_progress 0**（77 条�
 建议下一轮 `ON-3-01`（上屏自证，只加取证不改行为，06:45 诊断轮也推荐），
 或先清 `ON-4-05` 把 interaction smoke 的 EXIT=0 收掉。
 `ON-2-02` 仍被 ON-4-03（帧循环）前置，别去量分母为 2 的比值。
+
+
+## 2026-11-11 07:26 · ON-3-01 · done（上屏自证：layer 回读与同帧 DIB 对账，3 档 match=yes）
+
+人工接续轮。07:00:05 写入 `.active=held`；开工前复核：源码最新 mtime 06:44 早于 06:57 的
+released，无 ninja/clang/concord_runtime 进程。
+
+### 三次被实测推翻的直觉
+
+1. **不能借既有 smoke 驱动**：第一版 `--onscreen-attest-smoke` 依次跑 menu/skirmish/interaction
+   三条 smoke，`records=0`。日志里没有一行 `[cocoa] NSWindow created` —— 它们全是离屏的，
+   `present()` 一次都没被调用。取证只能挂真实启动。
+2. **hash 不等不是贴错帧，是重绘多翻了 y**：首版做了 CTM 翻转，`layerHash=0x791959b8 vs
+   dibHash=0x175b3678`。把三条 hash 同时打出来：不翻转重绘与 provider 原始数据都等于 dibHash，
+   只有翻转的不等。CGImage 顶行对齐 rect 顶部、缓冲第 0 行也是顶行，本来就对齐。
+3. **两条常规退出路径都不通**：合成 Cmd+Q 在世界视图收不到（窗口不是 key）；`NSApp terminate`
+   依赖 `[NSApp run]` 而本项目不跑，在 pumpEvents 里发也无效（世界主循环不经那条路径）。
+   最终在 present 内 `_Exit(failures==0?0:1)`，先 fflush，不跑静态析构。
+
+### 实现与验证
+
+`RuntimeAppleWindowSurface.mm` 加 attest 钩子（layer 回读 → CGBitmapContext 重绘 → RGB 24 位
+FNV-1a → 与同帧 DIB 比对 → 逐条追加 `<dir>/onscreen-attest.log`），导出两个计数；
+`RuntimeMain.cpp` 加 `--onscreen-attest-smoke <dir>`（真实启动，不是 smoke 驱动）。
+**只比 B,G,R**：第 4 字节不是 alpha（S14b），拿它参与 hash 会永远红。
+
+| 场景 | 尺寸 | 结果 |
+|---|---|---|
+| 默认启动（主菜单） | 1024x640 | match=yes，EXIT=0 |
+| `--skip-main-menu --skip-skirmish-menu`（世界首帧） | 800x600 | match=yes，EXIT=0 |
+| 指针导航 `POINTER_NAV_ONLY=1` | 1100x720 | match=yes，EXIT=0 |
+
+回归：菜单 smoke EXIT=0 · 遭遇战 smoke EXIT=0（161 地图）· 指针导航 48/0 ·
+正常启动 + QUIT_SELFTEST EXIT=0 且 attest 输出 0 行（默认零开销）·
+interaction smoke 仍 EXIT=1（已知 ON-4-05，与本轮无关）。
+`git diff --cached` 逐 hunk 复核只有本轮 3 文件（+213），**提交 `1001196`**。
+
+### 覆盖范围的口径拆分
+
+原 verify 要「五个界面各一条」。本轮自动覆盖 3 档；**遭遇战大厅与加载页**必须用鼠标
+点进真实窗口（`--skirmish-ui-smoke-test` 是离屏的），依赖 ON-4-02 的合成输入。
+故新增 `ON-3-01b` 承接五界面，`ON-3-01` 的 verify 收窄为「机制 + 可自动覆盖档位」。
+机制本身已能证明任意一次 present 的贴图正确性，缺的只是驱动手段——不是放宽标准。
+新增 3 条 rules（smoke 离屏 / 画进位图不翻转 / 取证退出在 present 内），
+产出 `reports/ON-3-01-上屏自证实现.md`。
+
+### 当前状态与下一轮
+
+queue v69 · done 60 / pending 11 / superseded 7 · **in_progress 0**（78 条）；源码 HEAD `1001196`。
+下一轮建议 `ON-4-05`（清 projection history，把 interaction smoke 的 EXIT=0 收掉），
+或 `ON-2-03`+`ON-2-04` 合并一轮（同一个 .mm，用户决策已明确）。
+`ON-3-01b` 与 `ON-2-02` 都还在等前置（ON-4-02 / ON-4-03），不要提前做。

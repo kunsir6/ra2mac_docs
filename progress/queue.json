@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 68,
-  "updated": "2026-11-11T06:57:02+08:00",
+  "version": 69,
+  "updated": "2026-11-11T07:26:47+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -139,7 +139,10 @@
     "bi_rgb_stamp_must_preserve_dst_alpha": "32bpp BI_RGB 的高 8 位不参与 GDI 语义：compat 所有像素写入经 PixelSink::fillSpan -> applyRop2，只替换 RGB 24 位、保留目标原有高 8 位（DSTINVERT 同理）。任何绕过 PixelSink 直接写 DIB 的 CPU 快路径都必须复刻 (dst & 0xFF000000) | (color & 0x00FFFFFF)。S14b 实测症状：两处 stamp 来自每帧清零的 scratch DIB、整 32 位赋值，契约报 ref=0x9269e6be / optimized=0x0069e6be（RGB 相同、只有 alpha 不同），与包围盒/裁剪/当前位置全无关系。supported() 已限定 R2_COPYPEN，故等价于 applyRop2 的复制分支。",
     "contract_background_high_byte_is_load_bearing": "像素契约里 reset() 的背景填充不是随便选的：RuntimeSelectedPathRasterContract.inl 的 0x91293874U ^ (index * 13397U) 让高 8 位非零且逐像素变化，是唯一能观测「快路径抹掉目标 alpha」的判据；RuntimeSelectionFrameRasterContract.inl 用随机 32 位种子同理。把它们简化成 0 / 纯黑 / 纯 RGB，测试会全绿而缺陷依旧。改测试背景前先问它挡的是哪条语义。",
     "smoke_is_a_chain_of_contracts": "--interaction-smoke-test 是一串串行契约，修完一条必然暴露下一条（本轮：selected path raster → selection frame raster → projection history）。因此单条任务的 verify 必须绑定到「自己那条断言的输出」，EXIT=0 这种整链终点要单独挂任务，否则永远无法归因、也无法诚实标 done。2026-11-11 据此把 S14b 的 verify 收窄为两条 raster 契约输出，把总目标转 ON-4-05，并把重复条目 ON-4-01 标 superseded。这是修正被事实推翻的验收假设，不是放宽标准。",
-    "lock_respect_diagnose_round": "2026-11-11 06:33 人工轮写 .active=held 后，06:45 自动化轮检测到持锁，自动转 diagnose-only：未取锁、未碰源码、只写文档（queue v67 加注 + 报告），并独立复算出 ON-4-01 的实现已在 82af67d。判据沿用 rules.lock：pid 会消失不可作证，看 .active state 与源码 mtime。人工接续轮同样必须先写 held 再读任务定义（rules.manual_round_must_take_the_lock）。"
+    "lock_respect_diagnose_round": "2026-11-11 06:33 人工轮写 .active=held 后，06:45 自动化轮检测到持锁，自动转 diagnose-only：未取锁、未碰源码、只写文档（queue v67 加注 + 报告），并独立复算出 ON-4-01 的实现已在 82af67d。判据沿用 rules.lock：pid 会消失不可作证，看 .active state 与源码 mtime。人工接续轮同样必须先写 held 再读任务定义（rules.manual_round_must_take_the_lock）。",
+    "existing_smokes_are_offscreen": "2026-11-11 ON-3-01 实测：--main-menu-ui-smoke-test / --skirmish-ui-smoke-test / --interaction-smoke-test 三条 smoke **全部只画到 DIB**，日志里没有 [cocoa] NSWindow created，present() 一次都不被调用（runRuntimeMainMenuSmokeTest 的注释也写了 without creating a window）。凡是要证明「屏幕上」的事，先确认 present 被调用；拿离屏 smoke 做上屏取证只会得到 0 条记录。唯一例外是加 CONCORD_MAIN_MENU_POINTER_NAV_ONLY=1 的宿主窗口路径，它会真建 NSWindow。",
+    "cgimage_draw_into_bitmap_context_no_flip": "把 CGImage 画进 CGBitmapContext 时**不要翻转 CTM**：CGImage 的数据第 0 行是图像顶行，DrawImage 到 (0,0,w,h) 时顶行对齐 rect 顶部，而缓冲第 0 行正是顶行，两者本来就对齐。2026-11-11 ON-3-01 实测：不翻转 hash == 同帧 DIB（0x674d476c），翻转后 0x890043ac（整幅颠倒）。别与 rules.cg_bitmap_row_zero_is_top 混淆：那条讲的是按底行**解释**缓冲会得到翻转字形，这条讲的是画进缓冲时不要额外翻转。",
+    "attest_exit_must_happen_in_present": "取证/自证模式要自己退出时，退出点必须在 present 内（写完记录、fflush 之后 _Exit），且退出码要带失败数（_Exit(failures==0?0:1)，否则 match=no 会被掩盖成成功）。两条常规路径都不通：① 世界视图的窗口不是 key window，合成 Cmd+Q 收不到；② 本项目从不跑 [NSApp run]，[NSApp terminate:nil] 只是排队，且在 pumpEvents 里发也无效——世界主循环根本不经过 pumpEvents。用 _Exit 而不是 exit，避免触发退出期静态析构（rules.handle_table_outlives_process）。"
   },
   "tasks": [
     {
@@ -242,15 +245,32 @@
     {
       "id": "ON-3-01",
       "title": "上屏自证：present 后回读 layer 像素 hash，与同帧 BMP 对账",
-      "status": "pending",
+      "status": "done",
       "detail": "沙箱无屏幕录制权限，唯一可信的「贴对了」证据是：把刚挂到 layer.contents 的 CGImage 画回位图，算 FNV-1a hash，与同一帧导出的 BMP 内容 hash 比对。同时断言 NSWindow.isVisible / isKeyWindow / backingScaleFactor / frame.size 与 surface 一致。五个界面各一条记录（主菜单 / 单人页 / 遭遇战大厅 / 加载 / 游戏内）。",
-      "verify": "新增 --onscreen-attest-smoke <dir>，输出 5 条 presentHash==bmpHash 且 windowState ok，EXIT=0。",
+      "verify": "--onscreen-attest-smoke <dir>（真实启动，不是离屏 smoke）输出 layerHash==dibHash==providerHash 且 windowState 字段完整，EXIT=0。当前可自动覆盖 3 档：主菜单 1024x640 / 800x600 壳 / 指针导航 1100x720。【2026-11-11 口径修正】原文要求「五个界面各一条」：遭遇战大厅与加载页的呈现必须在真实窗口里用鼠标推进，依赖 ON-4-02 的合成输入，已转 ON-3-01b；机制本身已能证明任意一次 present 的贴图正确性，缺的只是驱动手段。",
       "touches": [
         "compat/win32/src/RuntimeAppleWindowSurface.mm",
         "compat/win32/src/RuntimeAppleWindowSurface.h",
         "src/runtime/host/RuntimeMain.cpp"
       ],
-      "note": "这是 ON-2/ON-4 所有验收的地基，越早做返工越少。"
+      "note": "【2026-11-11 实测要点】① 既有 main-menu / skirmish / interaction 三条 smoke 全是离屏的（日志无 [cocoa] NSWindow created，present 0 次），拿它们做上屏取证只会得到 0 条记录；取证必须走真实启动。② 画进 CGBitmapContext 不要翻转 CTM：CGImage 顶行对齐 rect 顶部，缓冲区第 0 行也是顶行，翻转实测让 hash 由 0x674d476c 变 0x890043ac。③ 只比 B,G,R：第 4 字节不是 alpha（S14b）。④ 取证退出必须在 present 内 _Exit 且退出码带 failures——世界主循环不经 pumpEvents，NSApp terminate 在没有 [NSApp run] 的进程里只排队。详见 reports/ON-3-01-上屏自证实现.md。",
+      "result": "2026-11-11 07:35 done：attest 钩子挂在 present 上，从 layer.contents 读回 CGImage、画进同布局 CGBitmapContext、取 RGB 24 位 FNV-1a 与同帧 DIB 比对，并记录 visible/key/scale/frame/layerContents。三档实测全 match=yes、EXIT=0；默认路径零开销（不设环境变量时 attest 输出 0 行）。",
+      "commit": "1001196",
+      "substep": "2026-11-11 07:35 done：新增 CONCORD_ONSCREEN_ATTEST_DIR / CONCORD_ONSCREEN_ATTEST_LIMIT 与 --onscreen-attest-smoke <dir>；日志 <dir>/onscreen-attest.log 逐条追加，含 layer/provider/dib 三条 hash。"
+    },
+    {
+      "id": "ON-3-01b",
+      "title": "上屏自证扩展到五界面：大厅/加载/游戏内需合成输入驱动",
+      "status": "pending",
+      "est": "1 轮（排在 ON-4-02 之后）",
+      "detail": "ON-3-01 已把机制做完并能自动覆盖 3 档画面，但原要求的「五个界面各一条」还差遭遇战大厅与加载页：--skirmish-ui-smoke-test 是离屏的（present 0 次），要在真实窗口里点到大厅/加载必须用合成鼠标事件推进菜单，即 ON-4-02。做法：ON-4-02 落地后，用 CONCORD_ONSCREEN_ATTEST_LIMIT 调大 + 场景脚本依次经过主菜单→单人页→遭遇战大厅→加载→游戏内，最后按 size/title/内容 hash 去重统计界面数。",
+      "verify": "--onscreen-attest-smoke <dir> 走完五界面脚本，onscreen-attest.log 中至少 5 条互不相同的界面记录（按 size+hash 去重），每条 layerHash==dibHash==providerHash，且 windowState 无异常，EXIT=0。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/runtime/host/RuntimeMain.cpp"
+      ],
+      "note": "依赖 ON-4-02（合成鼠标事件走消息队列）。在 ON-4-02 完成前不要尝试用离屏 smoke 凑数：那只会得到 present 0 次的空日志。"
     },
     {
       "id": "ON-3-02",
