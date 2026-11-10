@@ -4956,3 +4956,47 @@ ON-2-02 加"先量分母再加合并"的顺序说明。产出：`ON-2-01-呈现�
 队首 pending = **ON-2-02（脏帧合并）**，但它被 ON-4-03（游戏内帧循环）前置：分母接近 0 时
 "submits/renderedFrames = 1.0±0.05" 无法成立。建议先做 ON-4-01（交互 smoke 那条像素断言，
 与 ON-2 无关、可独立收口）或 ON-3-01（上屏自证，本轮已给出可用的窗口抓图路线）。
+
+## 2026-11-11 06:22 · 文档库 · done（ra2mac_docs 独立仓库上线，32 份报告 + 队列 + 日志首次入库）
+
+问题：源码有 `cdad6ab` 这样的提交锚点，文档只有文件系统 mtime。项目根目录散着 32 份报告，
+`progress/` 里的队列与运行日志每小时都在变，**一个都不在版本管理里**。事后想回答"当时为什么这么判断"，
+只能靠翻正文重建时间线。
+
+### 做了什么
+
+新建 `/Users/zhenglk/ai-project/ra2mac/ra2mac_docs`（独立 git 仓库，main 分支），迁移为：
+
+```
+ra2mac_docs/
+├── reports/    ← 项目根目录的 32 份 .md（一字未改）
+├── progress/   ← 原 progress/（queue.json / RUNLOG.md / 截图 / on-2-01-probe/）
+├── report/ baseline/ scripts/   ← 原样收纳
+├── README.md   ← 结构与提交约定
+└── .gitignore  ← 排除 .DS_Store / *.bmp / progress/.active / __pycache__
+```
+
+首次提交 `f36ef28`：**81 个文件 / 15,317 行**。项目根目录现在只剩源码两目录、`.workbuddy`、本仓库，
+加一个软链 `progress -> ra2mac_docs/progress`。
+
+### 为什么用软链而不是直接搬
+
+每小时自动化的提示词里写死了 `progress/queue.json` 与 `progress/RUNLOG.md`。直接搬目录会让整条流水线
+在下一次触发时找不到队列。软链让两种路径指向同一份文件（实测 `pwd -P` 落在 ra2mac_docs/progress，
+python 读 queue.json 正常，v65 / 76 任务）。**把软链换成真目录会写出第二份队列**，README 和 rules 都写了这条。
+
+### 同步改的两处（只改一处等于没改）
+
+1. 自动化提示词新增第 9 步「文档仓库提交」：每轮收尾**必须**在 ra2mac_docs 提交一次，**即使本轮不是 done**
+   ——队列状态变更与 RUNLOG 条目本身就是产出。顺带把 ON-2-01 学到的两条环境要点写进提示词
+   （未签名二进制先 codesign、判断屏幕更新要抓自己窗口）。
+2. `queue.json` 加 `rules.doc_repo`（v64→v65），说明仓库位置、软链约定、提交文案，以及"新报告写
+   ra2mac_docs/reports/，不写项目根"。
+
+教训沿用 05:18 那条：**规则写了没人读等于没写**，所以规则与提示词必须双侧落地。
+
+### 现状
+
+- `ra2mac_docs`：1 个提交，工作树干净。
+- `ConcordRTS`：`git status` 仍为空，源码仓库不受影响。
+- 备份：`/tmp/ra2mac-docs-backup-20261111.tgz`（14 MB，迁移前全量）。

@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 64,
-  "updated": "2026-11-11T05:41:56",
+  "version": 65,
+  "updated": "2026-11-11T06:21:16",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -132,7 +132,8 @@
     "cgimage_cache_freezes_screen": "呈现层**不能**缓存 CGImage：CompatWindow 的 DIB 是同一块内存、GDI 每帧覆盖写，而复用的 CGImage 被上传一次后 CA 不再重读它。2026-11-11 ON-2-01 决定性实验（/tmp/pc/probe3.mm，每阶段自抓窗口图）：每帧新建 → 红/绿/蓝/黄四帧四色；两个对象轮挂 → 四帧全红且 PNG 字节数完全相同；单对象 → 同样全红。**交替挂两个对象救不了**，去重不是按 contents 指针。判据必须落在屏幕像素上：DIB 每帧都在变，任何 DIB 级断言都看不出这个冻结。",
     "cgimagecreate_cost_is_microseconds": "CGImageCreate 不是瓶颈：provider 是 no-copy，图像对象不分配像素缓冲。1024x640 实测（/tmp/pc/bench.mm，20000 次）：provider+image 每帧新建 1.3µs/帧；只缓存 provider 0.7µs/帧；全缓存 0µs 但会冻结。60fps 下能省的上限是 0.04ms/s。凡是以\"每秒上百 MB 分配\"为理由优化呈现路径的，先按这个基准复算。",
     "present_rate_is_degenerate_today": "当前产品的提交频率接近 0：主菜单挂机 20s 内 present < 10 次（只在交互时重绘）；--skip-main-menu --skip-skirmish-menu 进世界 45s 只有 **2** 次（首帧 + resize 后那帧），因为游戏内帧循环还没做（ON-4-03）。所以\"每帧开销\"类优化现在没有可测收益，要做就先做帧循环，再看 ON-2-02 的提交合并。",
-    "window_capture_by_window_number": "窗口级取证可行：`screencapture -x -o -l <NSWindow.windowNumber> out.png` 对自建窗口全部成功（18KB、内容正确），不需要屏幕录制授权。抓图前必须自己 activateIgnoringOtherApps + makeKeyAndOrderFront，否则抓到的是上一张合成快照（被遮挡窗口不更新合成）——这正是\"屏幕冻住\"与\"窗口被挡住\"无法区分的原因。产品窗口（windowNumber=1836）试过一次could not create image from window，差异未查清，ON-3-01 开工先复测。"
+    "window_capture_by_window_number": "窗口级取证可行：`screencapture -x -o -l <NSWindow.windowNumber> out.png` 对自建窗口全部成功（18KB、内容正确），不需要屏幕录制授权。抓图前必须自己 activateIgnoringOtherApps + makeKeyAndOrderFront，否则抓到的是上一张合成快照（被遮挡窗口不更新合成）——这正是\"屏幕冻住\"与\"窗口被挡住\"无法区分的原因。产品窗口（windowNumber=1836）试过一次could not create image from window，差异未查清，ON-3-01 开工先复测。",
+    "doc_repo": "项目管理文档自 2026-11-11 起在独立仓库 /Users/zhenglk/ai-project/ra2mac/ra2mac_docs（main 分支）做版本管理：reports/ 放各轮报告，progress/ 放 queue.json、RUNLOG.md 与取证截图，report/ baseline/ scripts/ 原样收纳。项目根目录的 progress 是指向 ra2mac_docs/progress 的**软链**，所以所有写死的 progress/... 路径不变，**不要**把软链换成真目录。每轮收尾必须在该仓库提交一次（即使本轮不是 done），文案 `docs:` / `queue:`，绝不 push。新报告写入 ra2mac_docs/reports/，不要再写项目根。"
   },
   "tasks": [
     {
