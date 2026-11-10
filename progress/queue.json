@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 67,
-  "updated": "2026-11-11T06:45:47+08:00",
+  "version": 68,
+  "updated": "2026-11-11T06:57:02+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -135,7 +135,11 @@
     "window_capture_by_window_number": "窗口级取证可行：`screencapture -x -o -l <NSWindow.windowNumber> out.png` 对自建窗口全部成功（18KB、内容正确），不需要屏幕录制授权。抓图前必须自己 activateIgnoringOtherApps + makeKeyAndOrderFront，否则抓到的是上一张合成快照（被遮挡窗口不更新合成）——这正是\"屏幕冻住\"与\"窗口被挡住\"无法区分的原因。产品窗口（windowNumber=1836）试过一次could not create image from window，差异未查清，ON-3-01 开工先复测。",
     "doc_repo": "项目管理文档自 2026-11-11 起在独立仓库 /Users/zhenglk/ai-project/ra2mac/ra2mac_docs（main 分支）做版本管理：reports/ 放各轮报告，progress/ 放 queue.json、RUNLOG.md 与取证截图，report/ baseline/ scripts/ 原样收纳。项目根目录的 progress 是指向 ra2mac_docs/progress 的**软链**，所以所有写死的 progress/... 路径不变，**不要**把软链换成真目录。每轮收尾必须在该仓库提交一次（即使本轮不是 done），文案 `docs:` / `queue:`，绝不 push。新报告写入 ra2mac_docs/reports/，不要再写项目根。 远程：origin = https://github.com/kunsir6/ra2mac_docs（**public**，2026-11-11 关联并已推送 main，默认分支 main）。自动化**只在本地提交、绝不 push**；本地会领先 origin，推送由人执行。",
     "present_is_per_paint_not_per_endpaint": "2026-11-11 06:44：ON-2-02 的文本假设「每个 EndPaint 都直接 present，同一帧可能被贴多次」。实测架构不是这样：present() 全仓只有一个调用点（RuntimeWin32CompatUser.cpp:999，位于 WM_PAINT 的绘制路径），而失效层已有合并——InvalidateRect 只置 w->dirty，popMessage 合成 WM_PAINT 时逐窗口看 dirty，BeginPaint 清位。所以同一次失效不会被贴两遍；RedrawWindow(RDW_UPDATENOW) / UpdateWindow 是仅有的同步旁路，它们也先看 dirty。要论证「贴了多次」必须给出计数证据（submits vs paints），不能用「每帧都贴」当默认前提。真正的缺口是反方向的：世界 45s 只有 2 次 present，因为没有定时器驱动的失效（见 ON-4-03）。",
-    "detail_text_may_already_be_implemented": "2026-11-11 06:44：ON-4-01 的 detail 与 82af67d(S14a) 的改动逐字相同——任务文本在继承/搬运过程中可能与更早的提交重复（S14 的修复被拆进 ON-4-01 时没有回看提交）。开工前先按 verify 的失败点定位到具体断言，再决定要不要动 detail 描述的那个函数；否则会把已存在的实现重写一遍，或误判成「没做」。判据示例：git show HEAD:<file> | grep <关键调用>，比读报告快且不会被 stale 描述骗。"
+    "detail_text_may_already_be_implemented": "2026-11-11 06:44：ON-4-01 的 detail 与 82af67d(S14a) 的改动逐字相同——任务文本在继承/搬运过程中可能与更早的提交重复（S14 的修复被拆进 ON-4-01 时没有回看提交）。开工前先按 verify 的失败点定位到具体断言，再决定要不要动 detail 描述的那个函数；否则会把已存在的实现重写一遍，或误判成「没做」。判据示例：git show HEAD:<file> | grep <关键调用>，比读报告快且不会被 stale 描述骗。",
+    "bi_rgb_stamp_must_preserve_dst_alpha": "32bpp BI_RGB 的高 8 位不参与 GDI 语义：compat 所有像素写入经 PixelSink::fillSpan -> applyRop2，只替换 RGB 24 位、保留目标原有高 8 位（DSTINVERT 同理）。任何绕过 PixelSink 直接写 DIB 的 CPU 快路径都必须复刻 (dst & 0xFF000000) | (color & 0x00FFFFFF)。S14b 实测症状：两处 stamp 来自每帧清零的 scratch DIB、整 32 位赋值，契约报 ref=0x9269e6be / optimized=0x0069e6be（RGB 相同、只有 alpha 不同），与包围盒/裁剪/当前位置全无关系。supported() 已限定 R2_COPYPEN，故等价于 applyRop2 的复制分支。",
+    "contract_background_high_byte_is_load_bearing": "像素契约里 reset() 的背景填充不是随便选的：RuntimeSelectedPathRasterContract.inl 的 0x91293874U ^ (index * 13397U) 让高 8 位非零且逐像素变化，是唯一能观测「快路径抹掉目标 alpha」的判据；RuntimeSelectionFrameRasterContract.inl 用随机 32 位种子同理。把它们简化成 0 / 纯黑 / 纯 RGB，测试会全绿而缺陷依旧。改测试背景前先问它挡的是哪条语义。",
+    "smoke_is_a_chain_of_contracts": "--interaction-smoke-test 是一串串行契约，修完一条必然暴露下一条（本轮：selected path raster → selection frame raster → projection history）。因此单条任务的 verify 必须绑定到「自己那条断言的输出」，EXIT=0 这种整链终点要单独挂任务，否则永远无法归因、也无法诚实标 done。2026-11-11 据此把 S14b 的 verify 收窄为两条 raster 契约输出，把总目标转 ON-4-05，并把重复条目 ON-4-01 标 superseded。这是修正被事实推翻的验收假设，不是放宽标准。",
+    "lock_respect_diagnose_round": "2026-11-11 06:33 人工轮写 .active=held 后，06:45 自动化轮检测到持锁，自动转 diagnose-only：未取锁、未碰源码、只写文档（queue v67 加注 + 报告），并独立复算出 ON-4-01 的实现已在 82af67d。判据沿用 rules.lock：pid 会消失不可作证，看 .active state 与源码 mtime。人工接续轮同样必须先写 held 再读任务定义（rules.manual_round_must_take_the_lock）。"
   },
   "tasks": [
     {
@@ -274,13 +278,14 @@
     {
       "id": "ON-4-01",
       "title": "清 S14：Rectangle 非实线 pen 改走 strokeLine 分量描边",
-      "status": "pending",
+      "status": "superseded",
       "detail": "继承 S14 原文：交互 smoke 在游戏世界内首次撞到像素契约断言（selected path batch differs at pixel/current-point case 0，零长度线段+矩形用例）。compat 的 paintShapeRows 是逐行色带、没有路径概念，Rectangle 的 PS_DOT 被画成实线；而 RuntimeSelectedPathBatch 走 PolyPolyline，每个分量按 pen.style 打点。修法：Rectangle 在 pen.style != PS_SOLID 时改用 4 条 strokeLine 描边，顺序与 PolyPolyline 分量一致（右上→左上→左下→右下→右上，每段相位从 0 起），填充仍按原 rows 路径内缩 pen.width。",
       "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0（当前为 failed: selected path raster: mixed sequence/current point differs at 0）",
       "touches": [
         "compat/win32/src/RuntimeWin32CompatGdi.cpp"
       ],
-      "note": "由 S14 转入，内容不变。 【2026-11-11 06:44 诊断】本条 detail 描述的改动**已存在于 HEAD**：82af67d(S14a) 让 Rectangle 在 pen.style != PS_SOLID 时走 4 条 strokeLine（右上→左上→左下→右下，相位从 0 起），与 detail 逐字对应。剩下的只有 verify，而 verify 被 S14b 的同一条断言链挡住（当前失败点是 selected path raster: mixed sequence/current point differs at 0）。开工前先跑 verify 定位断言，不要按 detail 重做。"
+      "note": "由 S14 转入，内容不变。 【2026-11-11 06:44 诊断】本条 detail 描述的改动**已存在于 HEAD**：82af67d(S14a) 让 Rectangle 在 pen.style != PS_SOLID 时走 4 条 strokeLine（右上→左上→左下→右下，相位从 0 起），与 detail 逐字对应。剩下的只有 verify，而 verify 被 S14b 的同一条断言链挡住（当前失败点是 selected path raster: mixed sequence/current point differs at 0）。开工前先跑 verify 定位断言，不要按 detail 重做。 【2026-11-11 06:55】已按上述理由改标 superseded；不要再按 stale detail 重做 S14a 的实现。",
+      "supersededReason": "2026-11-11 06:55 人工轮确认：detail 描述的 Rectangle 非实线改 4 条 strokeLine 已由 82af67d(S14a) 落地（06:45 并发诊断轮独立得出同一结论），本条是重复条目；verify 的 interaction smoke EXIT=0 是整条契约链终点，不该绑在单条像素任务上。S14b 承接两条 raster 像素契约，ON-4-05 承接 smoke 全绿总目标。"
     },
     {
       "id": "ON-4-02",
@@ -318,6 +323,20 @@
         "compat/win32/src/RuntimeAppleWindowSurface.mm"
       ],
       "note": "先测量再优化，不要凭感觉改。"
+    },
+    {
+      "id": "ON-4-05",
+      "title": "清 projection history 契约：rubble/selling 结构未参与 scene-Z replay",
+      "status": "pending",
+      "est": "1 轮（先诊断拿数字，再修）",
+      "detail": "S14b 修完后 --interaction-smoke-test 前进到 `projection history contract: actual rubble/selling structure did not participate in scene-Z replay`（RuntimeProjectionHistoryContract.inl:378-380）：resolveRuntimeBuildingVisibleHitSpansWin32 之后 !actualSpans.contains(base.instanceId)。resolveRuntimeBuildingVisibleHitSpans（RuntimeStructureSpriteGeometry.inl:581-598）先查 findRuntimePaintBuildingVisibleHitSpans 绘制缓存，命中即 return true；否则才建 RuntimeBuildingDepthFrameScope 做几何 replay。**第一步必须实测**：加临时观测打印 ① 本次是命中缓存还是走 replay ② spans 里实际有哪些 instanceId ③ base.instanceId 与 mission(Sold/Destroyed)、rubble 状态，拿到数字再定修法，不要猜缓存失效条件。注意契约第 374 行 fastPixels != originalPixels 已通过，说明与 GDI 像素写入无关。",
+      "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0，且三条契约输出（Selected path batch / Selected path raster / Selection frame raster）全绿；若再暴露下一条契约，按同样方式另立任务，别把 EXIT=0 又绑回本条。",
+      "touches": [
+        "src/ui/selection/diagnostics/RuntimeProjectionHistoryContract.inl",
+        "src/render/geometry/RuntimeStructureSpriteGeometry.inl",
+        "src/render/geometry/RuntimeBuildingVisibleHitSpans.h"
+      ],
+      "note": "既有缺陷首次暴露，非 S14b 回归：该断言排在两条像素契约之后，改动前 smoke 直接 return 在 selected path raster，从未执行；文档库中 projection history / scene-Z 零命中。"
     },
     {
       "id": "ON-5-01",
@@ -1582,14 +1601,18 @@
     {
       "id": "S14b",
       "title": "选中路径光栅快路径（CPU stamp）与 GDI 逐条画在 MoveDiamond 用例上不一致",
-      "status": "pending",
+      "status": "done",
       "detail": "S14a 修好后交互 smoke 前进到下一条：selected path raster: mixed sequence/current point differs at 0。用例 0 = 只画一个 MoveDiamond（半径 10，PS_SOLID 2px 笔，clip 17,11,234,164）。注意两者的画法文本相同（RuntimeSelectedPathRasterCache 就是调 drawRuntimePathRasterPrimitive 往 scratch DIB 上画），差异只可能来自 ① stamp 包围盒（minX=-radius-2, width=radius*2+5）与 2px 笔的落点偏移、② 裁剪边界逐像素写入、③ 当前位置。已给契约加了 firstDifference()：失败时直接打印首个差异像素坐标与两侧值，下一轮先重编拿这个数字，别猜。重编注意：build-product-mac 是共享目录，另有实例正在改 src/runtime/config/*，构建前先确认无并发。",
-      "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0 且输出 Selected path raster: 240 mixed-order ... exact",
+      "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test 输出 `Selected path raster: 240 mixed-order full-32-bit ... exact` 与 `Selection frame raster: 720 ... exact`（stamps 数应占多数，不能靠 fallback 绕绿）。【2026-11-11 口径修正】原文把整个 smoke 的 EXIT=0 绑在本条上不成立：smoke 是一串契约，后面还有 projection history 契约；EXIT=0 这个总目标已转 ON-4-05。",
       "touches": [
         "src/ui/selection/RuntimeSelectedPathRaster.h",
         "compat/win32/src/RuntimeWin32CompatGdi.cpp",
         "src/ui/selection/diagnostics/RuntimeSelectedPathRasterContract.inl"
-      ]
+      ],
+      "result": "2026-11-11 06:55 done：两条 raster 像素契约从 fail 转 pass（240 用例 + 720 序列，stamps=8552/fallbacks=448）。回归：菜单/遭遇战 smoke EXIT=0，指针导航 48/0，GDI 135/0，User 42/0，WindowCursor 14/0。interaction smoke 仍 EXIT=1，下一条为 projection history 契约（另立 ON-4-05）。",
+      "note": "根因不是包围盒/裁剪/当前位置：firstDifference 给出 ref=0x9269e6be optimized=0x0069e6be，RGB 相同只有高 8 位不同。32bpp BI_RGB 下 GDI 经 applyRop2 只写 RGB 24 位、保留目标高 8 位，而 CPU stamp 来自清零 scratch DIB、整 32 位赋值把目标 alpha 抹掉。详见 reports/S14b-BI-RGB高字节语义修复.md。",
+      "commit": "8ca47eb",
+      "substep": "2026-11-11 06:55 done：两处 CPU stamp 落点改为 (dst & 0xFF000000) | (color & 0x00FFFFFF)，契约 reset() 补注释说明背景高 8 位非零是刻意保留的观测判据。"
     }
   ],
   "decisions": {

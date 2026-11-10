@@ -5065,3 +5065,61 @@ pid 34694 已不存在，但按 2026-11-10 的教训 pid 不可作判据；两�
 
 零构建零运行零抓图（对端占用共享 build 目录与窗口）。以上 file:line 全部出自 `git show HEAD:` 读取，
 不是工作树——工作树里那两个文件是对端的在制品。
+
+
+## 2026-11-11 06:57 · S14b · done（BI_RGB 高 8 位语义：两条 raster 契约 240+720 转绿）
+
+人工接续轮（用户「继续任务」）。06:33 按 rules.manual_round_must_take_the_lock 先写 `.active=held`
+再读任务；开工前复核：源码最后改动 05:41 早于 05:42 的 released，无 ninja/clang/concord_runtime 进程。
+06:45 的自动化轮看到持锁，自动转 diagnose-only，只写文档未碰源码（queue v67 + 报告），两侧结论互补。
+
+### 起点与定位
+
+```
+--interaction-smoke-test  →  selected path raster: mixed sequence/current point differs at 0
+   (first pixel 18x17 ref=0x9269e6be optimized=0x0069e6be)   EXIT=1
+```
+
+RGB 完全相同（0x69e6be = 画笔 RGB(105,230,190)），只有高 8 位 0x92 vs 0x00 →
+detail 里的三个候选（stamp 包围盒 / 裁剪边界 / 当前位置）一次全排除。
+根因：compat 的 `applyRop2()`（RuntimeWin32CompatGdi.cpp:1102-1125）对 32bpp BI_RGB **只替换 RGB 24 位、
+保留目标原有高 8 位**；而两处 CPU stamp 来自每帧清零的 scratch DIB，直接整 32 位赋值，把目标背景的
+高 8 位抹成 0。快路径没有复刻它要替代的写入语义。
+
+### 修法与三轮验证
+
+`(dst & 0xFF000000u) | (color & 0x00FFFFFFu)`，落在
+`RuntimeSelectedPathRaster.h` 与 `RuntimeSelectionFrameRaster.h` 两个 stamp 落点；
+`RuntimeSelectedPathRasterContract.inl` 的 reset() 补注释，说明背景高 8 位非零是刻意保留的观测判据。
+**没有改断言、没有放宽比较、没有清 fallback 计数**。
+
+| 轮 | 结果 |
+|---|---|
+| 改动前 | `selected path raster ... differs at 0`，EXIT=1 |
+| 修第 1 处 | `Selected path raster: 240 mixed-order full-32-bit ... exact` 转绿 → 暴露 `selection frame raster: full32/currentpoint differs test=1 unit=0` |
+| 修第 2 处（同根因） | `Selection frame raster: 720 ... exact; stamps=8552 fallbacks=448` 转绿 → 暴露 `projection history contract: actual rubble/selling structure did not participate in scene-Z replay` |
+
+重编 `[2/2] Linking CXX executable concord_runtime` 0 FAILED，codesign 后运行。回归：
+菜单 smoke EXIT=0 · 遭遇战 smoke EXIT=0（161 地图全预览）· 指针导航 48/0 · GDI 135/0 ·
+User 42/0 · WindowCursor 14/0。`git diff --cached` 逐 hunk 复核只有本轮 3 文件（+21/−4），
+**提交 `8ca47eb`**（S14b 单成员族 done 即收口，同时满足 commit_milestone_exception 的可复算量化效果）。
+
+### 队列口径拆分（不是放宽验收）
+
+- `S14b` → **done**：verify 收窄为绑定两条 raster 契约自己的输出。
+- `ON-4-01` → **superseded**：detail 的实现已由 82af67d(S14a) 落地（06:45 诊断轮独立确认），
+  是重复条目；它写的 EXIT=0 其实是整条契约链的终点。
+- 新增 `ON-4-05` 承接 smoke 全绿：第一步明确为「打印命中缓存还是 replay / spans 里有哪些
+  instanceId / base 的 mission 与 rubble 状态」，不猜。
+
+判定 `ON-4-05` 是**既有缺陷首次暴露、非本轮回归**：该断言排在两条像素契约之后，改动前的 smoke
+从没执行到它；契约 374 行 `fastPixels != originalPixels` 已通过，失败点在 hit spans 读取，
+与 GDI 像素写入无数据通路。新增 4 条 rules（高 8 位语义 / 背景高位是判据 / smoke 是契约链 / 持锁诊断轮），
+产出 `reports/S14b-BI-RGB高字节语义修复.md`。
+
+### 当前状态与下一轮
+
+queue v68 · done 59 / pending 11 / superseded 7 · **in_progress 0**（77 条）；源码 HEAD `8ca47eb`，工作树干净。
+建议下一轮 `ON-3-01`（上屏自证，只加取证不改行为，06:45 诊断轮也推荐），
+或先清 `ON-4-05` 把 interaction smoke 的 EXIT=0 收掉。
+`ON-2-02` 仍被 ON-4-03（帧循环）前置，别去量分母为 2 的比值。
