@@ -1,0 +1,802 @@
+# concord_runtime 的未定义符号清单（链接缺口 = 最权威的"还差什么"）
+
+来源: build-product-mac `ninja -k 0 concord_runtime` 的 ld 输出
+本轮归档: 2026-11-10 21:10（P4-01b 音频工厂接线：缺口归零、concord_runtime 首次链接成功）
+目标架构: x86_64（CMake 探测 CPU ISA=x86_64；在 Apple Silicon 上需 Rosetta）
+
+符号总数: **0**   ← 本项目第一次出现"缺口为零"
+
+> 注意口径：0 不等于"全部实现"。`XAudio2Create` 是有意为之的 `E_NOTIMPL`
+> （多路语音混音尚未实现，登记为 P4-02），它以"明确失败"而不是"空壳成功"兑现符号。
+
+历史（同一口径，可对账）：
+
+| 时点 | 总数 | C-linkage | 项目 C++ | 本轮做了什么 |
+| --- | --- | --- | --- | --- |
+| V-01 首次链接 | 280 | 180 | 100 | 第一次走通 link，得到权威清单 |
+| S9 之后 | 267 | 167 | 100 | EMF 4 / COM 2 / CRT 3 / MCI 2 / 定时器 2 |
+| S3-1 之后 | 241 | 141 | 100 | A 段 DC 状态与查询 |
+| S3-2 之后 | 236 | 136 | 100 | B 段区域与裁剪 |
+| S3-3 之后 | 225 | 124 | 101 | C 段 11 个图元光栅 |
+| S10 之后 | 207 | 107 | 100 | 文件/进程/编码/时钟 17 个 + 窄参 CreateFileW |
+| P5-02 之后 | 198 | 107 | 91 | 放回 4 个 win32 产品 leaf（9 个 C++ 符号） |
+| P5-03 之后 | 177 | 114 | 63 | 放回 MapComposition+MapNativeOverlay（28 符号，净降 21） |
+| P5-04 之后 | 170 | 107 | 63 | 补 MapNativeOverlay 7 个 C-linkage |
+| P5-05 之后 | 149 | 86 | 63 | 输入/光标/捕获/定时器 21 个 C-linkage |
+| P5-06 之后 | 138 | 83 | 55 | 文本/字体 11 个 C-linkage |
+| S4-1 之后 | 109 | 83 | 26 | 放回 7 个字体 win32 TU（29 个 C++ 符号消失，**零新增**） |
+| S7 之后 | 35 | 1 | 34 | 窗口/消息/钩子 74 个 C-linkage（纯离屏对象模型） |
+| S6 之后 | 28 | 1 | 27 | GDI+ PNG 导出 7 个 C++ 符号（ImageIO 编码器） |
+| P5-07 之后 | 13 | 1 | 12 | D3D11 presenter 15 符号「不被引用」编译出（零新增） |
+| P5-08 之后 | 8 | 1 | 7 | 音乐策略 3（cmake 接线）+ 杂项 2（#if 守卫）编译接线（零新增） |
+| P4-01a 之后 | 8 | 1 | 7 | macOS 音频底座（解码 + AudioQueue 输出流）：**不产生符号**，缺口不动 |
+| **P4-01b 之后** | **0** | **0** | **0** | 7 个音频工厂 + XAudio2Create：**缺口归零，链接成功** |
+
+**2026-11-10 P4-01b 复核（里程碑）**：`ninja -C build-product-mac -k 0 concord_runtime`
+**BUILD_EXIT=0**，产出 `concord_runtime` 49,640,608 字节、Mach-O x86_64。
+`nm -u` 里 grep `XAudio2Create|create.*DeviceWin32|makeUnsupported` 为空。
+8 个符号的消失**零新增**——唯一新增的依赖是 6 个 `makeUnsupportedXxx` 桩
+（工厂在 null 编码器 / null 诊断钩子 / 通道越界时的诚实回退），它们是产品源文件，
+过去只在 Windows 的 `#else` 分支里被间接使用，Apple 侧第一次成为真实链接依赖。
+
+口径提醒（下一轮别被 0 骗到）：缺口是 0 只说明"ld 不再抱怨"。仍然未知的有三件——
+① 产品从未运行过，`菜单音效可播` 无第一手证据（P4-01c）；② `XAudio2Create` 返回
+`E_NOTIMPL`，多路语音在 mac 上不出声（P4-02）；③ 没有 Windows 听感基线。
+"缺口 0 + 编译干净"仍是**编译面**的完成，不是功能面的完成。
+
+**2026-11-10 P4-01a 复核**：缺口仍是 8（C 1 / C++ 7），本轮**预期不动**——音频底座
+（`src/audio/apple/RuntimeAppleAudioOutput.cpp`）是"给 P4-01b 的工厂用的零件"，自己不兑现任何
+工厂符号。产品级 `ninja -k 0 concord_runtime` 130 步编译 0 FAILED，唯一 FAILED 是链接步，
+8 个符号逐名与上表一致（XAudio2Create + 7 个 createXxxWin32）。**从这一轮起的判据**：
+音频这一族盯的不是"缺口降了没有"，而是"解码与设备是否真的对"（自测 88 checks + 与 afconvert
+逐样本一致 8,095,320 个样本），以及 b 轮的"缺口真正归零"。
+
+**2026-11-10 S4-2 复核**：缺口 **仍是 109（C 83 / C++ 26），零新增、零消失**——这是预期的。
+S4-2 不补链接符号：文本族 11 个 C-linkage 与 7 个字体 TU 的 29 个 C++ 符号在 S4-1 就已全部
+兑现，缺的一直不是"符号存在"，而是"字形画不出来"（TextOutW 只画豆腐块）。这一轮把字形光栅
+从占位换成 CoreText，链接面自然不动。**所以从本轮起，"缺口单调下降"不再是唯一进度指标**：
+S4/S7 这类"符号已在、行为不对"的轮次不会让数字下降，验收要看各自的语义断言。
+
+**2026-11-10 S4-1 复核（重要）**：上一行的 C-linkage / 项目 C++ 分段口径有误。按 ld 原始清单
+逐条判定（符号名含 `concord::` 即项目 C++），P5-06 之后的 138 实际是 **C 83 / C++ 55**，
+不是 75/63。总数一直是对的，只有分段列错。S4-1 之后 109 = C 83 / C++ 26，即本轮
+**C 段一个都没动、C++ 段 −29**，与"放回 7 个字体 TU"完全对得上（逐名 diff：消失 29、新增 0）。
+本表 P5-06 及更早的 C/C++ 两列只可看趋势，不可用于对账。
+
+读法: 这一份不是 todo 列表，是**分区图**。
+  A 段（C-linkage）是兼容层该兑现的 Win32/CRT 接口，机械工作，按族逐个实现。
+  B 段（项目 C++）是 macOS 上**根本没有对应实现**的 Windows 专属层
+  （字体/文字、GDI 覆盖绘制、D3D11 presenter、音频设备、BMP 读取），不能靠 shim
+  兑现，要么把原 TU 放回构建图（纯逻辑），要么写 macOS 原生对位（D3D11）。
+
+注意：**编译干净 ≠ 能跑**。编译只证明头层对上了，ld 才告诉你实现还差多少。
+每轮收尾都要重跑本清单，链接缺口必须单调下降。
+
+==============================================================================
+A. C-linkage：兼容层范围
+==============================================================================
+
+## S4 文本族  (0)  —— 已闭环（P5-06）
+  CreateFontW / DrawTextA / DrawTextW / ExtTextOutA / GetGlyphIndicesW / GetTextAlign /
+  GetTextExtentPoint32W / SetTextAlign / TextOutW / GetAwarenessFromDpiAwarenessContext /
+  GetThreadDpiAwarenessContext 共 11 个已兑现（DrawFrameControl 在 P5-05 已兑现）。
+  文本绘制用"缺字形"豆腐块占位（真实字形光栅留 S4 的 CoreText 后端），见 P5-06 说明。
+
+## S7 窗口 / 消息 / 输入 / 钩子  (74)
+  —— 结构性里程碑。前置是"窗口后端建在什么之上"的选型（SDL3 / 原生 Cocoa / 纯离屏）。
+  AdjustWindowRect
+  AdjustWindowRectEx
+  BeginPaint
+  BringWindowToTop
+  CallNextHookEx
+  CallWindowProcW
+  ClientToScreen
+  CreateWindowExW
+  DefWindowProcW
+  DestroyWindow
+  DispatchMessageW
+  EnableWindow
+  EndPaint
+  EnumDesktopWindows
+  EnumThreadWindows
+  FindWindowExW
+  GetAncestor
+  GetAsyncKeyState
+  GetAwarenessFromDpiAwarenessContext
+  GetCapture
+  GetClassInfoW
+  GetClassNameW
+  GetClientRect
+  GetCursor
+  GetCursorInfo
+  GetCursorPos
+  GetDC
+  GetDoubleClickTime
+  GetFocus
+  GetForegroundWindow
+  GetKeyNameTextW
+  GetKeyState
+  GetKeyboardState
+  GetMenu
+  GetMessageW
+  GetMonitorInfoW
+  GetParent
+  GetPropW
+  GetSystemMetrics
+  GetSystemPowerStatus
+  GetThreadDesktop
+  GetThreadDpiAwarenessContext
+  GetUpdateRect
+  GetWindow
+  GetWindowLongPtrW
+  GetWindowRect
+  GetWindowTextW
+  GetWindowThreadProcessId
+  InvalidateRect
+  IsIconic
+  IsWindow
+  IsWindowEnabled
+  IsWindowVisible
+  IsZoomed
+  KillTimer
+  LoadCursorW
+  MapVirtualKeyW
+  MessageBeep
+  MessageBoxW
+  MonitorFromWindow
+  MoveWindow
+  MsgWaitForMultipleObjectsEx
+  PeekMessageW
+  PostMessageW
+  PostQuitMessage
+  RedrawWindow
+  RegisterClassExW
+  RegisterClassW
+  ReleaseCapture
+  ReleaseDC
+  RemovePropW
+  ScreenToClient
+  SendInput
+  SendMessageW
+  SetCapture
+  SetCursor
+  SetCursorPos
+  SetFocus
+  SetForegroundWindow
+  SetKeyboardState
+  SetPropW
+  SetTimer
+  SetWindowLongPtrW
+  SetWindowPos
+  SetWindowTextW
+  SetWindowsHookExW
+  ShowWindow
+  SystemParametersInfoW
+  TrackMouseEvent
+  TranslateMessage
+  UnhookWindowsHookEx
+  UnregisterClassW
+  UpdateWindow
+  ValidateRect
+  WaitMessage
+  WindowFromPoint
+
+## S10 文件 / 进程 / 字符集 / 时间  (17) —— 已闭环（2026-11-10）
+  17 个 + 窄参 CreateFileW 重载 1 个，逐名核对零残留。见文件末尾附录。
+
+## P4-01 音频（XAudio2 设备工厂）  (1)
+  XAudio2Create
+
+==============================================================================
+B. 项目 C++：macOS 上缺实现的 Windows 专属层
+==============================================================================
+
+这些符号之所以缺，是因为 concord_apple_strip_win32_sources 把 **/win32/** 整棵
+从 Apple 构建图裁掉了。**不是都要重写**：一类"只是住在 win32/ 目录里的纯逻辑"，
+S3/S4 的 GDI 到位后可以直接放回构建图（源码零改动）；D3D11 presenter 则必须
+换成"不被引用"（软件呈现路径已存在）。见 P5-01。
+
+## 字体类  (0)  —— 已闭环（2026-11-10 S4-1）
+  原 29 个符号由 7 个字体 TU 兑现：Hud 6 / Main 4 / Campaign 5 / CampaignScore 4 /
+  MatchResult 4 / Skirmish 5 / MainVideoFooter 1。做法是「放回」而非重写——这 7 个 TU 是
+  纯逻辑 + GDI 调用，源码只加了 3 行 #if defined(_WIN32) 守卫（Windows 分支逐字节未变）。
+  drawResultBitmapTextWin32 已在 P5-02 放回，上一版清单把它重复计入 29，实际是 28+1。
+
+---
+
+## 2026-11-10 S4-1 实测：当前项目 C++ 缺口精确分组（26 个）
+
+**下方各节（MapNativeOverlay 20 / 呈现器 16 / 其他 14 / 音频设备 12 / GDI+ 7 /
+RadarPixelStore 2 / 窄参 1）是 V-01~P5-03 期间的历史快照，已不再准确**：
+MapNativeOverlay 20 与 RadarPixelStore 2 由 P5-03/P5-04 放回、呈现器里的 Dib 与
+composeOverlay 由 P5-02 放回、GDI+ 7 与窄参 1 仍缺。排期只看本节。
+
+### 音频设备工厂  (7) —— 依赖 XAudio2 真实后端（P4-01）
+  createAsyncSoundDeviceWin32()
+  createAsyncSoundDeviceWin32ForDiagnostics(bool (*)(wchar_t const*, unsigned int))
+  createCampaignMapAudioDeviceWin32(concord::audio::CampaignMapAudioChannel)
+  createLegacyWaveDeviceWin32(concord::audio::RuntimeLegacyWaveChannel, std::wstring, ...)
+  createMainMenuMusicDeviceWin32()
+  createMenuSoundDeviceWin32()
+  createSkirmishMusicDeviceWin32(std::wstring, ...)
+
+### D3D11 presenter  (15) —— 已闭环（2026-11-10 P5-07「不被引用」）
+  处置不是实现 D3D11/Metal，而是把 D3D11 presenter 从 Apple 构建图「编译出」——
+  软件呈现路径（software-present=ON）本就存在，D3D11 分支在 Apple 上恒为死代码。
+  15 个成员符号（active/create/presentMap/presentMenu/resetResources/tryRecoverDevice/
+  fallbackToSoftware/composeDeviceOverlay/enableTimingOutput/recordCpuWork/report/
+  printReport/timingCount/timings/~D3D11FramePresenterWin32）用 `#if defined(_WIN32)`
+  守卫三处引用点：RuntimeShell.cpp（WM_PAINT + 成员 + 两个 GPU contract 调用点 +
+  RuntimeMainFrameContract/RuntimeMapGpuTiming include）、RuntimeSkirmishMenu.cpp
+  （renderShellClient + menuGpu 成员 + RuntimeGpuMenuContract/Timing include）、
+  RuntimeMapRenderer.cpp（14 个 GPU fixture/contract include）、RuntimeWindowLifecycleUi.inl
+  （releaseGraphics 里的 reset）。零新增，缺口 28 → 13。见文末附录。
+
+### SkirmishMusicPolicy  (3) —— 编译了没链接（link 行在 if(WIN32) 里）
+  SkirmishMusicPolicy::{start, stop, poll}
+
+### 菜单 BMP 读取  (1) —— 依赖 Windows 位图 API（S6 邻接）
+  concord::assets::menuWin32BmpReader()
+
+## MapNativeOverlay  (20)
+  concord::ui::win32::MapNativeOverlayWin32::MapNativeOverlayWin32(concord::ui::win32::MapNativeOverlayProbe*)
+  concord::ui::win32::MapNativeOverlayWin32::active() const
+  concord::ui::win32::MapNativeOverlayWin32::begin(HDC_handle_tag*, int, int, concord::render::MapDrawList&, unsigned int const*)
+  concord::ui::win32::MapNativeOverlayWin32::cancel()
+  concord::ui::win32::MapNativeOverlayWin32::current()
+  concord::ui::win32::MapNativeOverlayWin32::dc() const
+  concord::ui::win32::MapNativeOverlayWin32::drawList()
+  concord::ui::win32::MapNativeOverlayWin32::emit(concord::render::MapDrawCommand)
+  concord::ui::win32::MapNativeOverlayWin32::finish()
+  concord::ui::win32::MapNativeOverlayWin32::height() const
+  concord::ui::win32::MapNativeOverlayWin32::readPixel(HDC_handle_tag*, int, int)
+  concord::ui::win32::MapNativeOverlayWin32::recordVisionEffects(unsigned long)
+  concord::ui::win32::MapNativeOverlayWin32::reject(char const*)
+  concord::ui::win32::MapNativeOverlayWin32::release()
+  concord::ui::win32::MapNativeOverlayWin32::report() const
+  concord::ui::win32::MapNativeOverlayWin32::setBrushColor(HDC_handle_tag*, unsigned int)
+  concord::ui::win32::MapNativeOverlayWin32::setPenColor(HDC_handle_tag*, unsigned int)
+  concord::ui::win32::MapNativeOverlayWin32::targets(unsigned int const*) const
+  concord::ui::win32::MapNativeOverlayWin32::width() const
+  concord::ui::win32::MapNativeOverlayWin32::~MapNativeOverlayWin32()
+
+## 呈现器  (16)
+  concord::presentation::win32::D3D11FramePresenterWin32::active() const
+  concord::presentation::win32::D3D11FramePresenterWin32::composeDeviceOverlay(concord::ui::win32::MainBackBufferWin32 const&, concord::ui::win32::MainBackBufferWin32&, RuntimeInputPixelRect, void (*)(HDC_handle_tag*, void*), void*)
+  concord::presentation::win32::D3D11FramePresenterWin32::create(HWND_handle_tag*, concord::presentation::FrameBackendOptions, concord::presentation::FramePresentStatistics&, concord::presentation::win32::D3D11FrameProbeWin32*)
+  concord::presentation::win32::D3D11FramePresenterWin32::enableTimingOutput()
+  concord::presentation::win32::D3D11FramePresenterWin32::fallbackToSoftware(char const*, long)
+  concord::presentation::win32::D3D11FramePresenterWin32::presentMap(concord::render::MapDrawFrame const&, unsigned long long)
+  concord::presentation::win32::D3D11FramePresenterWin32::presentMenu(concord::ui::MenuDrawFrame const&, unsigned long long)
+  concord::presentation::win32::D3D11FramePresenterWin32::printReport()
+  concord::presentation::win32::D3D11FramePresenterWin32::recordCpuWork(double, double)
+  concord::presentation::win32::D3D11FramePresenterWin32::report() const
+  concord::presentation::win32::D3D11FramePresenterWin32::resetResources()
+  concord::presentation::win32::D3D11FramePresenterWin32::timingCount() const
+  concord::presentation::win32::D3D11FramePresenterWin32::timings() const
+  concord::presentation::win32::D3D11FramePresenterWin32::tryRecoverDevice()
+  concord::presentation::win32::D3D11FramePresenterWin32::~D3D11FramePresenterWin32()
+  concord::presentation::win32::DibFramePresenterWin32::DibFramePresenterWin32(HDC_handle_tag*, concord::ui::win32::MainBackBufferWin32 const&, concord::presentation::FramePresentStatistics&, concord::presentation::win32::DibPresentGdiApi)
+
+## 其他  (14)
+  concord::assets::menuWin32BmpReader()
+  concord::ui::drawMainStockVideoFooter(HDC_handle_tag*, concord::ui::BasicMainStockFooterTextRequest<wchar_t> const&)
+  concord::ui::win32::MapCompositionRequestWin32::MapCompositionRequestWin32(concord::ui::win32::MapCompositionWin32&, HDC_handle_tag*, unsigned int const*, int, int)
+  concord::ui::win32::MapCompositionRequestWin32::capture(HDC_handle_tag*, unsigned int const*, int, int)
+  concord::ui::win32::MapCompositionRequestWin32::captureWorld(HDC_handle_tag*, unsigned int const*, int, int)
+  concord::ui::win32::MapCompositionRequestWin32::start()
+  concord::ui::win32::MapCompositionRequestWin32::~MapCompositionRequestWin32()
+  concord::ui::win32::MapCompositionWin32::appendOpaque(RuntimeInputPixelRect, unsigned int const*, int)
+  concord::ui::win32::MapCompositionWin32::finish()
+  concord::ui::win32::MapCompositionWin32::prepare()
+  concord::ui::win32::SkirmishBackBufferWin32::ensure(HDC_handle_tag*, int, int)
+  concord::ui::win32::SkirmishBackBufferWin32::release(concord::ui::win32::SkirmishGdiReleaseTrace*)
+  concord::ui::win32::SkirmishBackBufferWin32::upload(concord::ui::BasicMenuPixelSurfaceView<unsigned char const>)
+  runRuntimeInternetMenuClockContract(std::__1::__fs::filesystem::path const&)
+
+## 音频设备  (12)
+  concord::audio::createAsyncSoundDeviceWin32()
+  concord::audio::createAsyncSoundDeviceWin32ForDiagnostics(bool (*)(wchar_t const*, unsigned int))
+  concord::audio::createCampaignMapAudioDeviceWin32(concord::audio::CampaignMapAudioChannel)
+  concord::audio::createLegacyWaveDeviceWin32(concord::audio::RuntimeLegacyWaveChannel, std::__1::basic_string<wchar_t, std::__1::char_traits<wchar_t>, std::__1::allocator<wchar_t>> (*)(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&))
+  concord::audio::createMainMenuMusicDeviceWin32()
+  concord::audio::createMenuSoundDeviceWin32()
+  concord::audio::createSkirmishMusicDeviceWin32(std::__1::basic_string<wchar_t, std::__1::char_traits<wchar_t>, std::__1::allocator<wchar_t>> (*)(std::__1::__fs::filesystem::path const&))
+  concord::presentation::win32::composeWindowDeviceOverlayWin32(HWND_handle_tag*, concord::ui::win32::MainBackBufferWin32 const&, concord::ui::win32::MainBackBufferWin32&, concord::ui::win32::SkirmishBackBufferWin32&, RuntimeInputPixelRect, void (*)(HDC_handle_tag*, void*), void*, concord::presentation::win32::WindowOverlayGdiApi)
+  concord::ui::SkirmishMusicPolicy::poll(bool, concord::audio::MenuMusicDevice&)
+  concord::ui::SkirmishMusicPolicy::start(std::__1::__fs::filesystem::path const&, bool, concord::audio::MenuMusicDevice&)
+  concord::ui::SkirmishMusicPolicy::stop(concord::audio::MenuMusicDevice&)
+  concord::ui::win32::SkirmishBackBufferWin32::ensureDeviceBitmap(HDC_handle_tag*, int, int)
+
+## GDI+  (7)
+  Gdiplus::Bitmap::Bitmap(int, int, int, int, unsigned char*)
+  Gdiplus::Bitmap::Save(char const*, GUID const*, void const*) const
+  Gdiplus::Bitmap::Save(wchar_t const*, GUID const*, void const*) const
+  Gdiplus::GdiplusShutdown(unsigned long)
+  Gdiplus::GdiplusStartup(unsigned long*, Gdiplus::GdiplusStartupInput const*, Gdiplus::GdiplusStartupOutput*)
+  Gdiplus::GetImageEncoders(unsigned int, unsigned int, Gdiplus::ImageCodecInfo*)
+  Gdiplus::GetImageEncodersSize(unsigned int*, unsigned int*)
+
+## RadarPixelStore  (2)
+  RuntimeRadarPixelStore::RuntimeRadarPixelStore(HDC_handle_tag*, HBITMAP_handle_tag*, void*, int, int, bool, bool, RuntimeRadarPixelStoreGdiApi)
+  RuntimeRadarPixelStore::~RuntimeRadarPixelStore()
+
+## 窄参重载  (1) —— 已闭环（S10）
+  说明：这不是"顺手加的糖"。std::filesystem::path::c_str() 在 Windows 给
+  const wchar_t*、在本平台给 const char*，而 RuntimeCursorSmoke 的存档走查就是
+  CreateFileW(path.c_str(), ...)。窄版与宽版共用同一个 openFile，语义完全相同。
+
+==============================================================================
+C. 已闭环（本轮起点→现在）
+==============================================================================
+
+S3 段（GDI 矢量绘制与 DC 状态，共 42 个）**零残留**：A 段 29（S3-1）、
+B 段 12（S3-2，其中 5 个在缺口内）、C 段 11（S3-3）。三轮均已逐名核对。
+
+
+==============================================================================
+附录：S10 之后（2026-11-10）· 225 → 207
+==============================================================================
+
+S10 兑现 18 个 = 缺口内 17 个 C-linkage + 1 个自造 C++ 重载，逐名核对零残留：
+
+  句柄 / 错误        3   CloseHandle, GetLastError, SetLastError
+  进程 / 线程        3   GetCurrentProcess, GetCurrentProcessId, GetCurrentThreadId
+  模块 / 导出        2   GetModuleHandleW, GetProcAddress
+  文件 I/O           2   WriteFile, CreateFileW（窄参重载，C++ 链接）
+  环境变量           2   GetEnvironmentVariableW, GetEnvironmentVariableA
+  编码               2   MultiByteToWideChar, WideCharToMultiByte
+  时钟               4   Sleep, GetTickCount64, QueryPerformanceCounter, GetSystemTime
+
+仍缺 207 = C-linkage 107 + 项目 C++ 100（C++ 段一个没动，因为本任务不碰 win32/ 目录）。
+
+107 的重新分族（只作导航，逐名以 A 段原文为准）：
+  S7 窗口 / 消息 / 输入        92   含 12 个窗口查询（GetSystemMetrics /
+                                     GetWindowLongPtrW / GetWindowRect / GetDC 等）
+  S4 GDI 文本                 11   DrawTextW/A、TextOutW、ExtTextOutA、CreateFontW、
+                                   GetTextExtentPoint32W、GetGlyphIndicesW、
+                                   Get/SetTextAlign、DrawFrameControl、GetKeyNameTextW
+  S4 文本配套                  3   MessageBeep、GetKeyNameTextW 之外的两个（随 S4 收口）
+  音频                         1   XAudio2Create ← P4-01
+
+三件必须在下一轮之前记住的事（是"判据"，不是"待办"）：
+
+1. **CreateFileW 的失败码不是装饰**。RuntimeAtomicFile 的临时文件重试用
+   `GetLastError() == ERROR_FILE_EXISTS || == ERROR_ALREADY_EXISTS` 分流，并在
+   ACCESS_DENIED 时再查一次属性决定要不要重试。若一律给 0 或 GEN_FAILURE，
+   重试循环会空转 8 次后报"临时文件重试耗尽"——症状与"磁盘满了"一模一样。
+   本轮的映射表就是按调用点真正会比较的那几个值写的，不是按 MSDN 顺序抄的。
+
+2. **WriteFile 不 fsync**。Windows 的 WriteFile 也不保证落盘，落盘是
+   FlushFileBuffers。为"稳妥"在这里加 fsync 会让存档路径慢一个数量级，
+   而崩溃安全性一点没提高——原子性来自 rename，不来自把临时文件刷盘。
+
+3. **wchar_t 宽度差异不在这层修**。本平台 wchar_t 是 32 位，U+1F600 是**一个**
+   wchar_t；Windows 上是两个。本层保证的是**码点序列一致**。凡是拿 size() 当
+   判据的地方（截断阈值、缓冲长度），两平台数字本来就不同——将来若要跨平台
+   逐字节对拍，得先把这些判据改成按码点数，不能指望"这层做得更仔细"。
+
+**一处刻意的偏离**（记在这里，免得下次被当成 bug）：
+  GetCurrentProcess() 返回独立令牌指针，**不是** (HANDLE)-1。Windows 的伪句柄
+  恰好等于 INVALID_HANDLE_VALUE，而本项目多处拿这个值判"打开失败"；照抄会让
+  "当前进程句柄"被自己的失败判据命中。CloseHandle(伪句柄) 仍返回 FALSE。
+
+
+==============================================================================
+附录：P5-02 之后（2026-11-10）· 207 → 198
+==============================================================================
+
+P5-02 兑现 9 个 C++ 符号（放回 4 个 win32 产品 leaf，源码零改动、纯 cmake 条件重构）：
+
+  背缓冲 4      SkirmishBackBufferWin32::ensure/release/upload/ensureDeviceBitmap
+  雷达 2        RuntimeRadarPixelStore::ctor/dtor
+  结果位图文字 1  drawResultBitmapTextWin32
+  帧呈现 2      DibFramePresenterWin32::DibFramePresenterWin32（ctor）+ composeWindowDeviceOverlayWin32
+
+仍缺 198 = C-linkage 107 + 项目 C++ 91。C-linkage 一个没动（GetDC/ReleaseDC 等 S7 符号本就缺）。
+
+**关键修正（推翻任务卡 16 符号的前提）**：MapComposition 的 8 符号本轮**没放**，因为
+`MapCompositionWin32.h` include 了 `MapNativeOverlayWin32.h`，且 `MapCompositionWin32` 有成员
+`MapNativeOverlayWin32 native_;` 并调用 native_.begin()/cancel()/finish()。两者在同一 leaf
+`concord_map_native_overlay_win32` 里，拆开独立放回会让 MapComposition 的 .o 连带缺
+MapNativeOverlay 的 20 个符号。正确处置：MapComposition 8 + MapNativeOverlay 20 一起放回，
+并入 P5-03（补 getenv_s + 32 EMR 常量 + 解耦 D3D11 include 链）。
+
+**零新增**：放回的 4 个文件没有引入任何新的未定义符号（逐名核对消失 9 / 新增 0）。FramePresenter
+的 composeOverlay 取 &::GetDC/&::ReleaseDC 地址，这俩属 C-linkage 缺口（S7），本就缺，不新增。
+
+**Windows 零回归的依据**：4 个合约文件的条件重构都满足「Windows 下等价」——`if(WIN32 OR APPLE)`
+在 Win 下恒真、`if(NOT WIN32 AND NOT APPLE)` 恒假、contract 测试（gdi32/user32 + MSVC ABI）仍锁在
+`if(WIN32)` 内。是条件分支逻辑等价推出来的，非 Windows 实测。
+
+
+==============================================================================
+附录：P5-03 之后（2026-11-10）· 198 → 177
+==============================================================================
+
+P5-03 兑现 28 个 C++ 符号（放回 MapComposition + MapNativeOverlay，两者同 leaf），
+同时新增 7 个 C-linkage 缺口（放回后才有调用点）。净降 21 = 28 − 7：
+
+  项目 C++ 兑现 28    MapNativeOverlayWin32 20 + MapComposition 8（逐名核对 0 残留）
+  新增 C-linkage 7    GdiComment, GetEnhMetaFileBits, GetDeviceCaps, SetPolyFillMode,
+                      GetPolyFillMode, PlayEnhMetaFileRecord, PtVisible
+
+仍缺 177 = C-linkage 114（107+7）+ 项目 C++ 63（91−28）。
+
+**推翻任务卡两个数字**：
+1. 「32 个 EMR 常量」→ 实际 **98 个**（MapNativeOverlayReplayWin32.inl 的 switch 用到，S2 只补 4）。
+   全部按 wingdi.h 官方枚举值补全，关键易错值已用 MSDN 核对（EMR_GDICOMMENT=70、
+   EMR_SETLAYOUT=115、EMR_ALPHABLEND=114、EMR_GRADIENTFILL=118）。
+2. 「缺口 198 → 170」→ 实际 **198 → 177**。差 7 正是放回后新增的 C-linkage——
+   任务卡写「170」是漏算了「放回 leaf 会引入它自己还没实现的那批 Win32 API」。
+
+**7 个新增 C-linkage 的去向**：都是 MapNativeOverlay 的运行时依赖，留 P5-04 补实现。
+其中 6 个是机械活（GdiComment 写 EMR_GDICOMMENT / GetEnhMetaFileBits 导出字节流 /
+GetDeviceCaps 查尺寸 / Set/GetPolyFillMode DC 状态 / PtVisible 裁剪判点），
+1 个是硬活（PlayEnhMetaFileRecord 要反序列化回放各记录类型到软件 DC）。
+
+**唯一源码改动（非 compat 层）**：`MapNativeOverlayReplayWin32.inl` 两处
+`std::max(0L, RECT 差值)` → `std::max(static_cast<LONG>(0), ...)`。原因是 Windows 上
+`LONG=long`（32 位），`0L` 与之同型；本平台 `LONG=int32_t`（32 位 int）而 `0L` 是
+64 位 long，`std::max` 模板推导失败。`static_cast<LONG>(0)` 在两平台同型（Windows
+long / macOS int），语义不变。其余 std::max/std::min 均已带显式模板参数或 cast，无需动。
+
+**头层新增（compat/win32/include/windows.h）**：98 个 EMR 常量、9 个 EMR 结构体
+（EMR/EMRGDICOMMENT/EMRMOVETOEX/EMRLINETO/EMRRESTOREDC/EMRCREATEPEN/EMREXTCREATEPEN/
+EMRSETPIXELV/EMRANGLEARC）、POINTL 别名、EXTLOGPEN32、SPI_GETFONTSMOOTHING×4、
+HORZRES/VERTRES/HORZSIZE/VERTSIZE、getenv_s/GdiComment/GetEnhMetaFileBits/
+PlayEnhMetaFileRecord/PtVisible 声明。getenv_s 实现于 RuntimeWin32CompatMisc.cpp
+（复用 _wgetenv_s 内核，窄版不加 UTF-8 往返），selftest 14 checks 全绿。
+
+**cmake 解耦**：`include(MapNativeOverlayWin32.cmake)` 从 D3D11FramePresenter.cmake
+末尾（带 FATAL_ERROR(fxc.exe)，Apple 绝不能碰）移到 SoftwareFrameContracts.cmake 的
+`if(WIN32 OR APPLE)` 内；MapNativeOverlayWin32.cmake 加 include_guard(GLOBAL)。
+依赖 `concord_skirmish_back_buffer_win32` 在 DevelopmentTargets.cmake 里先于本文件
+include，顺序安全。
+
+
+==============================================================================
+附录：P5-04 之后（2026-11-10）· 177 → 170
+==============================================================================
+
+P5-04 兑现 7 个 C-linkage，零新增，净降 7：
+
+  GdiComment / GetEnhMetaFileBits / GetDeviceCaps / SetPolyFillMode /
+  GetPolyFillMode / PlayEnhMetaFileRecord / PtVisible（逐名核对 0 残留）
+
+仍缺 170 = C-linkage 107（114−7）+ 项目 C++ 63（不变）。
+
+**实现要点**：
+1. polyFillMode：CompatDevice/CompatSavedState 各加 `int polyFillMode = ALTERNATE`，
+   SaveDC/RestoreDC 保存恢复；Set 返回旧值、非法模式（非 ALTERNATE/WINDING）返回 0
+   且不改状态。
+2. GetDeviceCaps：HORZRES/VERTRES 取 DC 位图宽高（录制 DC 无表面→诚实 0）；
+   HORZSIZE/VERTSIZE 按 96 DPI 换算 MulDiv(px,254,960) 毫米；未知 index 返回 0。
+3. GetEnhMetaFileBits：两段式（cbBuffer=0 查询 / 拷贝），缓冲区不足返回所需字节数。
+4. GdiComment：往录制 DC 追加 EMR_GDICOMMENT（nSize=sizeof(EMR)+sizeof(DWORD)+cbSize），
+   不参与边界合并（私有标记无 rclBounds）。
+5. PtVisible：无裁剪→全可见；有裁剪→regionContainsPoint(clip) 判点（NULLREGION 全不可见）。
+6. PlayEnhMetaFileRecord：EMR_HEADER/EOF/GDICOMMENT 返回 TRUE；EMR_BITBLT/EMR_STRETCHBLT
+   从内嵌 BITMAPINFOHEADER+位图字节重建源位图（allocateBitmap+memcpy），交给
+   BitBlt/StretchBlt 回放；其余记录类型诚实返回 FALSE（录制 DC 当前只产这三种，
+   图元/文本/alpha 在录制时就被对应函数显式拒绝）。
+
+**本轮踩的坑（重要）**：Gdi.cpp 的对外 API 全部位于 `extern "C" { ... }` 块内
+（约 line 1452–3200），而 emfRecordBlit 等内部 helper 在块外。第一版把 GdiComment
+插在 emfRecordBlit 之后（块外），导致它是 C++ mangled 符号、与 windows.h 的
+extern "C" 声明（_GdiComment）对不上，链接仍报未定义。已移到 extern "C" 块内解决。
+教训：**往 Gdi.cpp 加新 API 必须落在 extern "C" 块内**，否则静默变成 C++ 链接。
+
+**唯一结构性认知修正**：PlayEnhMetaFileRecord 不需要实现 scan() 承认的全部 98 种
+记录——录制型 DC 目前只产出 EMR_GDICOMMENT（marker）+ EMR_BITBLT/EMR_STRETCHBLT
+（位块），图元/文本/alpha/区域在录制时就被对应函数显式拒绝（不写流）。所以回放
+只需正确支持这三种 + 诚实失败兜底，范围远小于"反序列化全部记录类型"。
+
+**验证**：
+```
+ninja concord_runtime      编译 0 错误，链接缺口 177 → 170（C 114→107，C++ 63 不变）
+gdi selftest              124 checks（新增 44：polyFill 17 + EMF 往返 19 + PtVisible 8），0 failures
+verify-win32-compat.sh    10/10 层全绿（399 声明 / inline 67 / GDI 124 / DC 207 /
+                          XAPO 25 / EMF 47 / 小族 66 / 区域 154 / 图元 141 / 文件 147）
+```
+
+
+==============================================================================
+附录：P5-05 之后（2026-11-10）· 170 → 149
+==============================================================================
+
+P5-05 兑现 21 个 C-linkage，零新增，净降 21：
+
+  键盘（7）  GetKeyState / GetAsyncKeyState / GetKeyboardState / SetKeyboardState /
+             MapVirtualKeyW / GetKeyNameTextW / SendInput
+  光标（6）  GetCursor / GetCursorInfo / GetCursorPos / SetCursor / SetCursorPos / LoadCursorW
+  捕获（3）  GetCapture / SetCapture / ReleaseCapture
+  定时器（3）SetTimer / KillTimer / GetDoubleClickTime
+  其它（2）  TrackMouseEvent / DrawFrameControl
+
+仍缺 149 = C-linkage 86（107−21）+ 项目 C++ 63（不变）。
+
+**实现要点（新建 compat/win32/src/RuntimeWin32CompatInput.cpp）**：
+1. 键盘：256 字节静态状态数组恒 0（"未按下"）。GetKeyState/GetAsyncKeyState 返回 0；
+   Get/SetKeyboardState 往返 memcpy；MapVirtualKeyW/GetKeyNameTextW/SendInput 诚实 0。
+2. 光标：LoadCursorW 对标准 ID（32512..32650）返回稳定非 NULL 伪句柄（编码原 ID），
+   对自定义字符串名返回 NULL——因为 SetCursor(NULL) 是"隐藏光标"，返回 NULL 会静默把
+   "加载失败"读成"故意隐藏"。SetCursor/GetCursor 维护当前句柄，SetCursorPos/GetCursorPos
+   维护逻辑坐标，GetCursorInfo 填 flags=0。
+3. 捕获：SetCapture/GetCapture/ReleaseCapture 是**逻辑状态机**（哪个窗口拥有捕获），
+   不依赖真实鼠标路由。维护状态比返回 NULL 更接近 Win32 语义，让产品里
+   `SetCapture(w); GetCapture()==w` 的判据成立。
+4. 定时器：SetTimer/KillTimer 是纯登记桩（返回 TRUE）。无事件循环派发 WM_TIMER；
+   返回 FALSE 会让调用方走错误分支，而两种返回值都不会让菜单刷新，TRUE 更安全。
+5. DrawFrameControl：只实现 DFC_BUTTON（项目唯一调用点是外交页复选框 fallback），
+   用 CreatePen + SelectObject(NULL_BRUSH) + Rectangle 画空心方框，DFCS_CHECKED 画 √ 折线。
+
+**本轮踩的坑（重要）**：applyRop2 保留**目标** alpha 字节（`dst & 0xFF000000`），
+不保留笔的 alpha。所以黑笔（RGB 0）画在 alpha=0 的透明 DIB 上，结果仍是 0x00000000
+（全零）——"画了等于没画"。这不是 bug 而是 32bpp BI_RGB 不带 alpha 语义的正确行为。
+自测因此**先 PatBlt WHITENESS 填不透明白背景**再画黑框，断言边框像素 == 0xFF000000，
+而不是"任意非零"。教训：断言"真画了"时，笔色不能是 RGB(0,0,0) 且背景不能透明。
+
+**验证**：
+```
+ninja concord_runtime      编译 0 错误，链接缺口 170 → 149（C 107→86，C++ 63 不变）
+input selftest            46 checks，0 failures
+verify-win32-compat.sh    11/11 层全绿（新增输入/光标/捕获/定时器层）
+```
+
+
+==============================================================================
+附录：P5-06 之后（2026-11-10）· 149 → 138
+==============================================================================
+
+P5-06 兑现 11 个 C-linkage，零新增，净降 11：
+
+  文本/字体 9    CreateFontW / GetTextExtentPoint32W / GetTextAlign / SetTextAlign /
+                 TextOutW / ExtTextOutA / DrawTextW / DrawTextA / GetGlyphIndicesW
+  DPI 感知 2     GetThreadDpiAwarenessContext / GetAwarenessFromDpiAwarenessContext
+
+仍缺 138 = C-linkage 75（86−11）+ 项目 C++ 63（不变）。
+
+**文本绘制 = "缺字形"豆腐块占位**（不是静默 no-op）。无 CoreText 后端（S4）时，
+调用方要的"菜单有可读文字"无法成立，故不能"返回 TRUE 但不画"。豆腐块让文本：①可见；
+②占满正确布局空间（GetTextExtentPoint32W 与 TextOutW 共用同一套 fontMetricsFor）；
+③□ 是"缺字形"通用约定，一眼可辨"字形还没接进来"。S4 换 CoreText 时把 drawTofuGlyph
+换成按码点查真实字形即可，调用点不变。
+
+**DPI 必须返回 PER_MONITOR_AWARE**：MapNativeOverlayWin32::begin 有硬门槛
+`GetAwarenessFromDpiAwarenessContext(GetThreadDpiAwarenessContext()) !=
+DPI_AWARENESS_PER_MONITOR_AWARE` 会直接 fail。软件帧缓冲不缩放、按原生像素渲染，
+本就等价于"每显示器感知"，返回 PER_MONITOR_AWARE 是如实而非迁就。
+
+**GetGlyphIndicesW 诚实返回 GDI_ERROR**：无 Unicode→字形索引表，编造"恒等映射"会让
+调用方以为能拿到真实字形索引。唯一调用点是 RuntimePlayerDefeatNoticeSmoke 的"字体
+覆盖汉字"判据，返回 GDI_ERROR 让它如实报"字体缺字形"——正是 mac 上的真相。
+
+**GetObject 语义变更连带**：P5-05 及之前 GetObject(font) 返回 0（诚实失败），本轮
+CreateFontW 存 fontLog 后 GetObject 如实回填 LOGFONTW；库存字体回填零值 LOGFONT
+（lfHeight=0）。旧断言（"暂不给 LOGFONT == 0"）已同步更新为 sizeof(LOGFONTW)==156。
+
+**字体度量 fontMetricsFor**：字高 = |lfHeight|（0 回落 16px）；字宽 = |lfWidth|
+（0 按 5:7 比例 round(h×5/7)）。度量与绘制共用，故"先量后画"不错位。
+
+**验证**：
+```
+ninja concord_runtime      编译 0 错误，链接缺口 149 → 138（C 86→75，C++ 63 不变）
+text selftest             55 checks，0 failures
+verify-win32-compat.sh    12/12 层全绿（新增文本/字体层）
+```
+
+**剩余 C-linkage 75 的结构**：窗口/消息/钩子 74（含 GetThreadDesktop）+ XAudio2Create 1。
+下一项 S7（窗口/消息后端）：这是结构性里程碑，前置是"窗口后端建在什么之上"的选型
+（SDL3 / 原生 Cocoa / 纯离屏）。
+
+
+==============================================================================
+附录：S7 之后（2026-11-10）· 109 → 35
+==============================================================================
+
+S7 兑现 **74 个 C-linkage**（窗口/消息/钩子），零新增，净降 74：
+
+  窗口类（5）     RegisterClassExW / RegisterClassW / UnregisterClassW /
+                  GetClassInfoW / GetClassInfoExW
+  创建/销毁（4）  CreateWindowExW / DestroyWindow / IsWindow / GetAncestor / GetParent
+  几何（7）       GetWindowRect / GetClientRect / AdjustWindowRect(Ex) / MoveWindow /
+                  SetWindowPos / WindowFromPoint
+  状态（8）       ShowWindow / IsWindowVisible / IsIconic / IsZoomed / EnableWindow /
+                  IsWindowEnabled / BringWindowToTop / UpdateWindow
+  属性/长指针（8）Get/SetWindowLongPtrW / Set/Get/RemovePropW / Get/SetWindowTextW / GetClassNameW
+  DC 关联（6）    GetDC / ReleaseDC / BeginPaint / EndPaint / GetUpdateRect /
+                  InvalidateRect / ValidateRect / RedrawWindow
+  消息队列（6）   GetMessageW / PeekMessageW / PostMessageW / PostQuitMessage /
+                  MsgWaitForMultipleObjectsEx / WaitMessage
+  派发（5）       DispatchMessageW / SendMessageW / TranslateMessage / DefWindowProcW / CallWindowProcW
+  焦点/前台（5）  GetFocus / SetFocus / GetForegroundWindow / SetForegroundWindow / GetWindow / GetThreadDesktop
+  枚举/查找（4）  EnumThreadWindows / EnumDesktopWindows / FindWindowExW / GetWindowThreadProcessId
+  系统信息（5）   GetSystemMetrics / SystemParametersInfoW / GetMonitorInfoW /
+                  MonitorFromWindow / GetSystemPowerStatus
+  杂项（5）       MessageBoxW / MessageBeep / GetMenu / ScreenToClient / ClientToScreen
+  钩子（3）       SetWindowsHookExW / UnhookWindowsHookEx / CallNextHookEx
+
+仍缺 **35 = C-linkage 1 + 项目 C++ 34**：
+
+  C-linkage 1     XAudio2Create（P4-01 音频，非本轮范围）
+
+  项目 C++ 34（全部非窗口领域，S7 之后剩余工作）：
+    Gdiplus 7               S6 PNG 导出（Bitmap ctor/Save×2/GdiplusStartup/Shutdown/GetImageEncoders×2）
+    音频设备工厂 7          P4-01（create*DeviceWin32 七连）
+    D3D11 presenter 15      metal-present=OFF，处置是「不被引用」而非实现
+    菜单 BMP 读取 1         menuWin32BmpReader（S6 邻接）
+    音乐策略 3              SkirmishMusicPolicy::{start,stop,poll}（编译了没链接）
+    网络时钟契约 1          runRuntimeInternetMenuClockContract
+
+**纯离屏路线（本轮选型结论）**：
+- HWND 是指向 CompatWindow 的指针，靠**句柄表**（isRegisteredHandle，不碰内存）+
+  **magic**（kWndMagic）双验证，杜绝野指针解引用。窗口句柄登记进句柄表
+  （kind="window"），DestroyWindow 走 closeRegisteredHandle，liveHandleCount 可证「关干净」。
+- 消息队列是线程级一等对象（deque<MSG>）；PostMessage 入队、GetMessage/PeekMessage 出队、
+  DispatchMessage 调窗口过程、SendMessage 同步调。WM_NCCREATE 把 lpCreateParams 交给窗口过程
+  存入 GWLP_USERDATA——这是菜单系统"从窗口过程找回 MenuState*"的唯一通道，语义必须对。
+- 窗口 DC 是选入客户区位图（CreateDIBSection 32bpp top-down）的离屏 CompatDevice；
+  GetDC/BeginPaint 返回缓存 DC，renderClient 画到它就等于画到窗口表面。
+- 钩子只在「本线程 + WH_CBT + HCBT_CREATEWND/DESTROYWND」真实实现，其余组合诚实失败。
+
+**诚实边界（记下，避免下轮当成 bug）**：
+- SetTimer 仍是 Input.cpp 的登记桩，本轮**不生成 WM_TIMER**；GetMessageW 空队列时
+  短 sleep 轮询。真正的「虚拟时钟驱动动画」是下一块硬活（可运行里程碑的前置）。
+- MessageBoxW 不开对话框，恒返回 IDOK 并打日志（诊断 smoke 只看返回值）。
+- 键盘/鼠标无真实宿主来源（SendInput/GetAsyncKeyState 保持 P5-05 的诚实 0）。
+
+**验证**：
+```
+ninja concord_runtime      编译 0 错误，链接缺口 109 → 35（净降 74，零新增）
+user selftest             42 checks，0 failures（生命周期/钩子/系统信息闭环）
+verify-win32-compat.sh    13/13 层全绿（新增窗口/消息/钩子层）
+```
+
+下一项：S7 之后的剩余 35 分属三条线——P4-01 音频（8 符号，XAudio2Create + 7 设备工厂）、
+S6 GDI+ PNG 导出（7 符号）、D3D11 presenter（15，处置是「不被引用」）。窗口/消息这条
+最大的 C-linkage 战线已收口，剩余全是「领域后端」，不再是机械 shim。
+
+
+==============================================================================
+附录：S6 之后（2026-11-10）· 35 → 28
+==============================================================================
+
+S6 兑现 **7 个 Gdiplus C++ 符号**，零新增，净降 7：
+
+  GdiplusStartup / GdiplusShutdown      token 记账（本层无事可初始化）
+  GetImageEncodersSize / GetImageEncoders  报告唯一一个 PNG 编解码器
+  Gdiplus::Bitmap 构造                   持有像素缓冲 + 几何信息
+  Gdiplus::Bitmap::Save × 2              CoreGraphics + ImageIO → PNG（char*/WCHAR*）
+
+实现落在 `compat/win32/src/RuntimeWin32CompatGdiplus.cpp`（新建，7 符号全在这一个 TU），
+新建 `CompatGdiplusSemantics.cpp`（23 checks）。PNG 编码走 ImageIO，cmake 的
+CONCORD_APPLE_WIN32_COMPAT_FRAMEWORKS 新增 ImageIO。
+
+**范围判据**：全仓库只有 3 处用 GDI+，且全部只为「把像素缓冲写成 PNG 诊断图」
+（RuntimeMapRenderer 启动器 / muzzles-N.png / 调色板审计图）。渲染结果不经过 GDI+，
+所以本层不实现任何绘制语义——Gdiplus.h 头注释早写清了这一点。
+
+**关键决策**：
+- GetImageEncoders 报的 PNG Clsid 必须与 muzzle smoke 里硬编码的
+  0x557cf406-1a04-11d3-... 完全一致，否则「查表取 Clsid」与「硬编码 Clsid」两条
+  路径会对不齐。
+- 像素布局 PixelFormat32bppRGB 在小端机上是 B,G,R,X，对应
+  kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst。selftest 用 ImageIO 把
+  写出的 PNG 解回、画进默认 RGBA 上下文，断言红/绿像素的 R/G/B 通道次序正确
+  ——这是「诚实判据」，防止 BGR 被静默当 RGB（编译不报错、图像难查）。
+- Bitmap::Save(WCHAR*) 用 concord_compat::utf8FromWideText 转 UTF-8（wchar_t 在
+  macOS 是 32 位 UTF-32，不能用 wcstombs 直接压 UTF-8）。
+- 只兑现真正用到的 PixelFormat32bppRGB；ARGB/PARGB 全仓库无调用点，诚实返回
+  InvalidParameter，不伪造实现。
+
+**验证**：
+```
+ninja concord_runtime      编译 0 错误，链接缺口 35 → 28（净降 7，零新增）
+gdiplus selftest          23 checks，0 failures（含颜色保真解回验证）
+verify-win32-compat.sh    14/14 层全绿（新增 GDI+ PNG 导出层）
+```
+
+剩余 28 = C-linkage 1（XAudio2Create）+ 项目 C++ 27，分属三条线：
+  P4-01 音频     XAudio2Create + 7 个 create*DeviceWin32（8 符号）
+  D3D11 presenter 15 符号（metal-present=OFF，处置是「不被引用」而非实现）
+  杂项 5        menuWin32BmpReader / SkirmishMusicPolicy×3 / InternetMenuClockContract
+
+==============================================================================
+附录：P5-07 之后（2026-11-10）· 28 → 13
+==============================================================================
+
+P5-07 把 D3D11 presenter 的 **15 个 C++ 符号从 Apple 构建图「编译出」**，零新增，净降 15：
+
+  处置是「不被引用」而非「实现」——软件呈现路径（software-present=ON）本就存在，
+  D3D11 分支在 Apple 上恒为死代码（backend 永不为 D3D11），所以只需把引用点守卫掉，
+  不需要写 Metal/D3D11 对位。
+
+改动 4 文件（61 增 / 2 删，删除均为语义保持的结构重排，Windows 分支逐字节未变）：
+
+  1. RuntimeShell.cpp（43 增 / 1 删）
+     - include D3D11FramePresenterWin32.h + 成员 d3d11Presenter 用 #if defined(_WIN32) 守卫
+     - WM_PAINT 内 13 处 D3D11 引用分 8 组守卫：init+recover、deviceGeneration+mapMode、
+       CPU-scene fallback、map-native-overlay、baselineSubmissionStart、composeDeviceOverlay、
+       presentMap（else-if 结构重排）、present+software（if(true) 兜底）、recordPaint 实参
+     - 两个 GPU contract 调用点（S41 terrain/vision）+ RuntimeMainFrameContract/
+       RuntimeMapGpuTiming 的 include 守卫
+  2. RuntimeSkirmishMenu.cpp（14 增 / 1 删）
+     - include + 成员 menuGpu/menuProbe 守卫；renderShellClient 的 D3D11 块整块守卫；
+       WM_NCDESTROY 的 menuGpu.reset() 守卫；RuntimeGpuMenuContract/Timing include + 调用点守卫
+  3. RuntimeMapRenderer.cpp（2 增）
+     - 14 个 GPU fixture/contract 的 include 整块守卫（MapVision/Terrain/World/Sprite/
+       OperationsGpuFixtureWin32 + GpuVision/Frozen/Sprite/Shadow/LightPrecision/TerrainPick/
+       LightWorld/VxlMode/Terrain Contract）
+  4. RuntimeWindowLifecycleUi.inl（2 增）
+     - releaseGraphics() 里 state_->d3d11Presenter.reset() 守卫
+
+关键洞察：
+  · D3D11 引用点不是 2 个文件而是 **3 个 .o**：RuntimeShell.cpp.o（13 符号）、
+    RuntimeSkirmishMenu.cpp.o（11）、RuntimeMapRenderer.cpp.o（4）。第三处是我在做前
+    的「ld 输出只看 tail」漏掉的——用 `nm -u *.o | grep D3D11FramePresenter` 逐 .o 查
+    才穷尽（教训：符号引用点要对账到 .o 级，不能只靠 ld 输出截断的 tail）。
+  · RuntimeMapRenderer.cpp 的 14 个 GPU contract 从 S41 terrain 一个入口分派
+    （RuntimeGpuTerrainContract.inl 内 getenv 转发到 vxl/light/shadow/sprite/frozen），
+    所以只需守卫 2 个顶层调用点（terrain + vision）+ 14 个 include。
+  · 「编译了没链接」vs「编译出」：SkirmishMusicPolicy 是前者（link 行在 if(WIN32)），
+    D3D11 是后者（源码引用要 #if 守卫）。两者都让符号消失，但机制不同。
+
+剩余 13 = C-linkage 1 + 项目 C++ 12，分属三条线：
+  P4-01 音频     XAudio2Create + 7 个 create*DeviceWin32（8 符号，需 SDL3/CoreAudio 后端）
+  音乐策略 3     SkirmishMusicPolicy::{start,stop,poll}（编译了没链接，link 行在 if(WIN32)）
+  杂项 2        menuWin32BmpReader（Windows 位图读取）+ runRuntimeInternetMenuClockContract
+
+验证：
+```
+ninja concord_runtime      编译 0 错误（RuntimeShell/SkirmishMenu/MapRenderer 全绿），
+                          链接缺口 28 → 13（D3D11 15 符号逐名消失、零新增）
+nm -u *.o | grep D3D11    0 残留（三个 .o 均无 D3D11FramePresenter 未定义符号）
+git diff --numstat        4 文件 / 61 增 / 2 删（删除为结构重排，非逻辑删除）
+```
+
+==============================================================================
+附录：P5-08 之后（2026-11-10）· 13 → 8
+==============================================================================
+
+P5-08 兑现 **5 个符号**（音乐策略 3 + 杂项 2），零新增，净降 5：
+
+  音乐策略 3   SkirmishMusicPolicy::{start,stop,poll}
+  杂项 2       menuWin32BmpReader（菜单 BMP 读取）+ runRuntimeInternetMenuClockContract（网络时钟契约）
+
+仍缺 **8 = C-linkage 1（XAudio2Create）+ 项目 C++ 7**，**全部是音频后端 P4-01**：
+  XAudio2Create + createMenuSoundDeviceWin32 + createAsyncSoundDeviceWin32 +
+  createAsyncSoundDeviceWin32ForDiagnostics + createCampaignMapAudioDeviceWin32 +
+  createLegacyWaveDeviceWin32 + createMainMenuMusicDeviceWin32 +
+  createSkirmishMusicDeviceWin32。缺口 13→8 后，剩下的就是一条纯音频战线，无杂项。
+
+改动 2 文件（13 增 / 1 删）：
+
+  1. cmake/SkirmishMusicContracts.cmake（6 增 / 1 删）
+     - 把 target_link_libraries(concord_runtime PRIVATE concord_skirmish_music_policy)
+       移出 if(WIN32)（策略是纯呈现逻辑：借来的时钟 + 抽象设备，全平台可链接）；
+       concord_skirmish_music_win32（物理 Win32 适配器）留在 if(WIN32) 内。
+     - 这是 P5-01 早已点名的「第 3 种条件分支」：TU 编译了没链接。
+  2. src/ui/main_menu/RuntimeMainMenu.cpp（7 增）
+     - include MenuBmpReaderWin32.h + loadBmp() + 调用点（ra2ts_l_frame.bmp）三处
+       #if defined(_WIN32) 守卫：BMP 读取是 Win32 专属（LoadImageW+GetDIBits 未实现），
+       标题帧属装饰性（调用点返回值本就丢弃），Apple 上诚实延后。
+     - CONCORD_INTERNET_MENU_CLOCK_ONLY 诊断块 #if defined(_WIN32) 守卫：其定义
+       runRuntimeInternetMenuClockContract 在 RuntimeInternetMultiplayerMenu.cpp 的
+       #if defined(_WIN32) 块内，Apple 上该诊断本就不存在（整个网络菜单是 Win32-only）。
+
+关键认知：
+  · 音乐策略与物理设备解耦成立：SkirmishMusicPolicy 只经抽象 MenuMusicDevice
+    （内联析构 + 全纯虚，无 key function 链接依赖）调用，链接它不连带拉进
+    concord_menu_music_unsupported 或任何 win32 适配器 → 零新增，验证通过。
+  · 剩下 8 个符号全部集中在音频工厂（create*DeviceWin32 七连 + XAudio2Create），
+    说明「非音频杂项」至此彻底清零，后续只剩 P4-01 一条后端选型战线
+    （SDL3 / CoreAudio）。
+
+验证：
+```
+ninja concord_runtime      编译 0 错误（5 步全绿），链接缺口 13 → 8
+nm 级核对                  5 个目标符号逐名消失、零新增（SkirmishMusicPolicy /
+                           menuWin32BmpReader / runRuntimeInternetMenuClockContract = 0 残留）
+git diff --numstat         2 文件 / 13 增 / 1 删
+```

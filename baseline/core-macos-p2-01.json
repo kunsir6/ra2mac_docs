@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "captured_at": "2026-11-09T18:02:25Z",
+  "os": "Darwin",
+  "arch": "x86_64",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "cmake": "cmake version 4.4.4",
+  "git_commit": "32ab245 (dirty)",
+  "build_dir": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS/build-core-mac",
+  "ctest": {
+    "status": 0,
+    "registered": 10,
+    "passed": 10,
+    "failed": 0,
+    "summary": "100% tests passed out of 10"
+  },
+  "smokes": [{"name":"concord_game_world_deterministic_hash_smoke","exit":0,"hash":"1585785091039784157","tail":"GameWorld deterministic hash smoke passed: hash=1585785091039784157"},{"name":"concord_production_core_hash_smoke","exit":0,"hash":"1585785091039784157","tail":"GameWorld deterministic hash smoke passed: hash=1585785091039784157"},{"name":"concord_runtime_atomic_file_smoke","exit":0,"hash":"","tail":"Runtime atomic file smoke passed"},{"name":"concord_lan_transport_smoke","exit":0,"hash":"","tail":"Runtime LAN transport smoke passed: discovery=loopback framedTcp=two-peer budgets=bounded limits=validated"},{"name":"concord_secure_bytes_contract","exit":0,"hash":"","tail":"Secure bytes: 87 checks, scripted policy separate from4realOSreads, backend=3"},{"name":"concord_multiplayer_lockstep_smoke","exit":0,"hash":"","tail":"Runtime multiplayer lockstep smoke: frameVersion=1 combatants=2 spectators=1 canonicalOrder=peer+authored emptyBarrier=yes callbacks=prevalidate+transactionalApply spectatorDeparture=monotonic validation=strict"},{"name":"concord_multiplayer_snapshot_transfer_smoke","exit":0,"hash":"","tail":"Runtime multiplayer snapshot transfer smoke: version=1 chunkKiB=256 defaultMiB=64 hardMiB=128 sha256=yes stopAndWait=yes atomic=yes"},{"name":"concord_multiplayer_compatibility_fingerprint_smoke","exit":0,"hash":"","tail":"Runtime multiplayer compatibility fingerprint smoke: manifest=canonical fnv64=yes content=canonical fileLimitMiB=64 hardMiB=128 emptyFile=allowed"}]
+}

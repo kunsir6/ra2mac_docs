@@ -1,0 +1,1618 @@
+{
+  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
+  "version": 64,
+  "updated": "2026-11-11T05:41:56",
+  "root": "/Users/zhenglk/ai-project/ra2mac",
+  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
+  "rules": {
+    "unit": "每轮只推进一个任务，单个任务控制在 1 小时内可完成可验证。",
+    "iron": [
+      "绝不修改任何既有 if(WIN32) 分支内部的行，只在它后面追加 elseif(APPLE)。",
+      "绝不删除文件，一律用临时文件 + os.replace / mv 原子替换。",
+      "提交按 rules.commit 的颗粒度与文案执行；绝不 git push / reset / force / amend，只 commit 不改历史。",
+      "每轮结束必须更新本文件 tasks[].status 与 progress/RUNLOG.md。"
+    ],
+    "brake": "若上一轮 status 仍为 in_progress 或连续两轮无实质进展，本轮只做诊断并输出结论，不改代码。",
+    "blocked_policy": "任务缺前置条件（如需 Windows 机器）时标 blocked 并写清原因，立刻跳到下一个 pending。",
+    "verify_required": "任务标 done 前必须贴出验证命令的真实输出，输出不符则保持 in_progress。",
+    "note_grep": "本机 grep/sed 是被代理的 shim，多模式与 -c 会静默返回空，一律用 Grep 工具或 python3 替代。",
+    "verification_ceiling": "P2-02 之后，剩余失败 TU 只能做到『编译通过』，做不到『链接通过』——concord_runtime 是整体可执行文件，RuntimeShell.cpp 未解决前没有端到端验证。因此优先做 P2-08 以提前建立『能链接』这个门槛，避免把风险后置到某一轮集中引爆。",
+    "strategy_revision": "2026-11-10 P2-08a 诊断推翻了两条原始假设：① RuntimeShell.cpp 零条件编译、42.5% 的行直接用 Win32 类型，『把 include 包进 #ifdef』只会把每行都变成错误；② 逐文件 port 要动 42 个 TU，而全产品构建图只需要 74 个 Win32 API + 25 个类型。故 P2-04/05/06/07/09 与 P3-01 标记 superseded，改走 Win32 兼容层（S1–S5）。证据见 P2-08a-诊断报告.md。",
+    "supersede_note": "status=superseded 表示该任务被兼容层方案覆盖，不再单独执行；保留条目以便追溯，不删除。",
+    "brake_clarification": "熔断只看『上一轮所选任务的最终结果』是否为 partial/diagnose-only，或是否出现了上一轮遗留的未完成工作；执行 S 系列期间不要把 P2-08 的续作桶状态当作熔断信号，否则会形成每轮只诊断的死锁。2026-11-10 已把 P2-08 回退为 pending 以消除歧义。",
+    "b0_finding": "2026-11-10 修正版定量结论：根因是单行 `#include <list>` —— RuntimeSelectedPathRaster.h 的 7 个 std 头里，只有 <list> 从未在 RuntimeShell.cpp 文件顶部出现过，所以在 L21848 被引入时把 `namespace std` 开进了匿名命名空间（L243..L29263，29,021 行）。隔离实验（同一 shim，只差这一行）：有=7 条错误 / 无=72,652 条，即单行值 72,645 条。此前记的『146 条』是 clang 默认 -ferror-limit=20 的上限假象，真实值 73,291。修法 = 文件顶部加 1 行，零删除。",
+    "concurrency_warning": "2026-11-10 03:00-03:10 实测存在第二个进程并发修改本仓库（windows.h 1617→1961 行、mmsystem.h、RuntimeShell.cpp 的 <list> 与 6 处 std::max<LONG>、RuntimePlayerHotkeysUi.inl 的 wchar_t 分支）。后果：①跨轮次错误数对比失真（同一小时内测得 385/22/0 三个值都真）；②build-product-mac 是共享目录，并发构建会互相踩 .o 与 .ninja_deps；③同文件原子替换后写者赢、先写者静默消失。对策：轮次开始先 mkdir progress/.lock，成功才继续，失败立即转 diagnose-only 并在 RUNLOG 记录『检测到并发实例』；对比类结论必须同时记录被测文件的 mtime。",
+    "b1_judgement_fix": "原 b1 的判据（把这个 TU 的错误消掉）不成立。5 个 CLI smoke 入口只覆盖 23,972 行里的一部分，真正报错的是散在 68 个 diagnostics/*.inl 的缺声明，而 b0 之后这些本该由 S5 补声明解决。摘 TU 只适用于『该 Win32 API 只被 diagnostics 调用』的场合（CreateEnhMetaFileW / HANDLETABLE / GR_GDIOBJECTS 这类），不是通用解法。",
+    "scope_note": "S5b 实测：『修一个错误会暴露下一个』是常态——HHOOK 补齐后 SetWindowsHookExW 才浮出来，MWMO_INPUTAVAILABLE 补齐后 MsgWaitForMultipleObjectsEx 才浮出来；xaudio2.h 补齐后 xapobase.h 才浮出来。所以每轮结尾必须重跑 -ferror-limit=0 的全量诊断，不能用上一轮的清单安排下一轮。",
+    "product_build_ceiling": "产品构建图的编译错误被 clang 默认 -ferror-limit=20 截断：build1 报的 79 条（20/18/1/20/20）是截断值，真实值是 150。对比错误数时必须用 -ferror-limit=0 的单 TU 诊断，不能用 ninja 日志的分块计数——除非每块都未触顶。",
+    "target_split": "2026-11-10 教训：『某个 TU 是否报错』取决于你建的是哪个 target。tests/multiplayer/RuntimeMultiplayerTwoProcessSmoke.cpp 有 36 条错误，但它属独立 target concord_multiplayer_two_process_smoke，ninja concord_runtime 永远不报它。每轮收尾必须同时跑 ① ninja -C build-product-mac -k 0 concord_runtime ② scripts/verify-win32-compat.sh --census，两个失败集都记录。另外 --census 的 TU 总数会随构建图变化（本轮 31，上一轮 37），所以只能比**具名 TU**，不能比通过率。",
+    "lock": "轮次锁改用 progress/.active 心跳文件（原 mkdir progress/.lock 的做法在沙箱里无法释放——rm/rmdir 被拒，下一轮会误判『检测到并发实例』而死锁）。约定：开始前读 .active，若 state=held 且 mtime 距今 <90min 则转 diagnose-only；否则写入 state=held + pid + 起始时间并继续。收尾写 state=released。仓库里那个空的 progress/.lock/ 目录是旧约定的遗留物，忽略即可。",
+    "link_is_the_authority": "2026-11-10：链接是唯一权威的\"还差什么\"清单。编译干净≠能跑，编译只证明头层对上了；ld 才告诉你实现还差多少。280 这个数字比\"5 个失败 TU\"有用得多——因为它可分区、可排期、可对账。以后每轮收尾除 ninja 与 --census，还要看链接缺口数是否单调下降。",
+    "arch_note": "构建目标架构是 **x86_64**（CMake 探测 CPU ISA=x86_64，ld 也报 architecture x86_64）。若目标机是 Apple Silicon，这个产物只能靠 Rosetta 运行；是否要出 arm64 需单独决定（在 cmake 配置时指定 CMAKE_OSX_ARCHITECTURES，或确保 cmake 在原生 shell 里重跑）。本层代码没有架构相关假设，但这个**构建产物**的架构必须显式记录，不能默认。",
+    "gdi_partition": "2026-11-10 实测：undefined-symbols.txt 里「GDI 绘制 / DC 状态 (67)」这一段混了三个族，正确归属是 S3 42 / S7 14 / S4 11（脚本校验无遗漏无重叠）。S3 内部再分 A 段 DC 状态与查询 25、B 段区域裁剪 5、C 段图元光栅 12。排期以 A→B→C 为序，因为 C 段的光栅器在 A 段完成前没有观测点。",
+    "dc_query_load_bearing": "2026-11-10 发现：项目有三条 raster 快路径（RuntimeSelectedPathRaster::supported、RuntimeSelectionFrameRaster 构造函数、beginTrustedRestoredDcStateBatch）先精确校验 DC 状态再直接写 DIB 像素。它们要求 GetArcDirection==AD_COUNTERCLOCKWISE(2)、GetClipBox 返回 SIMPLEREGION(2)/NULLREGION(1)、GetGraphicsMode==GM_COMPATIBLE(1)、GetROP2==R2_COPYPEN(13)、GetLayout==0、Get*/SetViewportOrgEx 为 (0,0)，并且 GetObject(dc, sizeof(DIBSECTION))==sizeof(DIBSECTION) 且 bmBits==像素指针。所以「查询函数随手 return 0」是错的：它会静默关闭快路径，让所有 raster 契约退化成只跑 reference 路径，看起来还在跑其实什么都没验证。查询必须如实返回。",
+    "selfconsistency_ceiling": "2026-11-10：现有 raster 契约都是 optimized-vs-reference 自洽比较（两边共用同一套 GDI），只能证明快慢路径一致，不能证明与 Windows GDI 一致——LineTo 差一像素、FillRect 边界画成闭区间，这些契约照样全绿。S3/S4 的 done 判据必须补一层「硬编码期望像素」的文档语义断言，且 B-01 的 Windows 基线只覆盖 core，没有产品级像素金标准可对拍。",
+    "honest_success_vs_fake_success": "2026-11-10 S9：判断一个 no-op 是否诚实的标准不是\"它做了什么\"，而是\"调用方要的效果是否已经成立\"。timeBeginPeriod(1) 可以返回成功，因为 macOS 的 1ms 睡眠粒度是真的；CoInitializeEx 可以返回 S_OK，因为\"成功⇒配对 CoUninitialize\"这条契约能守。但 mciSendStringW 必须失败，因为它要的效果（出声）在 mac 上一点都没有。判据落在效果上，不落在 API 名上。",
+    "surface_equivalence_trap": "2026-11-10 S9：MSVC 的 _s 系列有自己的语义细节，\"用 POSIX 同名功能顶替\"会静默改行为。已确认三处：_putenv_s(name,\"\") 是删除变量（setenv 顶替会让 getenv 返回非空 \"\"，所有\"是否开启\"的判据翻转）；_wgetenv_s 两段式必须两次同 count、未定义返回 0、不足返回 ERANGE；gmtime_s 参数顺序与 gmtime_r 相反（双指针写反照样编译）。以后接任何 MSVC 专有 CRT 函数，先查文档里的边界语义，再写代码。",
+    "region_representation": "2026-11-10 S3-2：区域用**横向条带表**（每项 = 连续行 × 同一列区间）表示，多边形在 CreatePolygonRgn 里一次光栅化后就再也没有曲线概念。选它的理由不是性能，是四件必须精确的事：判点、求外接框、区分 SIMPLE/COMPLEX、给裁剪光栅器逐行取区间——条带表让它们全部变成整数区间运算且顺序无关（确定性）。代价：丢了 Win32 区域'边界含点'的亚像素细节；项目里所有区域都是整数坐标，裁剪要的也是像素格，故一致。规范化不变量：条带互不重叠 → '多于一条' 就必然是 COMPLEXREGION，这是复杂度判定的唯一依据，compressRows 必须保证它。行数上限 16384，超限**返回失败**而不是截断（截断会得到'看起来对、少了一块'的区域）。",
+    "clip_not_enforced_in_pixels_yet": "2026-11-10 S3-2 边界：裁剪区现在是**真状态**（可建、可组合、GetClipBox 三态正确），但 BitBlt/StretchBlt/PatBlt/StretchDIBits 仍然忽略它，S3-3 的图元光栅器也必须显式应用 (x-windowOrg)*viewportExt/windowExt+viewportOrg 与裁剪。后果要说清：RuntimeShell 的进度时钟遮罩（SelectClipRgn + FillRect）在 mac 上会画成整块方形；所有'快慢两路一致'的契约仍会全绿，因为它们两边用的是同一套忽略裁剪的 GDI。S3-3 的 done 判据必须包含'硬编码期望像素 + 裁剪生效'两条，不能只看契约自洽。",
+    "clip_state_after_s3_3": "2026-11-10 S3-3 更新：**图元光栅已真应用裁剪**（FillRect/FrameRect/Rectangle/Ellipse/RoundRect/Polygon/Polyline/PolyPolyline/GdiAlphaBlend 全走 PixelSink，逐行取 spansAtRow(clip) 与表面求交），进度时钟遮罩从此不再画成方块。**位图传输族仍未应用**：BitBlt/StretchBlt/PatBlt/StretchDIBits/SetDIBitsToDevice 仍只裁到表面边界。下一轮若碰到遮罩类视觉缺陷，先查这一族而不是图元族。",
+    "draw_primitives_semantics": "2026-11-10 S3-3：GDI 图元的四条语义约定（每条都有硬编码断言，改实现前先看 CompatDrawSemantics.cpp）：① 矩形类图元的右/下边界**不属于**该矩形，Rectangle 的边框画在 right-1/bottom-1 上；② LineTo 与 Polyline **不画终点**（否则连续线段会在每个拐点写两次，XOR 下变空洞），Polygon 的闭合边则必须包含起点；③ 当前位置是**逻辑坐标**，MoveToEx 回传的是移动前的值；④ 形状的填充区=内缩 penWidth，描边区=形状减内缩区，两者严格不相交——RuntimeSelectedPathRasterContract/SelectionFrameRasterContract 用 XOR 画两遍来擦除，重叠处会留残影。另：录制型 DC 上所有图元一律显式失败（EMR_RECTANGLE/LINETO/ELLIPSE/POLYLINE/ALPHABLEND 均未实现），因为静默不记录会让帧稳定性审计漏报'出现中间帧'。",
+    "ellipse_is_complex_region": "2026-11-10 S3-3：CreateEllipticRgn 兑现后 GetRgnBox 返回 **COMPLEXREGION(3)** 而不是 SIMPLEREGION——这不是 bug，Windows 的椭圆区域本来就是复杂区域。写断言时别按'单个凸区域=简单区域'的直觉。同理，椭圆区域的条带表逐行不同宽，compressRows 只能合并等宽相邻行。",
+    "clip_complexity_contract": "2026-11-10 S3-2：GetClipBox 的返回值从'恒 SIMPLEREGION'改成三态。这是三条快路径的硬门槛——RuntimeRadarPixelStoreWin32.cpp:40 与 RuntimeTerrainViewportFill.h:79 判 `!= SIMPLEREGION` 就退让。以前恒答 2，复杂裁剪下它们继续直接写像素、绕过裁剪，而所有自洽契约照样全绿。另：SelectClipRgn 返回的是 clip∩surface 的复杂度，与 GetClipBox 一致（两处不一致会让调用点按返回值选路、按 GetClipBox 判状态，自相矛盾）。",
+    "gap_split_measurement": "2026-11-10 S4-1：undefined-symbols.txt 的『C-linkage / 项目 C++』分段列曾经是错的（写 138=75+63，按 ld 原始清单逐条判定真值是 83+55；总数对、分段错）。判据只有一条：符号名含 `concord::` 即项目 C++。以后每轮重跑清单时必须从这个判据现算，不能沿用上一版的分段数字——否则『本轮降了 N 个』会归因到错的族上。",
+    "header_change_cost": "2026-11-10 S4-1：改 compat/win32/include/windows.h 两个宏导致 43 个 TU 全量重编、7m45s。这是预期而非回归。凡是动该头的轮次，要么预留这段时间，要么把它与需要观测链接缺口的改动放同一轮，避免白跑一趟。",
+    "cg_bitmap_row_zero_is_top": "2026-11-10 S4-2：CGBitmapContext 的数据缓冲**第 0 行是顶行**，而 CoreGraphics 的用户空间 y 轴向上（CG y=0 落在最后一行）。用\"y=0 的填充矩形\"做对照实验可以一分钟确认，别猜。踩过的坑：按底行读缓冲，整幅字形上下翻转——依旧\"有墨迹\"、宽度也对、'H'/'T' 看起来还是 'H'/'T'（竖轴对称），只是 'e' 变形、'.' 跑到顶部、'g' 的降部在上方。所有基于墨迹包围盒的定位随之全错，而错误表现是\"字有点丑\"而不是\"崩溃\"。",
+    "text_assertion_strategy": "2026-11-10 S4-2：真字形**不能**用硬编码像素断言——字形随系统字体版本变，写死会变成脆测试。替代品是\"任何真实字体都必须满足的字形语义\"：'T' 与 'e' 共用基线（底边相同、顶边 'T' 更低）、'g' 有降部、'L' 的横杠在底部（这条专门挡整体上下翻转，翻转后 'T' 仍像 'T'）、空格无墨迹但 OPAQUE 下铺满背景、同一次调用两次逐字节相同（确定性）、XOR 画两遍整块表面还原（只有 1bit mask 才成立）。另有一条假通过的教训：XOR 用例用黑色笔在白底上画，white ^ black == white，等于没画，\"两遍还原\"在\"什么都没发生\"上照样成立。XOR 断言必须配一条\"第一遍确实改了像素\"。",
+    "glyph_coverage_vs_notdef": "2026-11-10 S4-2：CTFontGetGlyphsForCharacters 对**未分配码位**也会返回成功——cmap 把它们映射到 .notdef（实测 Helvetica 是字形 4）。所以\"cmap 查到了\"不等于\"字体有这个字\"。正确判据是 CTFontCopyCharacterSet 的成员测试；还要再挡一层兜底字体（LastResort 一类）：它以\"覆盖全部码位\"的方式工作，成员测试也会通过。判据取 U+0378——Unicode 里未分配，任何真实文字字体都不该有它，声称有的就是兜底字体。没有这两层，GetGlyphIndicesW 会对任何乱码都报一个\"真实\"索引，RuntimePlayerDefeatNoticeSmoke 的'字体是否覆盖所需汉字'判据彻底失效（永远通过），而屏幕上是 CoreText 自己的空心框。",
+    "fixed_grid_vs_proportional_advance": "2026-11-10 S4-2：前进宽度仍是**固定栅格**（窄字符 5:7 = 0.71em，东亚宽字符 1:1），不是字体的真实 advance。这是刻意的：P5-06 的度量断言、5 个字体 TU 的居中逻辑都建在\"measure == draw\"上，换比例度量会一起动。代价写在明处：英文显得偏宽（Helvetica 的 'i' 只有 0.22em 也占 0.71em），密集区偏挤；换行/省略号也因此没法只靠度量做。要改必须整轮只做这一件事，并且同步重算所有依赖宽度的手工断言。另：CJK 必须走 1:1，否则汉字互相压住——这是 S4-2 之前按 c*width 算宽度的真实后果（ASCII 全绿）。",
+    "framework_link_travels_with_source_list": "2026-11-10 S4-2：compat 层的源清单被 11 个目标（产品 + 10 个自测）共用，所以它引入的框架依赖不能靠\"记得在每个 target 上加一次\"。做法：框架清单与源清单定义在一起，concord_apple_add_win32_compat_sources() 内部直接链接；自测侧用目录级 BUILDSYSTEM_TARGETS 正则 `^concord_win32_compat_.*_selftest$` 统一补，新加自测自动带上。漏一个的症状是\"编译全过、链接报 CoreText 符号未定义\"，与源码无关，很容易查错方向。",
+    "gap_metric_has_a_floor": "2026-11-10 S4-2：链接缺口不是永远有效的进度指标。S4-2 把字形从占位换成真渲染，缺口 109 → 109（零新增零消失），因为缺的从来不是符号，是行为。S4/S7 这类轮次验收要看各自的语义断言，不能因为\"数字没降\"就判定没进展，也不能为了让数字下降去补无关符号。",
+    "commit": {
+      "anchor": "族收口提交：族 = 任务 ID 去掉尾部「-数字」后的前缀（P1-01→P1、S3→S3、P5-06→P5、T-01→T、V-01→V）。某族全部任务 status ∈ {done,superseded} 时该族收口，提交一次。单成员族（S1~S10、V-01、Q-01、B-01、P4-01 等）自身 done 即收口。",
+      "forbidden": "partial / diagnose-only / in_progress / blocked 轮次不提交；只编译通过、链接未通过 的半成品态不提交。",
+      "add": "收口提交时 git add：① 该族任务 touches 字段列出的仓库内文件；② 该族新产生的未跟踪源文件；③ 相关 cmake 变更。注意：报告 .md 与 progress/ 在 git 仓库外，不纳入提交。",
+      "message": "单行 subject ≤60 字：`<族ID> <成果一句话>（<关键对账数字>）`；无对账数字则省略括号；需要时用 - 列表补 body。对账数字按优先级取：链接缺口 N→M > 编译 TU X/Y > 测试/断言通过数。示例：`S3 GDI 区域与图元：42 符号清零（缺口 236→225）`。",
+      "never": "绝不 git push / reset / force / amend；push、远程同步、存量未提交改动的归位由人执行。",
+      "legacy": "存量未提交改动已于 2026-11-10 由人按族切分为 7 个提交（P1 / P2 / S1 / S2-S10 / P5 / P5-06 / P5-T），main 领先 origin 7 个提交，待人 push。"
+    },
+    "recording_dc_text_is_silent": "2026-11-10 14:30 实测纠正：录制型 DC 上的文本不是『显式失败』而是『静默丢弃』。drawTextRun 的首行守卫是 device->bitmap == nullptr → return（RuntimeWin32CompatGdi.cpp:1545），而 CreateEnhMetaFileW 造的 device 没有 bitmap（L1759-1768 只挂 recording）。于是 TextOutW/DrawTextW/DrawTextA/ExtTextOutA 在录制 DC 上返回 TRUE、不画、不记录、不打日志；图元族则有 10 处显式 reportUnsupported。三个产品录制点目前都先合成到 memory DC 再 BitBlt，故未爆；但 campaign 的 completeFrameOnly 与 loading 的 unexpectedRecord 都把『除 blit 外不许有记录』写成硬断言，一旦真有路径把文本画进录制 DC，审计会静默通过而文本消失。处置：3 行 reportUnsupported，不改行为。",
+    "lock_gap_mtime_after_release": "2026-11-10 14:30：rules.lock 只判 state=held 不够——对端不写 .active 也能改仓库（实测 .active released @13:54，源码 14:09-14:20 继续被写，ninja pid 50620 在跑）。判据补充为：仓库源码 mtime 晚于 .active 的 released/start 时间 ⇒ 视为并发，转 diagnose-only。另：build-product-mac/.ninja_lock 被持有期间连 ninja -n 都不要跑。",
+    "symbol_reference_reconcile": "符号引用点判定必须对账到 .o 级：`nm -u build-product-mac/CMakeFiles/concord_runtime.dir/**/*.o | grep <符号>` 逐 .o 穷尽，不能只靠 ld 输出的 tail（会被截断漏掉第 3 个引用文件）。2026-11-10 P5-07 教训：D3D11 引用点实为 3 个 .o（Shell 13 / SkirmishMenu 11 / MapRenderer 4），前 2 个之外还有 RuntimeMapRenderer.cpp.o。",
+    "lldb_wedges_process_spawn": "2026-11-10 S4-3 实测（代价很大）：本机 `lldb` 调试会话被强杀后，整台机器的『非 Apple 签名二进制启动』全部卡死在 ps 的 `U` 状态——之后 /tmp 下自建的 clang、python3、测试可执行一律无任何输出挂起，而 /bin/ps、/bin/echo、/bin/cat 这些系统常驻程序照常工作。表现极易误判成『测试死锁』或『编译卡住』。结论：以后这台机器上不要用 lldb 定位崩溃（连 `lldb -b -o run -o bt` 都会挂）；改用 ① 程序内 setvbuf + 分段落日志，② clang -fsanitize=address 独立构建，③ 只读代码推演。恢复只能重启，重启前不要指望能再编译任何东西。（**2026-11-10 17:26 更正：这条结论错了两半**——① 不是『整机不可用』，clang / ld / codesign / git 一直正常，『连编译都不行』是误判；② 不需要重启，见 rules.unsigned_exec_gate。保留原文以便追溯当时的判断过程。）",
+    "test_must_bail_out_on_missing_resource": "2026-11-10 S4-3：测试里 `check(x.create(), ...)` 之后若照常往下用 x 的成员，资源没建成就会变成空指针段错误——而段错误会把真正的失败原因完全掩盖（本轮 exit 139 就是这个形状，看起来像绘制/字形崩了）。规矩：所有 create()/GetDC() 类断言后面必须紧跟 `if (!ready) { 收尾打印; return; }`，让失败是『一句话说清原因』而不是一个 signal。另：主程序开头必须 `setvbuf(stdout, nullptr, _IONBF, 0)`，否则崩溃时块缓冲把全部进度日志一起丢掉。",
+    "unsigned_exec_gate": "2026-11-10 17:26 实测（重要，取代 rules.lldb_wedges_process_spawn 的结论）：本机当时的分界**不是**'是否 Apple 签名'，而是**'Mach-O 里有没有 embed 的签名'**。未签名的可执行文件 exec 会卡在 ps 的 U 状态且 kill -9 无效；签名过的（哪怕是 ad-hoc）立刻正常。判据用对照组钉死：同一个 /tmp/hello2 未签名→卡死，`codesign -s - --force` 之后立刻输出 hello-exec-ok（EXIT=0），唯一变量是签名。而 Apple 平台签名的 clang/ld/codesign/git 一直可用——所以'整机不可用'是误判，编译链路其实没坏，坏的是**启动未签名二进制**这一步（Homebrew 的 ninja、workbuddy 的 python3、clang 现编出来的测试程序全都是未签名）。三条绕过命令：① `cp /usr/local/bin/ninja /tmp/ninja_signed && codesign -s - --force /tmp/ninja_signed`（`/usr/local/bin/ninja` 是指向 ~/opt/ninja/ninja 的符号链接且 `code object is not signed at all`）；② 链接产物跑之前 `codesign -s - --force <目标二进制>`；③ python3 用签名副本 + `DYLD_LIBRARY_PATH=~/.workbuddy/binaries/python/versions/3.13.12/lib`（签名必须作用在**实体二进制**上，直接 cp 符号链接会 dyld 报 `@rpath/libpython3.13.dylib` 缺失、EXIT=134）；④ 若 ninja 需要重跑 cmake，cmake 也在 ~/opt/cmake/bin 且未签名，同样要签名副本（本轮 build.ninja 未失效，故未触发）。",
+    "getobject_dc_is_not_a_win32_call": "2026-11-10 17:26：`GetObject(dc, sizeof(DIBSECTION), &dib)` **在真 Windows 上也返回 0**——Win32 的 GetObject 只接受 GDI 对象句柄，不接受 HDC。兼容层 GetObjectW（Gdi.cpp:2387）第一行 `asObject(h)` 就把 HDC 判成 nullptr，行为与 Windows 一致，**不要为此给 GetObjectW 加 DC 分支**（那会让本层比 Windows 更宽松，掩盖调用点错误）。正确写法是 `GetObject(GetCurrentObject(dc, OBJ_BITMAP), sizeof(DIBSECTION), &dib)`，产品侧四处 raster 快路径（RuntimeSelectedPathRaster.h:209 / RuntimeSelectionFrameRaster.h:160 / RuntimeRadarPixelStoreWin32.cpp:44 / RuntimeTerrainViewportFill.h:84）本来就这么写，错的只有 S4-3 的测试。这条也一并更正 rules.dc_query_load_bearing 里 `GetObject(dc, ...)` 的表述。",
+    "compatible_dc_needs_initial_bitmap": "2026-11-10 17:26：本层 CreateCompatibleDC（Gdi.cpp:1606-1615）只设 pen/brush/font，`device->bitmap` 留空，于是新建 DC 上第一次 `SelectObject(dc, bitmap)` 返回 `toHandle(nullptr)` = **nullptr**（toHandle 见 717 行）。Win32 语义里新建兼容 DC 自带 1×1 单色位图，SelectObject 必返回非空旧对象。后果：任何 `HGDIOBJ old = SelectObject(...); if (!old) 失败` 的写法都会把'选中成功'判成失败（S4-3 的 OwnedDib::create 就是这么踩的，直接导致回读 DIB 没建成、无 PNG）。现产品代码没有这个判据（全库 grep `SelectObject(...) == nullptr` 无匹配），所以还没爆，但这是最常见的 Win32 习惯写法，属定时炸弹，应在 S4-3 收口时一并补上初始位图。 2026-11-10 18:31 **已修复**：CreateCompatibleDC 末尾造 1×1 单色位图（CompatDevice::ownedBitmap 拥有、DeleteDC 释放、CompatObject::monochrome 让 GetObject 如实报 bmBitsPixel=1）。副作用：新建 DC 的 GetClipBox 由 ERROR(0) 变成 SIMPLEREGION(2)+{0,0,1,1}（这才是 Win32 语义），dcstate 自测里钉旧偏离的那条断言已更正。",
+    "brake_is_about_new_facts": "2026-11-10 17:26：熔断的判据是**上一轮是否留下待回答的未知**，不是记录的类型标签。规则字面上的'连续两条 partial/diagnose-only 即熔断'若机械执行会形成永久死锁：partial 之后必然诊断一轮，诊断一轮之后又是'连续两条'。正确读法：诊断轮只要产出了**新的可验证事实**（真实运行输出、定位到行号的根因、可复现的绕过命令），熔断即解除，下一轮直接执行修复；只有当诊断轮只能重复上一轮的结论（没有新事实可产出）时，才继续熔断并交由人判断。本轮按此读法标记为 diagnose-only，但下一轮（S4-3 收口）不再做诊断。",
+    "initial_state_changes_expose_masked_deviations": "2026-11-10 18:31 S4-3：给 CreateCompatibleDC 补上 1×1 初值位图后，dcstate 自测里\"未选位图的 DC 的 GetClipBox 返回 ERROR(0)\"立刻变红。判断关键：这条断言钉的是**本层的偏离**而不是 Win32 语义（真 Windows 新建 DC 也有 1×1 表面），所以正确处置是改断言、并把新语义钉细（含 {0,0,1,1} 四个数值），不是回退实现。同一处偏离当年还顺带掩盖了\"首次 SelectObject 返回 nullptr\"——两个 bug 一条根因。经验：改初始状态/初值时，先区分\"哪些断言是我的错\"与\"哪些断言是旧实现的错\"，否则会为了保住绿而把 bug 保回来。",
+    "census_include_scope": "2026-11-10 18:31：--census 用固定 include 集（compat/include + src）逐 TU 做 -fsyntax-only，但 compat/win32/selftest/CompatUserSemantics.cpp 会 include \"RuntimeWin32CompatInternal.h\"（在 compat/win32/src），于是它必然失败。判据：这类失败补 -I compat/win32/src 后 EXIT=0 即为普查口径缺口，不是产品 TU 回归。另：TU 分母随构建图变化（本轮 479，因新增自测目标），只能比具名 TU，与本轮一致的结论仍是\"S8 的多进程 smoke 是唯一真失败\"。",
+    "audio_backend_decision": "P4 后端选 AudioToolbox/AudioQueue，不选 SDL3：本机无 SDL3 安装亦无源码（build/dependencies/sdl3-3.4.16 不存在），cmake/Sdl3Window.cmake 明写 'verified on Windows only' 且'no automatic dependency installation is performed'；P3-01(SDL3 窗口) 已 superseded，SDL3 不再是共享依赖；多平台方案 §P4 原文允许 CoreAudio。要换回 SDL3 只需替换 src/audio/apple/RuntimeAppleAudioOutput.cpp 一个文件。",
+    "ima_adpcm_is_the_real_format": "实测 RA2/Taunts/*.WAV(72) + GameData/**/*.WAV(90) 共 152 个散装素材**全部**是 IMA ADPCM（tag 0x11），22050Hz；Taunts 72 个是单声道，另外 10 个菜单音乐是 22050Hz 立体声 blockAlign=1024/samplesPerBlock=1017。只做 PCM 解码等于『接口通了但一句都听不到』。音频客户端若再遇到 tag 0x02(真 MS ADPCM) 仍需单独实现。",
+    "ima_stereo_nibble_is_four_byte_grouped": "IMA ADPCM 立体声的 nibble 数据**不是按帧交错**，而是按声道每 4 字节（8 个 nibble）为一组交错：先 ch0 的 4 字节、再 ch1 的 4 字节，循环。单声道时两种写法结果完全相同，所以只测单声道永远发现不了——错了会让右声道从第 1 帧起全体错位（10 个菜单音乐全中）。",
+    "wav_cross_check_with_afconvert": "ADPCM/WAVE 解码的验收必须用系统自带解码器交叉核对：`afconvert -f WAVE -d LEI16 in.wav ref.wav` 后逐样本比。自造样本 + 自洽断言只能证明『按我理解的表算』，证明不了『和别人算的一样』。本轮的立体声布局错误就是这么掉出来的（72 文件全绿的单声道测试完全没报）。当前基线：144 文件 / 8,095,320 样本 / 0 差异。",
+    "play_must_be_timed": "『真的在播』的判据是墙钟下界，不是 play() 返回 true：300ms 素材从 play() 到 isPlaying() 转 false 必须 ≥250ms（实测 394–421ms，其中约 100ms 是 AudioQueue 启动+USB 耳机延迟）。若实现只把指针交给设备就返回，或根本没建队列，这个下界立刻掉下来。另：空缓冲必须显式拒绝，否则『播完了』和『从来没数据』看起来一模一样。",
+    "ninja_unsigned_blocks_cmake_regenerate": "cmake --regenerate-during-build 会 fork `ninja --version`；/usr/local/bin/ninja 是指向 ~/opt/ninja 的**未签名**符号链接 → 子进程卡在 U 状态，configure 永远不返回（表现为『ninja 卡住 3 分钟无输出』，cpu 0%）。处置：codesign -s - --force ~/opt/ninja/ninja（备份在 /tmp/ninja.unsigned.bak）。注意 cmake 自身是已签名的，只有 ninja 需要签。",
+    "audio_selftest_entry": "macOS 音频底座自测 = build-product-mac/concord_apple_audio_output_selftest，参数为任意真实 .wav 路径；`--dump <in> <out.pcm>` 用于与 afconvert 交叉核对。跑之前必须先 codesign -s - --force（未签名二进制在本机会卡在 U 状态）。",
+    "audio_alias_is_process_global": "2026-11-10 P4-01b：MCI 的 alias 是**进程级命名**的，所以两个设备实例其实共用同一个槽。macOS 侧必须把槽位表做成进程级静态共享 + lease（被顶掉的旧实例不许关新会话），而不是每个实例各持一路输出流——后者会让'第二个实例 open 同一个通道'变成两路同时出声，那是 Windows 永远不会有的行为。AsyncSoundDevice 更极端：PlaySound 是进程级单路，只有 1 个槽、无租约、任何实例析构都不许停别人。",
+    "cmake_source_list_split": "2026-11-10 P4-01b：把 P4-01a 的 core 源与 P4-01b 的 device 源合成一个 CMake 变量，会让 output 自测连带需要 device TU 的 vtable 与 makeUnsupportedXxx 桩，链接期冒出一串未定义符号。cmake 不会为此报警——'一个目标编了它不该编的文件'只在链接期显形。源清单按'自测该覆盖的层'拆开。",
+    "signed_python3_wrapper": "2026-11-10 P4-01b 复现：本机默认 python3（~/.workbuddy/binaries/python/...）未签名，spawn 后停在 U 状态且 kill -9 无效。后果不是报错而是**静默挂死**：scripts/verify-win32-compat.sh 第 1 层用 python3 算声明数，日志停在『1/14』五分钟毫无输出。绕过：/tmp/signedbin/python3（签过的实体二进制 + DYLD_LIBRARY_PATH 指向 lib）。跑共享验证脚本前必须把脚本里的 python3 换成它，否则会误判为'脚本很慢'。",
+    "link_gap_zero_is_not_feature_done": "2026-11-10 P4-01b：缺口 0 只说明 ld 不再抱怨。本项目在缺口 0 的同一时刻仍有三件未验证：① 产品从未运行（菜单音效可播无第一手证据）；② XAudio2Create 是 E_NOTIMPL（多路语音不出声）；③ 无 Windows 听感基线。判据必须落在效果上，不落在符号表上。",
+    "audio_single_slot_tables_must_be_per_family": "2026-11-10 P4-01c 实测：槽位表原先只按容量做模板参数（table<1>()），于是 AsyncSound / MainMenuMusic / SkirmishMusic 三族拿到同一个静态实例、同一个 slot 0——播一声菜单音效就把菜单音乐顶掉，音乐此后永久消失。Windows 侧这三族是彼此独立的 MCI 设备，共用槽位是纯偏离。修法：族用空 tag 类型做模板参数（SlotTable<Family,N>），让类型系统保证不撞车。判据不能是\"音效播完前音乐仍在播\"：那 300ms 的音效自己还在播，isPlaying() 问的是共享槽，答案照样是\"在播\"（本轮第一次写就假绿）——等待时间必须超过被顶掉素材的时长。",
+    "wm_timer_never_delivered": "2026-11-10 P4-01c 实测：产品进菜单后 WM_TIMER 一次都不投递。主循环是阻塞 GetMessageW，SetTimer(window,1,16) 注册的定时器从不触发，于是菜单动画 / updateDynamicState / ensureMusicPlaying / EOF 重启全部静止。识别方法（三种，互相独立）：① 把观测点放进任何\"每秒该被调用一次\"的函数，一条都不打印；② 采样 ps 的 TIME，11 秒只用 0.66s CPU = 阻塞而非跑帧；③ 只有\"进循环前直接调用\"的那一次动作生效。看到\"程序活着但什么都不动\"时先查这条，不要先怀疑业务逻辑。",
+    "product_asset_root_is_cwd": "2026-11-10 P4-01c：RuntimeConfig 的 RedAlert2 / local_data 两个根都按**工作目录**解析，所以必须 cd 到 ConcordRTS-GameData 再启动（那里才有 local_data/runtime_config.ini 与 mix_exports）。从 /tmp 启动的表现是 \"palette resource not found: shell.pal\" + \"original shell assets are incomplete\"，看起来像素材缺失，其实是 cwd 错。不要为此改配置或写死路径。",
+    "audio_trace_is_env_gated": "2026-11-10 P4-01c：产品路径的音频取证开关 = CONCORD_AUDIO_TRACE=1。devices 层打 open/play/stop（带路径、帧数、采样率、声道），output 层每秒打 consumed/playedSec/wallMs。默认零开销零输出（实测不设变量时 [audio] 行数 0，stdout 不变）。之所以观测线程必须由输出流自己持有：菜单的定时器是死的（见 wm_timer_never_delivered），任何依赖产品回调的采样点都不会被调用。对账判据：playedSec 与 wallMs 同步增长且比值≈1（本轮 10.03/10.07 = 0.996）。",
+    "commit_milestone_exception": "提交锚点有两个维度，不止族边界：(1) 里程碑例外——子步(ID 带字母后缀，如 P4-01b)达成可复算的量化效果(链接缺口归零/产品首次运行/首次出声/族符号清零)即独立提交，不必等整族收口；仅'编译通过'不算里程碑。(2) 族收口——族内全部任务 done/superseded。反向澄清：链接已通过且效果可复算的不属于半成品，走里程碑例外。已按(a)提交的内容在(b)收口时不重复提交。2026-11-10 P4-01a/b/c 教训：三轮扛了全项目最大三个里程碑却因 P4-02 pending 一直未提交，最贵的东西暴露在工作树里最久。已破例提交 c301d95。",
+    "limiter_scales_the_sum_not_a_voice": "主声部效果器（peak limiter）乘的是**混音后的和**，不是单条 voice。两条 0.8 叠加的期望值是 0.999/1.6×1.6 = 0.999 → 32735，不是 0.8×0.6244 = 0.4995 → 16368。第一版断言按后者写，50/52 通过、两条红——红的是期望值而不是实现。判据要落在\"效果链被调用\"这句上：调用了就是 32735，没调用就是硬削 32767，差 32 个 LSB。",
+    "audio_queue_stop_needs_a_flag_before_the_lock": "AudioQueueStop(synchronous) 会等回调返回；回调在等混音锁；若停设备的一方正持着混音锁 → 死锁。正确顺序：先置 stopping_ 原子位（回调看到就立刻 return，不拿锁、不入队），**不持锁**停队列并 dispose，最后才拿锁摘声部。反过来写在本机表现是\"退出时整个进程卡住\"，没有任何报错。",
+    "samples_played_is_source_frames": "XAUDIO2_VOICE_STATE::SamplesPlayed 是**源采样帧数**，不是输出帧数：22050 素材播 1 秒，输出 48000 帧而 SamplesPlayed 只涨 22050。用它做\"播了多久\"的对账必须除以**源**采样率，用主声部 48k 去除会差 2.18 倍。另外 XAUDIO2_VOICE_NOSAMPLESPLAYED 时不要把它填 0（那等于\"一个都没播\"），应当不更新。",
+    "compat_selftest_source_list_is_shared": "compat 的 12 个自测目标编译**同一份** CONCORD_APPLE_WIN32_COMPAT_SOURCES，框架清单也在同一个 set 里。把 XAudio2 引擎放进 compat 源清单（而不是 src/audio/apple）的收益就在这里：零个 add_executable 要改，只加一行 AudioToolbox 就全网生效。代价是每个 compat 自测都多编一个 ~1200 行的 TU。",
+    "art_theater_naming": {
+      "finding": "RA2 建筑的剧场美术不是加后缀，而是换基名第 2 个字符：GAPOWR.SHP(16416B, snow.mix) / GGPOWR.SHP(16416B, generic.mix)，同尺寸不同 md5。对 GAPOWR 枚举全部 36 个字符，数据里只存在 A(雪地) 与 G(通用/温带默认) 两种。",
+      "impact": "MapPreviewExporter::newTheaterCharForExtension 把 .tem→'t'、.sno→'a'，会去找 GTPOWR.SHP —— 数据里不存在；温带默认图实际是 GG*。窗口渲染接美术时必须按 'G' 兜底，否则温带建筑全部命中不了。",
+      "verify": "python3 用 westwood_id 枚举 + --list-mix 逐归档比对；md5 与 --inspect-asset 双证"
+    },
+    "wm_timer_was_never_registered": "S11 定位：问题不是\"入库了但取消息不看定时器\"，而是 **SetTimer 本身就是空桩**（return TRUE，什么都不记）。所以任何只改 GetMessageW 的修法都无效。P4-01c 的三条识别法（观测点不打印 / CPU 停在 6% / 只有进循环前那次生效）全部指向\"没有消息源\"，但真正的原因是登记表不存在。",
+    "synthesized_messages_are_not_queued": "WM_TIMER 与 WM_PAINT 都是**取消息时合成**的，不进队列：入队会让它们压在真实输入前面并攒一堆；而且 PM_NOREMOVE 必须看不见它们（合成消息没有队列位置），否则 `while(PeekMessage(PM_NOREMOVE))` 变成死循环。",
+    "range_filter_zero_zero_means_no_filter": "GetMessage/PeekMessage 的 wMsgFilterMin=wMsgFilterMax=0 表示**不过滤**，产品的取消息调用正是 (0,0)。把合成消息的判定写成 `min<=msg && msg<=max` 会让 0..0 把 WM_TIMER/WM_PAINT 全挡在门外，症状是 GetMessageW 永久阻塞、一行日志都没有——第一版就是踩了这个（自测直接挂死）。",
+    "blocking_getmessage_cannot_test_absence": "\"应当没有消息\"这类断言**不能**用 GetMessageW 驱动：它按定义会阻塞到有消息为止，于是判据本身变成死锁。用 PeekMessage 轮询固定时长。本轮自测第一版在 KillTimer 之后永久挂住、零输出。",
+    "timer_table_is_process_wide": "定时器表是进程级静态（与本层 messageQueue 一致），不是 Win32 的每线程队列。产品只有一条 UI 线程所以成立；若将来出现第二条 UI 线程，SetTimer 必须改成 thread_local，否则 A 线程的定时器会派发到 B 线程的循环里。",
+    "idle_menu_cpu_is_a_probe": "S11 前后同一产品跑 12s：CPU 0.66s/11s(6%) → 1.17s/12s(9.8%)，\"每秒该被调用一次\"的 main-menu-music probe 从 0 条变 11 条。空闲 CPU 与周期日志是最便宜的两个\"定时器到底有没有在跑\"的判据——比看屏幕可靠，因为 S7 的窗口是纯离屏的，屏幕上本来就什么都看不见。",
+    "theater_char_differs_between_structures_and_overlays": "同一批 RA2 素材里并存两套剧场字符约定，同一函数服务两边必错一边：**建筑**温带在 art/base/gg*.shp（28 个）→ 温带字符是 'G'；**地表 overlay** 温带在 art/temperat/gt*.shp（gtsand/gtwall/ntwall）→ 温带字符是 'T'。证据可复算：ls art/base/gg* 28 个、ls art/snow/ga* 65 个、gt*powr 在全部归档里 0 个。",
+    "fallback_candidates_mask_a_wrong_first_candidate": "候选列表里的兜底项会让\"第一个候选名写错\"变成完全不可见的缺陷：Q-02 里旧映射把每个温带建筑的首选名写成不存在的 gt*/nt*/yt*（362/769），但后面跟着 'g' 兜底，于是 Missing SHP 一直是 0、所有\"是否缺图\"的统计都绿。要发现这类错，必须统计**首个候选的命中率**，而不是最终命中率。",
+    "map_preview_coverage_needs_complete_tiles": "map-preview 的结构精灵覆盖统计不是独立入口：它挂在 --export-map-tmp-html 里，而那条路径先要求瓦片齐全（本机抽取缺 194 个瓦片 → 直接中止）。而 --map-object-art-report 不加载 theater，所以它根本不触发替代候选生成（改动前后都 Missing 0，不能拿它当验证）。这类\"统计挂在别的功能后面\"的验证点要先确认入口可达。",
+    "edit_race_sweeps_into_peer_commit": "共享文件上的 Edit 是整文件读-改-写：对端若在你读完之后提交了整份文件，你的一次小改会把你的行卷进对方 commit，而对方 commit 的正文不会提这件事。本轮实证：#include \"data/art/TheaterResourceLetters.h\" 被 1dc77df 一并提交，该头并不在树里 → HEAD 构建断裂。后果是'别人的提交里有一个你造成的洞'，排查时极难归因。判据：开工前记目标文件 mtime；若动手时 mtime 已变，先 git log -1 --stat 看是否刚提交过。",
+    "clean_worktree_is_not_proof_of_no_peer": "git status 干净只证明'这一刻没有未提交改动'，不证明'没有别的实例在干活'：对端在自己 turn 内改完-编译-提交，中间任何一次采样都可能落在干净窗口。本轮实证：00:06 工作树干净，00:14 同一文件已出现完整 Q-02 实现+新提交。",
+    "git_add_stages_whole_file": "并发时 `git add <file>` 提交的是**整个文件**，会把别人往同一文件里写的行一起带走。1dc77df 就把对端一条 `#include \"data/art/TheaterResourceLetters.h\"`（该头从未入树）带进了提交，那一提交单独检出会构建断裂，靠对端 fd9c88c 修掉。**铁律：提交前逐 hunk 复核 `git diff`**——\"我只 add 了我的文件\"不等于\"我只提交了我的行\"。",
+    "wchar_t_width_divergence_is_the_t03_point": "本机 wchar_t=4 字节、POSIX 的 std::filesystem::path 是 char 原生，所以：4 字节 UTF-8 只产出 **1 个** wchar_t（Windows 是 2 个 UTF-16 码元）；`path.wstring()` 对 \"/tmp/中文/😀.wav\" 得到 **13** 个码点，不是 15 个 UTF-16 码元。任何\"wstring.size() == UTF-16 长度\"的假设在 mac 上都错，而它不会报错、只会让长度断言/哈希/截断判据静默偏移。",
+    "manual_round_must_take_the_lock": "人工接续轮（用户说\"继续\"）也必须先占锁：读 `.active`=released 之后**立刻写 held**，再读任务定义。本轮撞车就是跳过这一步——00:06:30 读到 released，00:06:58 对端 claim 同一个 Q-02，双方各改一次同一文件。",
+    "theater_letter_is_per_family_not_per_position": "**温带字符取决于建筑家族，不取决于文件名落在哪个目录**：玩家建筑（G/N/Y 前缀）在温带用通用图 `ggtech.shp`（art/base），民用建筑（C 前缀）在温带用剧场图 `cthosp.shp`（art/temperat）。769 个 NewTheater 段的交叉统计：两者都有 23 / 只有 g 120 / 只有 t 213 / 都没有 413。所以唯一正确的序列是 **[剧场字母, 通用 'G', 字面名]**——先试本剧场，再退通用，最后退回 ART 里写死的名字。任何\"只在两个字母里选一个\"的实现都会让其中一族画错图。",
+    "first_candidate_hit_rate_needs_an_unfiltered_denominator": "Q-02 我报的\"362/769 首候选不存在\"是**在能解析的段里**统计的，而且把\"先试剧场字母再试通用图\"这个正确设计里的第一次尝试当成了缺陷。全量不筛的真实数字：旧规则 `[t,g]` 首候选命中 **242**（temperat 202 / base 40），`[g]` 只有 **149**（base 143 / temperat 6）。教训：分母必须是全量，且\"首候选落空\"本身不是缺陷——要看**落空之后的那一步退到哪里**。这条是对 rules.fallback_candidates_mask_a_wrong_first_candidate 的更正：兜底不是掩盖错误，而是这条命名约定本来就需要两步。",
+    "temperate_letter_is_T_not_G": "温带的**剧场字母**是 'T'（art/temperat/ct* 203 个；cthosp/ctoild/ctairp 都存在），'G' 只是**通用兜底**（art/base/gg*）。实证：cghosp/cgoild/cgairp 在任何目录都不存在。所以候选序列必须是 [剧场字母, 通用 G, 字面名]；把温带字母写成 'G' 会让民用建筑（C 类，只有 CT 没有 CG）静默回落到 art/snow/ca*——温带地图整片画成雪地图。1dc77df 就是这么错的，Q-04 正在改回。",
+    "first_candidate_metric_must_split_by_category": "统计'首个候选是否命中'必须按首字母分组（C/G/N/Y）：G 类建筑的温带图确实只有 GG（gt* 从未出图），所以 G 类靠兜底命中是正常的；C 类有 CT 却没有 CG，靠兜底命中就是错的。把两类混成一个百分比，会得到'温带=G'这种看着对、实际错杀 234 条 ct* 的结论。",
+    "no_real_window_yet": "macOS 侧没有真窗口：ShowWindow 只翻 CompatWindow::visible，UpdateWindow 只派发 WM_PAINT，全仓库唯一的 NSWindow 出现处是两行注释。产品能跑、有声音、画面完整（可用 CONCORD_MENU_DUMP=<bmp> 导出客户区帧自证），但屏幕上永远什么都没有。在 Q-05（Cocoa 呈现层）落地前，任何画面问题的排查都必须先看导出帧，而不是看屏幕。",
+    "menu_frame_dump_hook": "诊断入口：CONCORD_MENU_DUMP=/tmp/frame.bmp [CONCORD_MENU_DUMP_FRAME=6] 启动产品，EndPaint 后把客户区位图写成 24bpp BMP（未设变量时零开销）。这是当前唯一能看见到底画了什么的手段，也是将来 Cocoa 贴图的取像素路径。",
+    "pointer_nav_selftest_registers_its_own_class": "自测里建父窗口不要用 L\"STATIC\"：compat 的 CreateWindowExW 在 2026-11-11 01:50 前没有预定义窗口类表，返回 nullptr，现象是 require 报「父窗口建不出来」，看起来像导航实现坏了。用 RegisterClassExW 自注册一个类，成败就只取决于本自测自己。",
+    "wait_for_state_not_for_a_fixed_delay": "投递/发送窗口消息后必须「等到状态变化」（有界轮询 predicate），不能等固定时长：第一版 pump(60) 就断言 page 已改变，5 条断言里有 4 条是这种假失败。另一条同源：SetWindowPos 的 WM_SIZE 是**排队**投递的，紧接着读 viewLeft/viewTop 还是建窗时的旧值 0,0；用旧偏置算出的点击坐标在新偏置下整体偏 112 像素、落到 sidebar 之外，表现成「按下有态、抬起无反应」。",
+    "stock_window_classes_were_missing": "`--main-menu-ui-smoke-test` 在本机失败的根因不是导航：compat 的 CreateWindowExW 不认识 STATIC/BUTTON/EDIT/LISTBOX/COMBOBOX/SCROLLBAR/MDICLIENT 这些**预定义**类，产品建宿主子窗口直接拿到 nullptr，报出来是「hosted child page did not preserve its top-level shell」+ credits=0/1/0。修复方式（另一实例 2026-11-11 01:50 已在 RuntimeWin32CompatUser.cpp 落地，未提交）：局部填 DefWindowProcW，**不写进 classTable**，否则产品之后 RegisterClassExW(L\"STATIC\") 会撞「类已存在」。",
+    "mix_has_no_filenames": "MIX 档案不存文件名，索引表只有 CRC32 id。任何“MIX 里有没有 X”的判断必须用 MixArchive::findEntryByName / mixFileIdFromName 算 id 去查，strings / grep 永远找不到。2026-11-11 Q-09 踩过：先用 strings 判定“creditsmd.txt 不存在”，实际它在 RA2/langmd.mix 里（16180 字节）。",
+    "presentation_single_window": "本层只有一个 NSWindow，所以呈现必须\"唯一化\"：第一个画完的窗口成为可见窗口，之后只有严格更大的窗口才接管，小控件（EDIT/STATIC）一律拒绝。反之会让 10×10 的输入框把整屏顶掉（2026-11-11 Q-12 实测）。窗口尺寸跟随\"上次呈现的尺寸\"，不跟随\"窗口当前尺寸\"——后者会把用户手动缩放掰回去。",
+    "handle_table_outlives_process": "compat 的句柄表（handleMutex/handleTable）故意永不析构：它会被产品的**静态对象**在析构期访问（如 prewarmedMenuState 析构里调 FindCloseChangeNotification），静态析构顺序不确定会导致\"mutex lock failed: Invalid argument\" → SIGABRT，而所有断言都过、只在收尾崩。Windows 的 HANDLE 表本来就活到进程结束，所以这是正确语义。2026-11-11 S12 踩过一次。",
+    "fsevents_nested_framework": "FSEvents 是嵌套框架（CoreServices.framework/Frameworks/FSEvents.framework）：不能 include CoreServices 伞头（会拉进 CarbonCore/Threads.h，GetCurrentThread 与本层冲突）；必须 <FSEvents/FSEvents.h> + 按**文件属性**加 -F（按目标加会漏掉同源清单的其他目标）；且 CMAKE_OSX_SYSROOT 在用默认 SDK 时是空串，要用 xcrun --show-sdk-path。",
+    "modal_loop_bounded_wait": "产品里\"模态菜单循环\"不能用 GetMessageW 做主循环：窗口可能在一次派发里被销毁，之后队列再不来消息，GetMessageW 会无限阻塞，while(IsWindow) 的退出条件永远没机会重判。用 PeekMessage + MsgWaitForMultipleObjectsEx(5ms) 有界等待。2026-11-11 S13 实测：遭遇战 preload 的 4 次进出就是卡死在这里（采样栈落在 GetMessageW）。",
+    "presentation_owner_area": "compat 的可见窗口规则要记住\"历史面积\"（gPresentedArea），不能只比当前 owner：owner 句柄一失效就查不到尺寸，会无门槛接受任意窗口——实测 800x600 壳销毁后 10x10 的 EDIT 把整屏 resize 成 10x10。当前规则：owner 在→严格更大者接管；owner 已销毁→门槛为历史面积的一半。",
+    "diagnostic_must_curate_the_probe_list": "诊断输出不能直接倒探测序列：兄弟枚举会一路枚举到 home（本机 179 条候选），逐条打印等于刷屏。只列「锚点（self 三条）+ near-miss（有 local_data 没 RedAlert2 或反之）」，不足 8 条按原顺序补齐，索引保留真实位置，全量走 TRACE 环境变量。判据：默认输出 ≤16 行，且 near-miss 一条不漏。",
+    "source_root_is_never_the_data_root": "选取最近候选要按 stageRank 平票破局：环境变量(4) > 兄弟(3) > 祖先(2) > 自身(1)。源码树里常有一个自污染留下的空 local_data（resolveRuntimePath 的 cwd 优先语义 + 进程写 runtime_map_cache 造成），于是源码根与真数据根同为「有 local_data、缺 RedAlert2」。按序列顺序取第一条会把源码树报成答案（本轮实测踩到），必须让 sibling 赢。",
+    "pkill_f_kills_the_calling_shell": "pkill -f <pattern> 会匹配到**自己这条命令行**：命令串里含同一个路径时，pkill 把发起它的 zsh 一起 SIGTERM 掉，表现为「命令无输出、Exit Code 空、Signal SIGTERM」，且后续进程采样看起来像『应用自己退出了』（本轮据此误判过一次）。查/杀本机进程一律用 pkill -x concord_runtime / pgrep -x <进程名>，不要用 -f 加路径。",
+    "iconutil_needs_real_extensions": "生成 .icns 有两处扩展名硬约束，都不给有用的报错：① iconset **目录**必须以 .iconset 结尾且不能是隐藏名——用 `\".iconset\"` 会被当成『没有扩展名』，报 Invalid arguments, --output argument. The file extension must equal icns；② `iconutil -o` 的输出文件扩展名必须真的是 .icns，写 `.icns.tmp` 同样被拒。正确做法：iconset 用 concord-icon.iconset，输出先落 <build>/ConcordRTS.icns 再 mv 进 Resources。",
+    "app_bundle_screen_is_black_but_dib_has_content": "2026-11-11 05:10 实测：screencapture 抓到游戏窗口为纯黑矩形（同机 WorkBuddy 窗口内容正常，排除录屏权限），而同一进程 CONCORD_MENU_DUMP 导出的 1024x640 DIB 帧完整（美术+中文按钮+侧栏）。即 GDI 渲染与帧导出都对，断点在 present() → layer.contents → 合成。判据要用『回读 layer 像素 hash 与同帧 BMP 对账』（ON-3-01），不要用『进程没崩 + 日志有 first frame attached』当上屏证据——那两句在纯黑窗口下同样会打印。",
+    "peer_swept_worktree_into_family_commit": "2026-11-11 05:07:45 事故：本轮 ON-1-03 正在收尾（工作树 8 文件未提交）时，另一实例按族收口直接 `git add` 并提交了 5b1eb50，把我的在制品一并入库，同时把 ON-1-03 标 done、queue 升 v59，但没写 RUNLOG；我持有的 .active 未挡住它。两个后果必须检查：① 被 *.gitignore 规则吞掉的文件（本轮 packaging/icon-source.png 被 *.png 吞）不会进那个提交，clone 后打出的 bundle 无图标；② 缺 RUNLOG 等于该轮无记录。处置模式：先 git log/find 校验『提交是否含有我全部改动 + 是否有被忽略文件漏网』，再补提交 + 补 RUNLOG，不要重做工作。",
+    "external_input_policy": "等待外部输入的任务绝不用 in_progress。三种情形与对应标记：① 交付物已经产出、只等第三方执行/回报（人眼验收、真人点击、需要授权屏幕录制）→ 标 done，把『结论待回报』写进 note；回报后若发现偏差，另立一条新任务挂到同族末尾，不要回滚原任务状态。② 任务本体无法继续、必须等人提供东西（Windows 机器、完整资产包、账号授权）→ 标 blocked 并写 blockedReason，注明等什么、拿到之后第一步做什么。③ 任务还在自己做、下一轮会接着做 → 才标 in_progress，且必须在 RUNLOG 写清『卡在哪一步、下一轮从哪继续』。为什么这条重要：自动化的熔断规则是『存在任何 in_progress 即本轮只诊断不改码』，所以一个等外部输入的 in_progress 会让整队每小时空转一次，而且看起来像『没有任务在跑』。2026-11-11 的 ON-3-03 踩过这个坑。",
+    "mark_status_within_round": "本轮结束前必须让 queue.json 里 in_progress 的数量回到 0（全部落到 done / blocked / partial 对应态），除非确实是『下一轮接着做』且 RUNLOG 已写明续点。",
+    "cgimage_cache_freezes_screen": "呈现层**不能**缓存 CGImage：CompatWindow 的 DIB 是同一块内存、GDI 每帧覆盖写，而复用的 CGImage 被上传一次后 CA 不再重读它。2026-11-11 ON-2-01 决定性实验（/tmp/pc/probe3.mm，每阶段自抓窗口图）：每帧新建 → 红/绿/蓝/黄四帧四色；两个对象轮挂 → 四帧全红且 PNG 字节数完全相同；单对象 → 同样全红。**交替挂两个对象救不了**，去重不是按 contents 指针。判据必须落在屏幕像素上：DIB 每帧都在变，任何 DIB 级断言都看不出这个冻结。",
+    "cgimagecreate_cost_is_microseconds": "CGImageCreate 不是瓶颈：provider 是 no-copy，图像对象不分配像素缓冲。1024x640 实测（/tmp/pc/bench.mm，20000 次）：provider+image 每帧新建 1.3µs/帧；只缓存 provider 0.7µs/帧；全缓存 0µs 但会冻结。60fps 下能省的上限是 0.04ms/s。凡是以\"每秒上百 MB 分配\"为理由优化呈现路径的，先按这个基准复算。",
+    "present_rate_is_degenerate_today": "当前产品的提交频率接近 0：主菜单挂机 20s 内 present < 10 次（只在交互时重绘）；--skip-main-menu --skip-skirmish-menu 进世界 45s 只有 **2** 次（首帧 + resize 后那帧），因为游戏内帧循环还没做（ON-4-03）。所以\"每帧开销\"类优化现在没有可测收益，要做就先做帧循环，再看 ON-2-02 的提交合并。",
+    "window_capture_by_window_number": "窗口级取证可行：`screencapture -x -o -l <NSWindow.windowNumber> out.png` 对自建窗口全部成功（18KB、内容正确），不需要屏幕录制授权。抓图前必须自己 activateIgnoringOtherApps + makeKeyAndOrderFront，否则抓到的是上一张合成快照（被遮挡窗口不更新合成）——这正是\"屏幕冻住\"与\"窗口被挡住\"无法区分的原因。产品窗口（windowNumber=1836）试过一次could not create image from window，差异未查清，ON-3-01 开工先复测。"
+  },
+  "tasks": [
+    {
+      "id": "ON-1-01",
+      "title": "数据根多级解析：不带参数启动也能找到 ConcordRTS-GameData",
+      "status": "done",
+      "detail": "根因是 runtimeConfigProjectRoot 的判据要求 local_data+CMakeLists.txt+(RedAlert2|.git) 同时存在，而 1.7GB 数据在兄弟目录。projectRoot 回退到 cwd 后 RedAlert2/local_data 全部指向不存在的路径，主菜单拿不到 shell.pal 就静默退出——表象是「资产缺失」，实际是「没找对目录」。实现：新增 runtimeLocateDataRoot（env CONCORD_DATA_ROOT → 已知根自身 → 相邻兄弟目录（向上 4 层祖先分别枚举）→ 逐级祖先），判据改为 local_data+RedAlert2；loadRuntimeConfig 用数据根作为相对路径基准，并引入 preferBase（仅当 source != self 时打开）避免 cwd 自污染——进程会在 cwd 写 local_data/runtime_map_cache，二次启动时 local_data 相对 cwd「存在」会导致路径漂移。",
+      "verify": "cd /tmp && /Users/zhenglk/ai-project/ra2mac/ConcordRTS/build-product-mac/concord_runtime  期望输出 [config] data root .../ConcordRTS-GameData (source=sibling) 且 Runtime menu host: sharedWindow=yes，进程常驻；另 cd ConcordRTS && ./build-product-mac/concord_runtime --main-menu-ui-smoke-test /tmp/m.bmp 应 EXIT=0（不带任何资源参数）",
+      "touches": [
+        "src/runtime/config/RuntimeConfigPaths.h",
+        "src/runtime/config/RuntimeConfigPaths.cpp",
+        "src/runtime/config/RuntimeConfig.cpp"
+      ],
+      "note": "Windows 零行为变化：单仓库布局下 source 恒为 self，preferBase=false，cwd 存在优先的旧语义逐字节保留。回归：GDI 135/0、User 42/0、ScreenDC 23/0、WindowCursor 14/0、ChangeNotify 13/0；主菜单 smoke EXIT=0；遭遇战 smoke EXIT=0（161 地图 / 377167 像素）。"
+    },
+    {
+      "id": "ON-1-02",
+      "title": "启动诊断：解析失败时打印搜索过的路径与缺失项，而不是一行 palette not found",
+      "status": "done",
+      "detail": "现状：数据根未命中时只在主菜单阶段报 shell.pal 找不到，用户无从判断是资产缺了还是路径错了。改成启动即校验：打印 4 类候选路径、判定条件（需要 local_data/ 与 RedAlert2/）、以及每个候选缺哪个目录；CONCORD_DATA_ROOT_TRACE=1 时全量打印探测序列。缺关键资产时列出缺失文件清单与放置位置。",
+      "verify": "临时 mv ConcordRTS-GameData RedAlert2 ConcordRTS-GameData/_RedAlert2 && 启动，期望输出含 5 条以上候选路径与「missing RedAlert2」字样；恢复后正常启动。",
+      "touches": [
+        "src/runtime/config/RuntimeConfigPaths.cpp",
+        "src/runtime/config/RuntimeConfig.cpp",
+        "src/ui/main_menu/RuntimeMainMenu.cpp"
+      ],
+      "note": "验收：把 RedAlert2 改名后启动，stderr 打印 8 条候选（probed 179，锚点+near-miss 优先）+ 每候选 missing 明细 + most likely 命中 ../ConcordRTS-GameData (missing RedAlert2) + 三段 required layout + 两条 fix；主菜单失败块逐文件实测 ok/missing（ra2md.mix / runtime_config.ini / rulesmd.ini）并列出 4 个 pal + 7 个 shp id。恢复后正常启动 [config] data root ... (source=sibling)；--main-menu-ui-smoke-test EXIT=0（sideTopFrames=2 warningFrames=91 slotFrames=17 redButtonFrames=3，与基线一致）。判定逻辑零改动。"
+    },
+    {
+      "id": "ON-1-03",
+      "title": ".app bundle：双击即玩（Info.plist / 图标 / 数据根挂载 / ad-hoc 签名）",
+      "status": "done",
+      "detail": "macOS 交付形态：ConcordRTS.app/Contents/{MacOS/concord_runtime, Resources/, Info.plist}。Info.plist 需 NSHighResolutionCapable=true、LSMinimumSystemVersion、CFBundleIdentifier、CFBundleIconFile。资源策略二选一：把 ConcordRTS-GameData 软链/symlink 进 Resources，或写 Resources/data-root 指针文件让 ON-1-01 的探测器读取。ad-hoc codesign -s - 让 Gatekeeper 放行本地构建。",
+      "verify": "open ConcordRTS.app 后 ps 有进程、日志出现 data root（source=app-resources）、Dock 有图标；Cmd+Q 退出码 0。",
+      "touches": [
+        "cmake/PlatformApple.cmake",
+        "CMakeLists.txt",
+        "packaging/（新增）"
+      ],
+      "note": "验收：① cmake --build --target concord_app → bundle 50,201,472 B、signature=adhoc；② 从 / 启动 Contents/MacOS/concord_runtime → [config] data root ...(source=app-resources)，主菜单常驻 7s 存活；③ CONCORD_QUIT_SELFTEST=1 → posted synthetic Cmd+Q，EXIT=0；④ open ConcordRTS.app → lsappinfo type=Foreground / fileType=APPL / Version=0.1.0，单实例。图标取自原版 YR 封面（256px），仅限本机自用，对外分发前应替换。 补充（05:12 本轮）：图标取自原版 YR 菜单首帧裁 584x584（右/下边缘已确认无 UI 残留），源图 packaging/icon-source.png 已被 .gitignore 的 *.png 吞掉、由 a9e1156 补入库（加 !/packaging/icon-source.png 否定规则）。⚠️ 抓屏发现屏上窗口纯黑而 CONCORD_MENU_DUMP 的 DIB 帧内容完整 → 断在 present→layer 合成，归 ON-2-01/ON-3-01；本轮无对照二进制，记为待确认的既有缺陷。提交 5b1eb50 由并发实例代提交（扫入我的在制品），a9e1156 为我补提交。"
+    },
+    {
+      "id": "ON-2-01",
+      "title": "呈现管线：去掉每帧 CGImageCreate，按 surface 指针+尺寸缓存",
+      "status": "superseded",
+      "detail": "现在 present() 每帧 CGDataProviderCreateWithData + CGImageCreate 重建图像对象。菜单位图上无所谓（只在交互时重绘），游戏内 60fps × 1.92MB 就是每秒上百 MB 的分配与一次整幅纹理上传。改法：按 (pixels 指针, width, height, bytesPerRow) 做缓存键，四元组不变则复用同一 CGImage，每帧只赋 layer.contents；元组变化才重建并释放旧的。",
+      "verify": "在 .mm 加计数器并在退出时打印；--skirmish-ui-smoke-test 期望 cgImageCreates <= 2 且 cmShowFrames > 100。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "注意 DIB 内存会被 GDI 原地覆盖，缓存 CGImage 时必须保证它仍指向同一块内存（no-copy provider），不能改成拷贝。【2026-11-11 结案】不要缓存 CGImage（单对象/双对象交替都会冻结）。真正的优化对象是\"提交次数\"而不是\"对象创建\"，见 ON-2-02，且需 ON-4-03 先做出帧循环。",
+      "supersededReason": "任务前提被实测否定：按 detail 实现（缓存 CGImage + 每帧只赋 layer.contents）会让屏幕冻结在第一帧，而 DIB 一切正常——DIB 级断言看不见这种坏。每帧新建 CGImage 只花 1.3µs，缓存上限收益 0.7µs/帧，不值得冒冻结风险。代码已回退，工作树干净。证据：progress/ON-2-01-呈现缓存否定报告.md。"
+    },
+    {
+      "id": "ON-2-02",
+      "title": "刷新节奏：脏帧合并 + 与显示刷新对齐",
+      "status": "pending",
+      "detail": "当前每个 EndPaint 都直接 present，同一帧可能被贴多次，且与 CA 合成不同步。目标：present 只做「标记脏」，由显示节奏（CVDisplayLink 或 1/60 定时）统一提交；同一显示周期内多次脏标记只贴最后一次。避免撕裂与重复上传。",
+      "verify": "游戏内 30fps 场景统计 presentSubmits 与 renderedFrames 比值在 1.0±0.05；主菜单空闲时 submits 不再增长。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "compat/win32/src/RuntimeWin32CompatUser.cpp"
+      ],
+      "note": "CVDisplayLink 已 deprecated（macOS 15 起建议 CADisplayLink/NSView.displayLink），实现时按 SDK 条件分支，二者取其一。【2026-11-11 补充】先量分母：当前菜单挂机 <10 次/20s、世界 2 次/45s，比值 1.0±0.05 无从谈起。开工顺序应为：先加 present 计数（compat/win32/src/RuntimeAppleWindowSurface.mm 里一个计数器 + exit 打印即可，ON-2-01 试过、零风险），再谈脏帧合并。"
+    },
+    {
+      "id": "ON-2-03",
+      "title": "Retina 与缩放：contentsScale 跟随 backingScaleFactor、可缩放窗口、任意拉伸",
+      "status": "pending",
+      "detail": "用户决策（2026-11-11）：缩放策略取**任意拉伸**（画面铺满窗口），不做整数倍 letterbox。三点：① layer.contentsScale 跟随 window.backingScaleFactor，否则 2x 屏上整幅被系统放大成糊的；② styleMask 加 Resizable（当前只有 Titled|Closable|Miniaturizable），并把 contentsGravity 保持 kCAGravityResize；③ 拖动缩放时不得触发 Q-12 的『上次呈现尺寸』回写（那是换界面用的，不是给用户拖动用的）——两者必须用不同状态位区分，否则用户一拖窗口就被掰回原尺寸。",
+      "verify": "2x 屏上 layer.contentsScale==2 且画面无二次放大（采样断言）；把窗口拖到 1.7 倍尺寸后画面铺满不变形，且下一次 surface 尺寸变化仍能正确 setContentSize。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "用户已在四点决策里明确选 (b) 任意拉伸。"
+    },
+    {
+      "id": "ON-2-04",
+      "title": "窗口语义：红叉真退出、Cmd+Q、系统全屏、最小化恢复",
+      "status": "pending",
+      "detail": "用户决策（2026-11-11）：只做窗口形态，**不做独占全屏/改分辨率**。范围：① 红叉 → WM_CLOSE→WM_DESTROY→退出（现在 pumpEvents 里 `if (event.type == NSEventTypeAppKitDefined) continue;` 把关闭事件整类丢掉，点红叉只 orderOut、进程还在）；② Cmd+Q（ON-1-03 已加 App 菜单 + 键等价物，自测 EXIT=0，本条只做回归）；③ Ctrl+Cmd+F 系统全屏进出后内容不丢；④ 最小化恢复保留最后一帧。",
+      "verify": "点红叉后进程退出码 0（用 CONCORD_QUIT_SELFTEST 同款注入路径验证关闭事件）；全屏进出前后 presentHash 一致。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "独占全屏在 macOS 上无意义（SIP 后不可改显示模式），明确不做。"
+    },
+    {
+      "id": "ON-2-05",
+      "title": "首帧上屏修复：空白首绘抢呈现位导致客户区全黑",
+      "status": "done",
+      "detail": "用户双击 .app 后窗口在、标题对、客户区全黑。二分定位：CONCORD_PRESENT_DIAG=1 打出 dib px0=00 00 00 00（DIB 首像素就是黑的）而 cg px0=00 00 00 ff（CGImage 解释正确，BGRA 无问题）。根因：主窗口 1024x640 先于主菜单子窗口 EndPaint，那次 surface 全 0，却抢到了 gPresentedWindow；之后子窗口面积相等，而抢位规则要求『严格更大』，永远接不上，屏幕永久停在全黑帧。修法：maybePresentClientFrame 在抢位判定**之前**做 8x8 网格采样，全黑帧既不呈现也不抢位；顺带补 layer.contentsScale=backingScaleFactor（2x 屏此前把 1024x640 当 1x 放大，画面会糊），空标题时用游戏名兜底（子窗口无标题会把标题栏降级成进程名）。",
+      "verify": "cd /tmp && /Users/.../concord_runtime 然后 screencapture -x：窗口客户区出现主菜单（左侧 YR 封面 + 右侧 6 个橙色按钮 + 顶部主選單 + 底部 版本 1.004）；日志 [cocoa] frame 1: view=1024x640 layer=1024x640 contents=set scale=2.0",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "里程碑：产品首次在屏幕上真正显示出游戏画面（此前所有『上屏成功』都只达到 present 被调用）。回归：主菜单 smoke EXIT=0、遭遇战 smoke EXIT=0、User 42/0、GDI 135/0、WindowCursor 14/0；interaction smoke 仍 EXIT=1（属 ON-4-01，与本次无关）。提交 cdad6ab。"
+    },
+    {
+      "id": "ON-3-01",
+      "title": "上屏自证：present 后回读 layer 像素 hash，与同帧 BMP 对账",
+      "status": "pending",
+      "detail": "沙箱无屏幕录制权限，唯一可信的「贴对了」证据是：把刚挂到 layer.contents 的 CGImage 画回位图，算 FNV-1a hash，与同一帧导出的 BMP 内容 hash 比对。同时断言 NSWindow.isVisible / isKeyWindow / backingScaleFactor / frame.size 与 surface 一致。五个界面各一条记录（主菜单 / 单人页 / 遭遇战大厅 / 加载 / 游戏内）。",
+      "verify": "新增 --onscreen-attest-smoke <dir>，输出 5 条 presentHash==bmpHash 且 windowState ok，EXIT=0。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "compat/win32/src/RuntimeAppleWindowSurface.h",
+        "src/runtime/host/RuntimeMain.cpp"
+      ],
+      "note": "这是 ON-2/ON-4 所有验收的地基，越早做返工越少。"
+    },
+    {
+      "id": "ON-3-02",
+      "title": "--onscreen-capture：用 CGWindowListCreateImage 抓自己窗口",
+      "status": "pending",
+      "detail": "CGWindowListCreateImage 抓本进程窗口不需要额外 API 权限（屏幕录制授权一次即可，用户侧执行）。产出 png 与标准 BMP 比对，差异应仅来自系统合成（颜色管理/缩放）。用于向人证明「屏幕上真的是这幅画」。",
+      "verify": "用户授权屏幕录制后执行 --onscreen-capture /tmp/on.png，与同帧 BMP 平均通道差 < 2。",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "src/runtime/host/RuntimeMain.cpp"
+      ],
+      "note": "沙箱内大概率被拒（TCC），需要用户在桌面会话里执行一次。"
+    },
+    {
+      "id": "ON-3-03",
+      "title": "人眼验收清单（30 秒剧本）",
+      "status": "done",
+      "detail": "写一份用户照着做的操作剧本：① 双击/命令启动，看到 1024x640 主菜单且标题是 Command & Conquer: Yuri's Revenge；② 点「单人游戏」换页；③ 进遭遇战看到 161 张地图预览；④ 选一张、点开始、看到加载进度；⑤ 进入游戏内视图看到地形与侧边栏。每步写期望现象与失败时该看哪条日志。",
+      "verify": "用户回报 5 步结果；失败步骤对应到具体 smoke/断言。",
+      "touches": [
+        "（文档）"
+      ],
+      "note": "剧本已交付（progress/ON-3-03-人眼验收剧本.md + onscreen-reference/ 6 张对照图），交付物本身完成，故标 done。**人眼验收的结论是外部输入**，不是本任务的产出——若标 in_progress 会让自动化第 2 步熔断（已存在 in_progress 即只诊断不改码）而整队停摆。用户回报 5 步结果后：全对则无需动作；有偏差则按偏差立缺陷任务（挂到 ON 族末尾，不阻塞 ON-2）。"
+    },
+    {
+      "id": "ON-4-01",
+      "title": "清 S14：Rectangle 非实线 pen 改走 strokeLine 分量描边",
+      "status": "pending",
+      "detail": "继承 S14 原文：交互 smoke 在游戏世界内首次撞到像素契约断言（selected path batch differs at pixel/current-point case 0，零长度线段+矩形用例）。compat 的 paintShapeRows 是逐行色带、没有路径概念，Rectangle 的 PS_DOT 被画成实线；而 RuntimeSelectedPathBatch 走 PolyPolyline，每个分量按 pen.style 打点。修法：Rectangle 在 pen.style != PS_SOLID 时改用 4 条 strokeLine 描边，顺序与 PolyPolyline 分量一致（右上→左上→左下→右下→右上，每段相位从 0 起），填充仍按原 rows 路径内缩 pen.width。",
+      "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0（当前为 failed: selected path raster: mixed sequence/current point differs at 0）",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp"
+      ],
+      "note": "由 S14 转入，内容不变。"
+    },
+    {
+      "id": "ON-4-02",
+      "title": "真实输入进游戏：合成鼠标事件走消息队列，菜单→遇战→选图→开局",
+      "status": "pending",
+      "detail": "现有 smoke 大量直调内部函数（completeMenu / 直接选图）。改成合成 WM_LBUTTONDOWN/UP、WM_MOUSEMOVE、双击，经 PostMessageW 进真实队列，由窗口过程处理；逐屏断言窗口尺寸/标题/像素特征（主菜单 1024x640 → 遇战 800x600 → 加载 → 游戏内）。这条打通后，人眼剧本与自动测试才走同一条代码路径。",
+      "verify": "新增 --onscreen-flow-smoke，依次断言 5 个界面并 dump 5 张 bmp，EXIT=0。",
+      "touches": [
+        "src/ui/skirmish/",
+        "src/runtime/host/RuntimeMain.cpp",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "依赖 ON-3-01（需要自证通道判断「贴对了」）与 ON-4-01（游戏内像素契约）。"
+    },
+    {
+      "id": "ON-4-03",
+      "title": "游戏内帧循环：脏区驱动 + 连续帧差异断言",
+      "status": "pending",
+      "detail": "游戏内视图需要持续刷新（单位移动、动画、小地图）。建一条稳定的帧循环：tick → 标记脏区 → 呈现。断言：单位移动时连续 60 帧中至少 50 帧 hash 不同；静止时帧数不再增长（不空转）。",
+      "verify": "连续帧 hash 统计输出 changing=50+/60，idle 状态下 submits 不增长。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "与 ON-2-02 的节流配合，避免「每 tick 一次全屏上传」。"
+    },
+    {
+      "id": "ON-4-04",
+      "title": "性能基线：菜单/大厅/游戏内三档首帧时间、帧时间 P50/P95、峰值 RSS",
+      "status": "pending",
+      "detail": "用 steady_clock 采样三档：首帧耗时、连续 600 帧的帧时间分布、进程 RSS 峰值。落表 progress/perf-onscreen.md，作为后续优化的对照。",
+      "verify": "表存在且游戏内 P95 < 16.7ms，否则记录为待优化项。",
+      "touches": [
+        "src/runtime/host/RuntimeMain.cpp",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm"
+      ],
+      "note": "先测量再优化，不要凭感觉改。"
+    },
+    {
+      "id": "ON-5-01",
+      "title": "全链路进出：菜单→遇战→开局→返回菜单→退出，三轮无泄漏",
+      "status": "pending",
+      "detail": "真实路径进出三轮，检查 RSS 不单调上涨、句柄/窗口不累积、退出码 0。重点看 prewarmedMainMenuState 与 audio cache 的复用是否真的复用。",
+      "verify": "三轮循环后 RSS 增幅 < 5%，进程退出码 0。",
+      "touches": [
+        "src/ui/main_menu/RuntimeMainMenu.cpp",
+        "src/ui/skirmish/RuntimeSkirmishMenu.cpp"
+      ],
+      "note": "依赖 ON-4-02。"
+    },
+    {
+      "id": "ON-5-02",
+      "title": "30 分钟存活：主菜单挂机 + 游戏内挂机",
+      "status": "pending",
+      "detail": "长时间运行观察：无冻 UI、无 RSS 漂移 > 10%、无窗口失焦后输入失效。这类问题只在「真上屏挂着」时暴露，BMP 测试永远看不到。",
+      "verify": "30 分钟后进程仍在、RSS 漂移 < 10%、注入一次点击仍响应。",
+      "touches": [
+        "（无源码改动，纯验证）"
+      ],
+      "note": "最后收尾。"
+    },
+    {
+      "id": "P1-01",
+      "phase": "P1 平台轴接入",
+      "title": "新建 cmake/PlatformApple.cmake（纯新增，不接入）",
+      "status": "done",
+      "est": "30min",
+      "detail": "在 ConcordRTS/cmake/ 下新建 PlatformApple.cmake，只定义不生效：① 声明 macOS 能力开关（CONCORD_APPLE_SDL3_WINDOW / CONCORD_APPLE_SOFTWARE_PRESENT，默认 OFF）；② 提供函数 concord_apple_strip_win32_sources(<listvar>)，用 list(FILTER ${listvar} EXCLUDE REGEX \"/win32/\") 剔除 win32 实现；③ 预留 concord_apple_link_frameworks(<target>) 空壳，内部先只注释掉 -framework Cocoa。本步不要 include 进任何文件，不要改任何既有文件。",
+      "verify": "文件存在；cmake -P cmake/PlatformApple.cmake 无语法错误；git status 只多出这一个新文件",
+      "touches": [
+        "新增 cmake/PlatformApple.cmake"
+      ]
+    },
+    {
+      "id": "P1-02",
+      "phase": "P1 平台轴接入",
+      "title": "CompilerAndPlatform.cmake 追加 APPLE 分支并接入 PlatformApple",
+      "status": "done",
+      "est": "45min",
+      "detail": "在 cmake/CompilerAndPlatform.cmake 中：① 既有 if(WIN32) 链后追加 elseif(APPLE) 分支，先只调用 concord_apple_link_frameworks(concord_runtime) 与 concord_apple_strip_win32_sources；② 在末尾 concord_finalize_compiler_contract() 之前加 if(APPLE) include(${CMAKE_CURRENT_LIST_DIR}/PlatformApple.cmake) endif()。铁律：git diff 只能有新增行，Windows 分支一个字符都不能改。",
+      "verify": "git diff --numstat 删除行数为 0；core 与 product 两次 configure 均成功；Windows 侧 if(WIN32) 块内容与 HEAD 完全一致（用 git diff 逐行确认）",
+      "touches": [
+        "cmake/CompilerAndPlatform.cmake",
+        "cmake/PlatformApple.cmake"
+      ]
+    },
+    {
+      "id": "P1-03",
+      "phase": "P1 平台轴接入",
+      "title": "验证多平台骨架成立并出 P1 报告",
+      "status": "done",
+      "est": "45min",
+      "detail": "重跑两个 configure，统计 product 构建图里的 win32 源文件数；复核 git diff 只有新增；确认 CONCORD_MSVC_FRONTEND 在 macOS 上为 OFF 导致所有 MSVC 专属选项自动跳过。产出 P1-报告.md：改了什么、验证输出、Windows 零回归的自证方式。",
+      "verify": "product configure 通过；build.ninja 中 src/**/win32/*.cpp 计数与 P0 基线（4）一致或更少；P1-报告.md 存在",
+      "touches": [
+        "新增 P1-报告.md"
+      ]
+    },
+    {
+      "id": "P2-01",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeSecureBytes 增加 __APPLE__ 安全随机源",
+      "status": "done",
+      "est": "40min",
+      "detail": "src/runtime/security/RuntimeSecureBytes.cpp（若路径不同用 Grep 定位 native backend unsupported）当前只有 _WIN32 与 __linux__ 分支，macOS 上走 skip(77)。追加 #elif defined(__APPLE__) 分支，用 getentropy(buf, len)（len<=256 分段）或 SecRandomCopyBytes。保持既有分支原样，不改语义。",
+      "verify": "构建 concord_secure_bytes_contract 后直接运行，退出码由 77 变为 0，且不再打印 native backend unsupported",
+      "touches": [
+        "src/runtime/security/RuntimeSecureBytes.cpp"
+      ]
+    },
+    {
+      "id": "P2-02",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeInternetTcpTunnelProxy 补 POSIX 头",
+      "status": "done",
+      "est": "20min",
+      "detail": "该文件在 src/network/transport/，唯一错误是 macOS 上 TCP_NODELAY 未声明（需要 <netinet/tcp.h>）。用条件包含加在既有 include 区，不改 Windows 路径。",
+      "verify": "单独编译该 TU 成功：cmake --build build-product-mac --target concord_runtime 里不再出现该文件的 FAILED",
+      "touches": [
+        "src/network/transport/RuntimeInternetTcpTunnelProxy.cpp"
+      ]
+    },
+    {
+      "id": "P2-03",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeUiClockWin32 平台化",
+      "status": "done",
+      "est": "45min",
+      "detail": "src/runtime/host/RuntimeUiClockWin32.cpp 依赖 Win32 计时。保留 Windows 实现不动，为 __APPLE__ 提供 std::chrono::steady_clock 等价实现（注意 QueryPerformanceCounter 的频率语义），通过条件编译切换。",
+      "verify": "该 TU 编译通过；concord_ui_clock 相关 smoke 若有则跑通",
+      "touches": [
+        "src/runtime/host/RuntimeUiClockWin32.cpp"
+      ]
+    },
+    {
+      "id": "P2-08",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeShell 的 win32 依赖处置（b0 已解决、b1 部分完成；c 起由兼容层承接）",
+      "status": "done",
+      "substep": "a: done (2026-11-10, P2-08a-诊断报告.md) | b0: 已在工作区落地 2026-11-10 03:06（非本轮所为，并发实例添加了 `#include <list>`；本轮独立定量验证单行值 72,645 条错误，见 P2-08b-b0诊断报告.md）。实测该 TU 已 -fsyntax-only 0 错误、-c 产出 65,928,080 字节 .o（102.53s）| b1: 降级，判据改为『只服务诊断的 Win32 API』 | 链接已走通并有了权威清单：首次 280 个未定义符号，S9 后 267。详见 progress/undefined-symbols.txt",
+      "est": "已收口（2026-11-10）",
+      "detail": "src/runtime/host/RuntimeShell.cpp 是 89k 行 / 3.4MB 单体，零条件编译。\nb0（已解决，2026-11-10）：根因不是「命名空间跨度 2 万行」，而是第 204-238 行标准库 include 按字母序排列时漏了 #include <list>——<limits>(222) 之后直接是 <map>(223)。Windows 上它被其它头提前引入，include guard 让 21848 行那次 mid-file include 成为空操作；shim 的连带面比真实 windows.h 小得多，缺陷才暴露出来。用 -include list 做决定性实验确认（146 条级联错误立刻归零），随后在字母序正确位置补一行即修复。原判断「必须先精确定位跨 2 万行的命名空间闭合点」是错的，代价估算高了一个数量级。\nb1（部分完成，2026-11-10）：原计划把 smoke/probe 整体 #ifdef 出去。实测后只对一处这样做——RuntimeChatTextSmoke（冻结的 Windows oracle，硬跑只会得到假失败）；其余靠补声明解决，不做排除。GR_GDIOBJECTS/GR_USEROBJECTS 经复核不属于「应排除的诊断代码」，它们是 GetGuiResources 的常量参数，而该函数可由 S2 对象表给出真实语义。\nb2（保留，未执行）：对剩余 8 个 smoke/probe 与 3 个 BMP 辅助函数同样处理；5 个自造 Win32 签名的测试 TU（KeyboardIngress/KeyboardRouter/MapRightPointer/MenuKey/SessionKey ControllerContract + fixtures/PointerIngressOld.inl）在非 Windows 下移出构建图。当前已不再必要——RuntimeShell 已 0 错误编译，这批只在真正链接时才需要判定。\nc 起（由 S1–S5 兼容层承接）：RuntimeShell.cpp 保持原样，由 compat/win32 提供 windows.h 语义。\n铁律不变：Windows 分支零改动；每轮必须留下可编译的中间态。\n\n2026-11-10 收口：本任务的剩余范围（'c 起由兼容层承接'）已全部被 S3–S10 吸收，而兼容层现在有了比任务清单更硬的进度度量——**链接缺口的未定义符号数**。继续把它挂在 in_progress 只会造成\"还有一个平台任务没收尾\"的假象。此后跟踪点：progress/undefined-symbols.txt 的缺口数（首次 280，S9 后 267）。",
+      "verify": "b0/b1 已通过：RuntimeShell.cpp -fsyntax-only 退出码 0（385 条错误 → 0），3 条 -Wdeprecated 警告。b2 未做，留待链接阶段判定哪些 diagnostics 需要退出构建图。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/runtime/host/RuntimeShell.h",
+        "src/runtime/host/RuntimeMain.cpp"
+      ],
+      "next_action": "链接缺口 280 → 267。只剩四类：GDI 绘制 67、窗口输入 81、进程文件 18、项目 C++ 100。\"杂项\"这一类已经不存在。下一步按依赖顺序：S3（GDI 矢量，约 40 个）→ S4（文本，决定菜单有没有字）→ S10（文件，原子存档要求它先于窗口层）→ S7（窗口后端，需先做选型）。",
+      "b0_evidence": {
+        "root_cause": "单行 #include <list> 缺失（Raster 头 7 个 std 头里唯一未被顶部 include 覆盖的）",
+        "errors_without_fix": 72652,
+        "errors_with_fix": 7,
+        "single_line_value": 72645,
+        "original_baseline": 73291,
+        "old_note_146": "是 clang 默认 -ferror-limit=20 的假象",
+        "verified": "RuntimeShell.cpp -fsyntax-only exit=0 / -c exit=0 产出 65,928,080 字节 .o",
+        "attribution": "源码改动由并发实例完成，本轮为只读诊断"
+      },
+      "status_note": "2026-11-10 04:19 由自动化轮次从 in_progress 回退为 pending。原因：该任务 b0 已完成、b1 降级为「只服务诊断的 Win32 API」、b2 未做，剩余部分是链接阶段的判定，不属于当前可推进的工作；长期挂 in_progress 会让熔断规则第 2 条每轮都触发（死锁）。b0/b1 的事实与证据全部保留在 substep / b0_evidence 中，不含任何未完成却声称完成的内容。"
+    },
+    {
+      "id": "S1",
+      "phase": "S Win32 兼容层（替代 P2-04..09）",
+      "title": "新建 compat/win32 头层：windows.h / mmsystem.h / commdlg.h 三个 shim + 类型 + API 声明",
+      "status": "done",
+      "est": "60min",
+      "detail": "已完成（2026-11-10）。见 S1-兼容层头层说明.md。交付 3 个 shim 头 + 2 个自测 TU，共 2370 行；276 个函数声明 / 125 类型 / 706 宏 / 12 个内联几何工具。接入方式为 include_directories(BEFORE)，build.ninja 里 1067 条规则的 INCLUDES 首项即 compat/win32/include；既有源码 0 行改动；三个头均带 #if defined(_WIN32) #error 双向守卫。验收：头层自测 -fsyntax-only 退出码 0；内联语义 67 checks 0 failures；37 个 Win32 TU 中 30 个已能编译（改造前 0）。",
+      "verify": "c++ -std=c++20 -I compat/win32/include -fsyntax-only compat/win32/selftest/CompatHeaderSelftest.cpp → 退出码 0；CompatInlineSemantics 运行 → '67 checks, 0 failures'；-D_WIN32 编译 → 命中 #error；git diff --numstat 无删除行；build.ninja 的 INCLUDES 首项为 compat/win32/include"
+    },
+    {
+      "id": "S2",
+      "phase": "S Win32 兼容层",
+      "title": "实现『对象管理 + 位图传输』两族（约 13 个 API）",
+      "status": "done",
+      "est": "已完成",
+      "detail": "已完成（2026-11-10）。compat/win32/src/RuntimeWin32CompatGdi.cpp（874 行）实现 19 个函数：对象管理（CreateCompatibleDC/CreateCompatibleBitmap/CreateDIBSection/SelectObject/DeleteObject/DeleteDC/GetStockObject/CreateSolidBrush/CreatePen/SaveDC/RestoreDC）+ 位图传输（BitBlt/StretchBlt/PatBlt/StretchDIBits/SetDIBitsToDevice/GetPixel/SetPixelV/SetPixel/SetStretchBltMode）+ DC 状态（Set/GetBkMode、Set/GetBkColor、Set/GetTextColor）。selftest/CompatGdiSemantics.cpp（397 行）80 条像素断言全通过。三条实测边界：只支持 32bpp BI_RGB top-down（11 处 CreateDIBSection 全部如此）；ROP 白名单（实测只用 SRCCOPY 13 次 + DSTINVERT 1 次）；HALFTONE 显式失败不做近似。DSTINVERT 有意只翻转 RGB 保留 alpha（避免后续 RGBA 路径全透明）。接入：PlatformApple.cmake 新增 concord_apple_add_win32_compat_sources()/…_selftest()，只在 if(APPLE) 内挂到 concord_runtime；验证入口 scripts/verify-win32-compat.sh（三层，刻意不注册 CTest 以免基线 registered 数量漂移）。src/ 零改动。",
+      "verify": "自建最小可执行：CreateDIBSection → 填像素 → BitBlt 到另一 DC → 读回逐字节相等；DeleteObject 后句柄表归零",
+      "touches": [
+        "新增 compat/win32/src/"
+      ]
+    },
+    {
+      "id": "S3",
+      "phase": "S Win32 兼容层",
+      "title": "实现 GDI 矢量绘制与 DC 状态族（链接缺口 67 个中的约 40 个）",
+      "status": "done",
+      "est": "三轮全部完成（S3-1 / S3-2 / S3-3，均 2026-11-10）",
+      "detail": "在 S2 的位图对象上做光栅化。FillRect 必须与 Win32 的右下开区间/边界规则一致；LineTo 与 MoveToEx 共享当前位置状态。约束：确定性优先——同一输入必须产出逐字节相同结果，才能进金标准测试。\n2026-11-10 链接实测补数：GDI 族共 67 个未定义符号。其中矢量化绘制与 DC 状态约 40 个：LineTo/MoveToEx/FillRect/FrameRect/Rectangle/Ellipse/RoundRect/Polygon/Polyline/PolyPolyline、裁剪（IntersectClipRect/SelectClipRgn/CreateRectRgn/CreatePolygonRgn/CombineRgn/GetClipBox）、ROP2 与映射模式（GetROP2/SetROP2/GetMapMode/SetMapMode/GetGraphicsMode/SetGraphicsMode）、视口原点/范围（GetViewportOrgEx/SetViewportOrgEx/SetViewportExtEx/GetWindowOrgEx/SetWindowOrgEx/SetWindowExtEx）、DC 查询（GetDC/ReleaseDC/GetCurrentObject/GetObjectW/GetObjectType/GetDCBrushColor/SetDCBrushColor/GetDCPenColor）、以及 GdiFlush/GdiSetBatchLimit/GdiAlphaBlend/GetLayout/SetLayout/MulDiv/GetWindowLongPtrW/SetWindowLongPtrW。\n要点：GetDC/ReleaseDC 没有现成 DC 可给，必须先有窗口后端（S7）或一个离屏 DC 语义。GdiAlphaBlend 在软件帧缓冲上可实现但需要正确的预乘 alpha 约定——这一点必须与 S2 的 DIB 约定对齐，否则半透明覆盖会整片发黑。\n2026-11-10 S9 后：GDI 族 67 个一个都没动（S9 只做 EMF，不碰像素路径）。EMF 录制器已经就位，S3 做矢量绘制时需要决定：录制型 DC 上的 LineTo/FillRect 要不要补成 EMR_LINETO/EMR_RECTANGLE。建议**显式失败**而不是静默不记录——产品侧那句 completeFrameOnly 的 else 分支会把任何非 BITBLT 记录判为\"出现中间帧\"，静默丢弃等于让审计漏报。",
+      "verify": "已完成（三轮合并）：自建最小可执行 CompatDrawSemantics.cpp 在已知画布上逐像素断言 141 条（含 1px 边界用例、半开边界、LineTo 不含终点、裁剪生效、MM_ANISOTROPIC 缩放、ROP2 XOR 两遍还原）；verify-win32-compat.sh 九层全过（396 声明 / 67 inline / 80 GDI / 207 DC / 25 XAPO / 47 EMF / 52 小族 / 154 区域 / 141 图元）；链接缺口 236 → 225，C 段 11 个符号逐名核对消失，S3 段 42 个零残留。",
+      "substep": "2026-11-10 S3-1 **done**：A 段 29 个符号；新增 CompatDcStateSemantics.cpp 207 条断言；缺口 267 → 241，A 段零残留。\n2026-11-10 S3-2 **done**：B 段 5 个符号（IntersectClipRect / SelectClipRgn / CreateRectRgn / CreatePolygonRgn / CombineRgn）＋ 7 个配套件（GetClipRgn / CreateRectRgnIndirect / SetRectRgn / GetRgnBox / PtInRegion / RectInRegion / ExcludeClipRect）；新增 CompatRegionSemantics.cpp 154 条断言（S3-3 补 5 条椭圆区域断言），九层验证全过；链接缺口 241 → 236，B 段零残留。\n2026-11-10 S3-3 **done**：C 段 11 个符号（MoveToEx / LineTo / FillRect / FrameRect / Rectangle / Ellipse / RoundRect / Polygon / Polyline / PolyPolyline / GdiAlphaBlend）＋ CreateEllipticRgn 由『显式失败』改为真实现；新增 CompatDrawSemantics.cpp 141 条**硬编码像素**断言；缺口 236 → 225，C 段零残留。同时补掉 shim 里漏抄的 PS_DASHDOTDOT(4)。\n全部三轮完成后 S3 段 42 个符号零残留；剩余未验证项见 s33_evidence.unverified。",
+      "plan": [
+        "S3-1 ✅ done：A 段 DC 状态与查询。遗留一条硬约束写在这里：S3-3 的图元必须真正应用 (x-windowOrg)*viewportExt/windowExt+viewportOrg，否则 SetMapMode(MM_ANISOTROPIC) 就是'返回成功但不缩放'。",
+        "S3-2 ✅ done：B 段区域与裁剪。区域 = 横向条带表；RGN_AND/OR/XOR/DIFF/COPY；GetClipBox 三态；SelectClipRgn 深拷贝（调用点普遍'选中后立刻 DeleteObject'）；GetClipRgn 补齐。验收：149 条硬编码断言 + 五角星在 ALTERNATE/WINDING 下中心结论相反。",
+        "S3-3 ✅ done：C 段 11 个图元 + CreateEllipticRgn + 裁剪与映射在像素路径上真生效。141 条硬编码像素断言；XOR 画两遍整块表面逐字节还原（这是填充与描边不重叠的唯一硬证据）。遗留两条刻意的偏离写在 RuntimeWin32CompatGdi.cpp 文件头：描边内侧对齐（GDI 是沿路径居中）、形状轮廓与填充永不重叠（GDI 会写两次）。"
+      ],
+      "s32_evidence": {
+        "symbols_implemented": 12,
+        "symbols_in_gap_closed": 5,
+        "link_gap": "241 → 236（C-linkage 141→136，项目 C++ 100 未动）",
+        "selftest": "CompatRegionSemantics.cpp 149 checks / 0 failures",
+        "verify": "8 层全过：396 声明 / 67 inline / 80 GDI / 207 DC / 25 XAPO / 47 EMF / 52 小族 / 149 区域",
+        "census": "34/35（唯一失败仍是 S8 的 RuntimeMultiplayerTwoProcessSmoke.cpp；TU 分母 35/453 会随构建图变化，只能比具名 TU）",
+        "known_gap": "裁剪尚未在像素路径生效（见 rules.clip_not_enforced_in_pixels_yet）"
+      },
+      "s33_evidence": {
+        "symbols_implemented": 11,
+        "extra": "CreateEllipticRgn 由显式失败改为逐行条带真实现；windows.h 补 PS_DASHDOTDOT=4（S1 手抄漏项，缺口正好在 PS_DASHDOT(3) 与 PS_NULL(5) 之间）",
+        "link_gap": "236 → 225（C-linkage 136 → 124，项目 C++ 100 → 101；总数 −11 与新增的 11 个符号逐个对上）",
+        "selftest": "CompatDrawSemantics.cpp 141 checks / 0 failures（硬编码像素，非自洽比较）",
+        "verify": "verify-win32-compat.sh 九层全过：396 声明 / 67 inline / 80 GDI / 207 DC / 25 XAPO / 47 EMF / 52 小族 / 154 区域 / 141 图元",
+        "build": "ninja -C build-product-mac -k 0 concord_runtime：15 步编译全绿，走到 [15/15] Linking，ld 报 225 个未定义符号（预期失败，清单即交付物）",
+        "s3_section_clear": "S3 段 42 个符号零残留：A 29 + B 12（5 个在缺口内）+ C 11，逐名核对",
+        "unverified": "① 三条 raster 快路径（RuntimeSelectedPathRaster::supported 等）的 available()==true 仍未实测——它们要跑产品契约，而 concord_runtime 尚未链接通过，这条验收推迟到链接里程碑；② 无 Windows 像素金标准可对拍，本轮的期望值是按 GDI 文档语义写死的，不是从 Windows 采集的；③ 录制型 DC 上的图元一律显式失败（EMR_RECTANGLE/LINETO/ELLIPSE 未记录），产品侧 runCampaignMenuPaintSmoke 需要 GetDC(nullptr) 才能跑到",
+        "deviations": "描边内侧对齐（GDI 沿路径居中，w=1 时一致）；形状轮廓与填充严格不相交（GDI 任其重叠，XOR 下会抵消）；Polygon 固定 ALTERNATE 填充（不引入 SetPolyFillMode 的 DC 状态，避免 SaveDC 快照漏项）",
+        "census": "35/36（唯一失败仍是 S8 的 RuntimeMultiplayerTwoProcessSmoke.cpp；TU 分母 36/454 随构建图变化，只能比具名 TU）"
+      }
+    },
+    {
+      "id": "S4",
+      "phase": "S Win32 兼容层",
+      "title": "实现 GDI 文本族 —— 全项目最难的一块，需要一个真实字形光栅器",
+      "status": "done",
+      "est": "多轮，建议先做技术选型",
+      "detail": "高风险族，排在最后。先用项目自带 WestwoodFontCodec 位图字体做确定性后端（可预测、逐像素稳定），DrawTextW 支持 DT_LEFT/DT_CENTER/DT_VCENTER/DT_SINGLELINE/DT_WORDBREAK 这些实际用到的子集；CreateFontW 的字符高度语义映射到位图字体的字高。不追求与 Windows GDI 像素一致——像素级文本断言保留在 Windows 侧。\n2026-11-10 链接实测补数：文本族未定义符号 TextOutW/DrawTextA/DrawTextW/ExtTextOutA/CreateFontW/GetTextExtentPoint32W/GetTextAlign/SetTextAlign/GetGlyphIndicesW/DrawFrameControl 共 10 个直接符号，但**它们下面压着 30 个项目 C++ 符号**（HudSystemFont 6 / MainSystemFonts 4 / CampaignSystemFonts 5 / CampaignScoreSystemFonts 4 / MatchResultSystemFont 4 / SkirmishSystemFonts 5 / drawMainStockVideoFooter 1 / drawResultBitmapTextWin32 1）。也就是说：文本一旦不可用，整个菜单的观感就没了。\n设计判断（必须先做）：CreateFontW 没有\"画字\"的能力，它只是挑字体；真正的光栅化得由 TextOutW 完成，而 macOS 上唯一的现实选择是 CoreText + CoreGraphics 生成位图再贴进软件帧缓冲。需要决定三件事：① 字体族名映射（Win32 的 \"MS Shell Dlg\"/\"SimSun\" 在 macOS 上映射到什么，找不到时回退策略是什么）；② 度量语义（GetTextExtentPoint32W 返回的 size 与实际排版宽度必须一致，否则所有按钮居中和文本裁剪都会错位）；③ 是否支持 CJK（项目里有中文文本，Fontconfig 之外还得考虑字形覆盖）。\n不做假实现：让 TextOutW 返回 TRUE 但不画任何东西，会让所有字体相关的 smoke 通过而屏幕是空的。\n2026-11-10 S9 后：文本仍未实现，EMF 记录不了文本（EMR_EXTTEXTOUTW 未实现）。S4 落地时同步补这条记录类型。",
+      "verify": "菜单/HUD 文本渲染出可读内容；GetTextExtentPoint32W 返回值与后端一致；不引入非确定性",
+      "substep": "2026-11-10 S4-1 **done**（1 轮，约 70min）：把 7 个字体 TU 放回 Apple 构建图，兑现项目 C++ 段 29 个符号。做法 = windows.h 补 WM_SETFONT 0x0030 / WM_GETFONT 0x0031（2659→2661 行）+ 6 处 static_assert 用 #if defined(_WIN32) 包住（断言原文一字未动）+ 7 个 leaf（Hud/Main/MainVideoFooter/Campaign/CampaignScore/Skirmish/MatchResult）在既有 if(WIN32) 之后追加 elseif(APPLE)（只注册产品 leaf + link 到 concord_runtime，不注册 contract leaf 与 native contract 可执行文件）。链接缺口 138 → 109（消失 29、新增 0，逐名核对；文本/字体族残留 0）；12 层兼容层自测全过；普查 54/55（唯一失败仍是 S8 的多进程 smoke）。14 个改动文件删除行合计 0。\n**尚未做（= S4-2）**：真实字形光栅。TextOutW 目前仍是 P5-06 的『豆腐块占位』，屏幕上没有真字；字体族名映射（Microsoft YaHei / Microsoft YaHei UI / Arial / Arial Narrow）与 CJK 覆盖未落地。\n2026-11-10 S4-2 **done**（1 轮，约 100min）：真实字形光栅落地。新增 compat/win32/src/RuntimeWin32CompatText.cpp（约 430 行，CoreText 逐码点光栅成 1bit mask）+ RuntimeWin32CompatTextInternal.h（GDI 与字形层的接缝）+ Gdi.cpp 的合成层（裁剪/ROP2/背景全留在 PixelSink）。同时把 ExtTextOutA 的 ETO_OPAQUE / ETO_CLIPPED 兑现，GetGlyphIndicesW 从『恒 GDI_ERROR』改为真实 cmap 查询。**验证：文本自测 135 checks / 0 failures，十二层全过，链接缺口 109 不变（零新增），产品级 -O3 编译 0 FAILED。** 仍未做：DT_WORDBREAK/DT_END_ELLIPSIS（单行排版）、EMR_EXTTEXTOUTW（录制型 DC 上图元仍一律失败）、比例前进宽度（仍是 5:7 固定栅格）。",
+      "status_note": "2026-11-10 13:40 由自动化轮次把 S4 保持为 pending（S4-1、S4-2 两轮均回落）。原因不是没干活，而是 S4 的 verify 是『菜单/HUD 文本渲染出可读内容』，而菜单要出字必须有窗口宿主（S7 未做）。S4-2 之后 GDI 文本族的实现与语义断言都齐了（真字形、基线对齐、CJK、裁剪、字形索引），但『屏幕上看到字』这条一次都没跑过——按诚实原则不能标 done。若挂 in_progress，按熔断规则第 2 条下一轮会退化成只诊断（P2-08 的同一死锁），故回落 pending 并保留全部证据。真正的验收点在 S7 之后：开窗 → 菜单绘制 → 肉眼或像素金标准确认出字。 2026-11-10 14:30 自动化轮次为 diagnose-only（并发实例在跑 D3D11 presenter），S4 保持 pending 未动；本轮产出 S4-3 方案（见 s43_plan）并纠正『录制 DC 文本显式失败』的错误记录。 2026-11-10 16:10 **S4-3 partial**：代码已全部落地、cmake 与编译验证通过（11 步编译 0 FAILED 并成功链接出 concord_main_system_font_window_paint），但**一次都没跑成功**——首跑 exit 139（SIGSEGV，无任何输出），紧接着整台机器变成『非 Apple 签名二进制一律启动挂死』（lldb 会话的副作用，见 rules.lldb_wedges_process_spawn），无法再编译或运行任何东西。故 S4 保持 in_progress，卡点是『运行时崩溃原因未知 + 环境已不可用』，不是设计问题。下一轮第一件事：重编该 target 并运行，崩溃已由本轮加固成『一句话说清哪个资源没建成』（见 rules.test_must_bail_out_on_missing_resource）。 2026-11-10 17:26 **S4-3 第二轮：diagnose-only（零代码改动），但拿到了真实运行输出**：① 先推翻上一轮的环境结论——机器没坏，clang/ld 一直可用，卡的是'未签名二进制无法启动'，用 ad-hoc 签名副本绕过后 ninja 正常工作（见 rules.unsigned_exec_gate）；② 用签名 ninja 重编该 target（2 步、1s、编译绿——上一轮的加固第一次被编译），签名后运行：**exit 139 消失，变成 EXIT=1 + checks=15 failures=4**，卡点精确到两处（见 s43_run_2）；③ 11 项已通过，含 WM_PAINT/GetMessageW/DispatchMessageW/BeginPaint/rcPaint 覆盖整客户区——即'S7 窗口→WM_PAINT→BeginPaint→产品字体类 draw'这一段确实通了。故 S4 回落 pending（不标 done：PNG 未产出、屏幕上是否出字仍未知），下一轮按 s43_run_2.fix_plan 两条改动即可收口。 2026-11-10 18:22 **S4-3 收口轮开始**：熔断按 rules.brake_is_about_new_facts 读法解除——上一轮 diagnose-only 产出了三条新可验证事实（签名副本绕过可运行、真实 checks=15/failures=4、两处根因定位到行号），非重复结论，故本轮直接执行修复而非再诊断。并发检查：.active released(17:18)、三处目标文件 mtime 全部 ≤16:03（早于 released）、无新增写者、.ninja_lock 不存在（ps 里 U 状态的两个 ninja 是历史未签名残留，不持锁）。 2026-11-10 18:31 **S4 done（收口）**：S4-3 两条 fix_plan 落地（CreateCompatibleDC 自带 1×1 单色位图 + 测试改用 GetCurrentObject(OBJ_BITMAP)），窗口出字闭环跑通：checks=61 failures=0、PNG 800x600 肉眼可见可读真字；十四层自测全过；产品级 0 编译错误、链接缺口 8→8（零新增）。verify 三项（可读文本 / 度量一致 / 无不确定性）全部有真实输出支撑。",
+      "next_action": "S4 已 done。余下三项按价值排序，均不阻塞链接，排在 P4-01 之后：① EMR_EXTTEXTOUTW（录制型 DC 上文本现在只是\"返回 TRUE + 报告不支持\"，产品三处录制点靠先合成到 memory DC 再 BitBlt 规避）；② DT_WORDBREAK / DT_END_ELLIPSIS（RuntimeCampaignMenuUi.inl:110 正在用，目前溢出右边界——S4-3 的 PNG 里 E 带就是溢出样本）；③ 比例前进宽度（现在窄字符一律 5:7=0.71em，需把 FaceSpec 穿进 runAdvance/rasterizeGlyph，波及 Gdi.cpp 4 处调用点）。若要开新轮，建议先做 ②（有产品调用点、可硬编码像素验收），③ 最后做（会同时动度量断言）。",
+      "s41_evidence": {
+        "symbols_closed": 29,
+        "breakdown": "Hud 6 + Main 4 + Campaign 5 + CampaignScore 4 + MatchResult 4 + Skirmish 5 + MainVideoFooter 1",
+        "link_gap": "138 → 109（C-linkage 83 未动，项目 C++ 55 → 26）",
+        "new_symbols": 0,
+        "build": "ninja 43 步、编译 FAILED 0、7 个新 TU 在 -O3 下产出 .o、走到 link",
+        "verify": "12 层全过：399 声明 / 67 inline / 124 GDI / 207 DC / 25 XAPO / 47 EMF / 66 小族 / 154 区域 / 141 图元 / 147 文件 / 46 输入 / 55 文本",
+        "census": "54/55（TU 55/473；唯一失败仍是 S8 的 RuntimeMultiplayerTwoProcessSmoke.cpp）",
+        "diff": "14 个文件删除行合计 0；compat/ 为未跟踪目录，故 windows.h 改动不出现在 git diff 中",
+        "unverified": "零运行路径；屏幕上无真字（豆腐块占位）；字体族名映射与 CJK 未落地；代理对会拆成孤立码点（T-02 同源）"
+      },
+      "s42_evidence": {
+        "round": "S4-2",
+        "backend": "CoreText / CoreGraphics，逐码点光栅成 1bit mask（阈值 50%，关闭 font smoothing）",
+        "new_files": [
+          "compat/win32/src/RuntimeWin32CompatText.cpp（约 430 行）",
+          "compat/win32/src/RuntimeWin32CompatTextInternal.h（GDI↔字形接缝）"
+        ],
+        "changed_files": [
+          "compat/win32/src/RuntimeWin32CompatGdi.cpp（吐掉豆腐块渲染，换成 mask 合成；ExtTextOutA 补 ETO_OPAQUE/ETO_CLIPPED；GetTextExtentPoint32W/TextOutW/DrawTextW/DrawTextA 走 runAdvance；GetGlyphIndicesW 改真实查询）",
+          "compat/win32/selftest/CompatTextSemantics.cpp（重写：55 → 135 条）",
+          "cmake/PlatformApple.cmake（源清单 + 框架清单 + 自动链接）",
+          "scripts/verify-win32-compat.sh（第 12 层标题与注释）",
+          "progress/undefined-symbols.txt（S4-2 对账段）"
+        ],
+        "selftest": "135 checks / 0 failures",
+        "verify": "十二层全过：399 声明 / 67 inline / 124 GDI / 207 DC / 25 XAPO / 47 EMF / 66 小族 / 154 区域 / 141 图元 / 147 文件 / 46 输入 / 135 文本",
+        "link_gap": "109 → 109（C 83 / C++ 26，零新增零消失；本轮不补链接符号）",
+        "build": "产品级 -O3：compat/win32/src/RuntimeWin32CompatText.cpp 编译进 concord_runtime.o，link 行末尾出现 -framework CoreText/-framework CoreGraphics/-framework CoreFoundation；编译 FAILED = 0，唯一 FAILED 是链接（预期）",
+        "measured_facts": [
+          "未分配码位 U+0378 上 CTFontGetGlyphsForCharacters 返回成功、字形 4（.notdef），必须靠字符集成员 + 兜底字体判据才能报 0xFFFF",
+          "CGBitmapContext 缓冲第 0 行是顶行（用 CG y=0 的填充矩形对照验证）",
+          "Helvetica 16pt 的 ascent+descent 恰好 = 16，故 16px 单元格的字号不发生缩放（此前误以为会缩到 13.8）",
+          "基线实测：'T'/'l'/'H' 墨迹 1..12 行，'e'/'o'/'x' 4..12 行，'.' 11..12 行，'g' 4..15 行（有降部），汉字 4..13 行"
+        ],
+        "unverified": [
+          "屏幕上仍未看到字：菜单/HUD 需要 S7 的窗口宿主，本轮只做到\"自建 DIB + 语义断言\"",
+          "无 Windows 侧文本像素金标准可对拍；字形随系统字体版本变，断言刻意只钉语义不钉像素",
+          "录制型 DC 上的文本仍一律失败（EMR_EXTTEXTOUTW 未实现）",
+          "单行排版：DT_WORDBREAK / DT_END_ELLIPSIS 未实现",
+          "比例前进宽度未做（仍 5:7 / 1:1 固定栅格）"
+        ],
+        "unverified_corrected_2026_11_10": "原写『录制型 DC 上的文本仍一律失败（EMR_EXTTEXTOUTW 未实现）』不准确：真实行为是返回 TRUE + 无声丢弃（drawTextRun 的 device->bitmap 守卫）。见 rules.recording_dc_text_is_silent。"
+      },
+      "s43_evidence": {
+        "round": "S4-3",
+        "result": "partial（代码与技术链路全部落地，构建通过，运行未验证）",
+        "new_files": [
+          "tests/ui/main_system_font/MainSystemFontWindowPaint.cpp（约 560 行，真窗口 → WM_PAINT → BeginPaint → MainSystemFontsWin32::draw → BitBlt 回读 → 断言 + PNG）"
+        ],
+        "changed_files": [
+          "cmake/MainSystemFontContracts.cmake（新增 function concord_add_main_system_font_window_paint + 在既有 elseif(APPLE) 分支内追加 cmake_language(DEFER CALL ...)；if(WIN32) 分支零改动）",
+          "compat/win32/src/RuntimeWin32CompatGdi.cpp（drawTextRun 首行守卫：录制型 DC 由『静默丢弃』改为 reportUnsupported 显式告警，行为不变）"
+        ],
+        "why_defer": "MainSystemFontContracts.cmake 由 DevelopmentTargets.cmake（CMakeLists 第 23 行）include，早于 CompilerAndPlatform.cmake（第 25 行），此处 concord_apple_add_win32_compat_sources() 尚未定义、concord_runtime 也未建完；用 cmake_language(DEFER) 把目标创建推到目录处理结束，既保住『目标定义在字体族旁边』也不依赖 include 顺序。",
+        "build_verified": "ninja -C build-product-mac concord_main_system_font_window_paint → Re-running CMake 通过（Concord compiler contract: OS=Darwin; AppleClang 21.0.0; CPU ISA=x86_64）、11 步编译 0 FAILED、Linking CXX executable 成功（4s）",
+        "run_result": "首跑 exit 139（SIGSEGV）且 stdout 无任何输出（当时还是块缓冲）；随后机器进入『非系统签名二进制启动全部卡在 U 状态』的状态：ninja / clang / python3 / 自建可执行均挂起，/bin/ps、/bin/echo、/bin/cat 正常。已确认不是测试内部死锁（连 /tmp/hello 这种最小 C++ 程序都挂），恢复需重启。",
+        "hardened_after_crash": "崩溃后追加的加固（本轮末尾已写进源码，但**未再编译验证**）：① main 开头 setvbuf(_IONBF)；② GetDC / Readback::create / OwnedDib::create 失败时提前 return，不再带空指针继续跑（原写法的 139 极可能就是这个形状，因为它把真正的失败原因完全掩盖了）。",
+        "assertions_planned": [
+          "六个文本带墨迹 > 0（左对齐 / 居中 / 中英混排 / 裁剪带 / 长句 / Small 14px）",
+          "GetTextExtentPoint32W 与 DrawTextW(DT_CALCRECT) 宽度一致；Title 16px 下窄字符 11px/字（固定栅格对账）",
+          "只平移参照点：DT_LEFT +40 → bbox +40；DT_CENTER 矩形中心 +20 → bbox +20；DT_VCENTER +20 → bbox +20",
+          "CJK：GetGlyphIndicesW 四个汉字无 0xFFFF + 汉字单元格内部墨迹 > 5（区分空心豆腐块）",
+          "裁剪：裁剪框右侧 x>=240 墨点数 == 0",
+          "确定性：整幅画两次逐字节相同",
+          "回读边界哨兵未被动过 + GetObjectW(dc,sizeof(DIBSECTION)) 成立（快路径硬门槛）"
+        ],
+        "unverified": [
+          "一次都没跑起来：无 checks 数字、无 PNG、无肉眼验收",
+          "崩溃根因未定（候选：回读 DIB 未建成导致空指针；但当时已无法复现/调试）",
+          "DT_WORDBREAK 仍不换行（本轮只在 E 带里作为视觉样本，不断言重排）"
+        ]
+      },
+      "s43_run_2": {
+        "round": "S4-3 第二轮：环境解卡后的首次真实运行",
+        "date": "2026-11-10 17:26",
+        "code_changed": "无（diagnose-only 轮，源码零改动；只写 RUNLOG 与本文件）",
+        "env_unblock": "见 rules.unsigned_exec_gate —— ninja / python3 / clang 现编产物全是未签名 Mach-O，ad-hoc 签名副本即可运行；clang / ld / codesign / git 一直可用。上一轮『整机不可用、只能重启』的结论作废。",
+        "build": "/tmp/ninja_signed -C build-product-mac concord_main_system_font_window_paint -j 6 → [1/2] 编译测试 TU、[2/2] 链接，NINJA_EXIT=0（1s）。上一轮末尾的 setvbuf 与 create 失败提前 return 第一次被编译，编译绿。",
+        "run": "签名后运行 → EXIT=1，checks=15 failures=4（无 SIGSEGV；上一轮的 exit 139 已消失）",
+        "passed_checks": 11,
+        "passed": [
+          "RegisterClassExW 返回非零 ATOM",
+          "Button/Title/Small 三种角色都有 HFONT",
+          "字体类上报 NativeText 能力",
+          "CreateWindowExW 返回非空句柄",
+          "IsWindow 成立",
+          "客户区宽 800 / 高 600",
+          "创建后尚未绘制（paints==0）",
+          "PostMessageW(WM_PAINT)+GetMessageW+DispatchMessageW 到达窗口过程并完成绘制",
+          "rcPaint 覆盖整个客户区（BeginPaint 语义）",
+          "GetDC 返回窗口客户区 DC"
+        ],
+        "failures": [
+          "GetObjectW(dc, sizeof(DIBSECTION)) 成立 → 实测 0（查询方式错，非 compat 缺陷）",
+          "窗口 DC 关联真实像素指针 → bmBits 为 null（同一原因）",
+          "DIBSECTION 宽 == 客户区宽 → expected 800, got 0（同一原因）",
+          "回读 DIB 已建立（864x704）→ CreateCompatibleDC 后首次 SelectObject 返回 nullptr，位图其实选中成功"
+        ],
+        "root_causes": [
+          "根因 1（测试写错）：MainSystemFontWindowPaint.cpp:358 用 GetObject(dc, ...)。Win32 的 GetObject 不接受 HDC（真 Windows 也返回 0），必须 GetObject(GetCurrentObject(dc, OBJ_BITMAP), ...)。产品四处 raster 快路径本来就是正确写法。",
+          "根因 2（本层保真缺口）：CreateCompatibleDC（RuntimeWin32CompatGdi.cpp:1606-1615）只设 pen/brush/font，不设初始 1x1 单色位图，首次 SelectObject 返回 toHandle(nullptr)=nullptr；测试判 previous==nullptr 即失败（MainSystemFontWindowPaint.cpp:90）。Win32 语义必返回非空旧对象。"
+        ],
+        "fix_plan": [
+          "RuntimeWin32CompatGdi.cpp CreateCompatibleDC 末尾追加：造 1x1 单色位图并选中（只在函数末尾追加，不动既有行）",
+          "MainSystemFontWindowPaint.cpp:357-361 三条断言改用 GetCurrentObject(windowDc, OBJ_BITMAP) + GetObjectW（窗口客户区 surface 本就是 CreateDIBSection，RuntimeWin32CompatUser.cpp:170，故应返回 104 且 bmBits 非空）",
+          "重编 → codesign -s - --force → 运行，取 ink / 对齐 / CJK / 裁剪 / 确定性各带的真实数字 + PNG",
+          "若 ink 仍为 0：查 BeginPaint 返回的 DC 是否真挂上 surface（drawTextRun 的 device->bitmap==nullptr 守卫会静默丢弃，见 rules.recording_dc_text_is_silent）"
+        ],
+        "unverified": [
+          "PNG 未产出（在回读断言处提前 return，尚未走到 savePng）",
+          "屏幕上是否真出字仍然未知（已缩小到回读断言这一层）",
+          "未签名二进制为何突然无法启动：系统侧根因未查（重启是否自愈未知）"
+        ]
+      },
+      "s43_plan": {
+        "round": "S4-3（2026-11-10 已开工：代码与构建落地，运行未验证，见 s43_evidence）",
+        "goal": "窗口客户区出字闭环，收口 S4 verify『菜单/HUD 文本渲染出可读内容』",
+        "why_now": "S7 已 done，纯离屏窗口自带 32bpp top-down DIB 客户区 + BeginPaint 返回缓存 DC + BitBlt 齐备，链路不需新增 compat 代码",
+        "how": [
+          "在 cmake/MainSystemFontContracts.cmake 既有 elseif(APPLE) 分支内追加 1 个可执行 target（不改 if(WIN32) 分支内部）",
+          "新增 tests/ui/main_system_font/MainSystemFontWindowPaint.cpp：RegisterClassExW + CreateWindowExW(800x600)；窗口过程 WM_PAINT→BeginPaint→MainSystemFontsWin32 draw（英/中混排、DT_CENTER|DT_VCENTER、带裁剪区）→EndPaint",
+          "PostMessageW(WM_PAINT)+DispatchMessageW 触发绘制；GetDC(hwnd)+BitBlt 到测试自有 DIB 回读",
+          "断言：墨迹像素数>0 且逐字符串包围盒落在预期前进宽度内；CJK 字形覆盖非零；两次绘制逐字节一致（无不确定性）",
+          "用 S6 的 GDI+ PNG 路径把客户区存盘，给肉眼验收",
+          "顺带：drawTextRun 加 3 行 reportUnsupported（录制 DC 文本），把静默丢弃变显式"
+        ],
+        "do_not": [
+          "不要先做比例前进宽度（改的是所有度量基准，会把『排错』与『算错』混成一个现象）"
+        ],
+        "left_after": [
+          "DT_WORDBREAK / DT_END_ELLIPSIS（产品 RuntimeCampaignMenuUi.inl:110 正在用，目前溢出）",
+          "比例前进宽度（需把 FaceSpec 穿进 runAdvance/rasterizeGlyph，波及 Gdi.cpp 4 处调用点）"
+        ]
+      },
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp",
+        "compat/win32/selftest/CompatGdiSemantics.cpp",
+        "compat/win32/selftest/CompatDcStateSemantics.cpp",
+        "cmake/MainSystemFontContracts.cmake",
+        "tests/ui/main_system_font/MainSystemFontWindowPaint.cpp"
+      ],
+      "s43_run_3": {
+        "round": "S4-3 收口轮（修复 + 真运行 + 收口）",
+        "date": "2026-11-10 18:31",
+        "code_changed": [
+          "compat/win32/src/RuntimeWin32CompatGdi.cpp：CreateCompatibleDC 末尾追加 1×1 单色位图（CompatDevice::ownedBitmap 拥有、DeleteDC 释放、CompatObject::monochrome 只影响 GetObject 的 bmBitsPixel）",
+          "tests/ui/main_system_font/MainSystemFontWindowPaint.cpp：357-361 三条断言改用 GetCurrentObject(dc,OBJ_BITMAP)+GetObjectW",
+          "compat/win32/selftest/CompatGdiSemantics.cpp：+11 条钉\"新建 DC 自带 1×1 位图 / 首次 SelectObject 非空 / DeleteDC 不泄漏对象\"",
+          "compat/win32/selftest/CompatDcStateSemantics.cpp：更正一条钉住旧偏离的断言（未选位图 DC 的 GetClipBox 由 ERROR(0) 改为 SIMPLEREGION(2)+{0,0,1,1}，并补 4 条裁剪框数值断言）"
+        ],
+        "run": "concord_main_system_font_window_paint → checks=61 paints=4 failures=0（上一轮 15/4）；PNG 800x600 / 14724 bytes / 魔数校验通过；肉眼：六带文本全部可读真字形，D 带在 x=240 精确截断，E 带溢出右边界（WORDBREAK 未实现，在案）",
+        "layers": "十四层全过：399 / 67 / 135 GDI / 211 DC / 25 XAPO / 47 EMF / 66 小族 / 154 区域 / 141 图元 / 147 文件 / 46 输入 / 135 文本 / 42 窗口 / 23 GDI+",
+        "product_build": "1 TU（RuntimeWin32CompatGdi.cpp）编译 0 FAILED；链接失败（预期）；缺口 8 → 8（C 1 _XAudio2Create + C++ 7 音频工厂），零新增零消失",
+        "census": "58 / 479 引用 Win32 符号，编译通过 56 / 58；两失败 = RuntimeMultiplayerTwoProcessSmoke.cpp（S8 已知）+ CompatUserSemantics.cpp（普查 include 集缺 compat/win32/src，补上后 EXIT=0，非产品回归）",
+        "env": "本机未签名 Mach-O 无法启动：用 /tmp/signedbin/{ninja,python3}（python3 是 shell 包装，内部设 DYLD_LIBRARY_PATH 再 exec 实体）+ /tmp/verify_signed.sh（原脚本 + 2 行 codesign，仓库零污染）",
+        "unverified": [
+          "无 Windows 侧文本像素金标准（断言只钉字形语义）",
+          "EMR_EXTTEXTOUTW 未实现：录制型 DC 上文本返回 TRUE 却不出现在记录里",
+          "DT_WORDBREAK / DT_END_ELLIPSIS 未实现（PNG 的 E 带即为溢出样本）",
+          "比例前进宽度未做（仍 5:7 / 1:1）"
+        ]
+      }
+    },
+    {
+      "id": "S5",
+      "phase": "S Win32 兼容层",
+      "title": "窗口/输入/钩子族：S5a 声明补齐 + S5b 第二批声明（均 done）；SDL3 后端独立立为 S7",
+      "status": "done",
+      "est": "S5a/S5b 已完成；后端见 S7",
+      "detail": "本任务已按证据拆成两批，不要一次做完。\nS5a（已完成 2026-11-10）：RuntimeShell.cpp 补 <list> 后剩下的 69 个 undeclared identifier + 9 个 unknown type 全部补进 windows.h（1637→2019 行），另新增 compat/win32/include/gdiplus.h（130 行，仅声明）。顺带修掉三个真实缺陷：ICM_QUERY/ICM_OFF 值反了（S1 遗留，会让 SetICMMode 断言变成碰巧成立的假断言）；LONG_MIN/LONG_MAX 按 Win32 语义覆写（macOS 上来自 64 位 long，LONG_MIN/2 放不进 LONG）；GDI+ 只被 3 处用于导出 PNG 诊断图，故只需声明层。\nS5b（已完成 2026-11-10）：4 个 TU 的 104 处未声明标识符（42 个去重）+ 12 处未知类型（4 个）全部清零，另补 5 处被上游错误遮蔽的 MsgWaitForMultipleObjectsEx。windows.h 2022→2252 行：+52 宏 / +18 函数声明 / +15 类型。其中 GetGuiResources 用 S2 的对象表给出真实存活计数（7 个 diagnostics 文件 31 处调用从恒真式变成真泄漏检测），GetProcessHandleCount 数 fd 表；其余 16 个只声明（含 DPI 两件——曾打算映射成 PER_MONITOR_AWARE，写时推翻：软件帧缓冲按物理像素输出既不是 DPI 感知也不是 DPI 无感，是 Win32 里不存在的第三态，硬映射会让 DPI 契约诊断假通过），理由统一为『没有窗口和消息队列就没有语义』——假返回会让『真的注入了输入』这类断言静默失效。另新增 compat/win32/include/xaudio2.h（声明层，130 行）与 IUnknown / RPC_E_CHANGED_MODE，把 RuntimeVoiceAudio.cpp 的错误从 xaudio2.h not found 推进到 xapobase.h not found。证据：S5b-兼容层第二批说明.md。剩余 15 个仅声明函数的实现归属 S7。",
+      "verify": "S5b 已通过：4 个 TU 的 undeclared identifier / unknown type name 均为 0（SkirmishMenu/MainMenu/CampaignMenu/MapRenderer）；产品构建图 ninja -k 0 concord_runtime 的 FAILED 从 5 个 TU 降到 1 个（仅 RuntimeVoiceAudio.cpp，缺 xapobase.h）；compat 三层自测 276/67/80 全过；新增 16 条 static_assert（含 sizeof(INPUT)==40、WH_CBT==5、GR_GDIOBJECTS==0）。"
+    },
+    {
+      "id": "P2-04",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeVoiceAudio 的 Windows 专属音频 SDK 依赖（xaudio2.h + xapobase.h）",
+      "status": "done",
+      "est": "已完成（两轮，约 150min）",
+      "detail": "2026-11-10 修正：本任务曾被误标 superseded（理由写的是『mciSendStringW 由兼容层覆盖』）。那只覆盖了 MCI 一脉，XAudio2 是另一套东西——不是 Win32 API，是 DirectX SDK 的 COM 接口。\n现状：compat/win32/include/xaudio2.h 已落地（130 行声明层：IXAudio2 / IXAudio2MasteringVoice / IXAudio2SourceVoice / XAUDIO2_BUFFER / XAUDIO2_VOICE_STATE / XAUDIO2_EFFECT_* / AUDIO_STREAM_CATEGORY，以及 11 个常量）。加了它之后 RuntimeVoiceAudio.cpp 的错误从 `xaudio2.h not found` 变成 `xapobase.h not found`——依赖链比预估深一层。\n第二轮（2026-11-10）：xapobase.h / ks.h / ksmedia.h 三份落地，RuntimeVoiceAudio.cpp 从 5 条错误（含 3 条 static_assert 失败）到 **0 错误**，只剩一条 `std::filesystem::u8path` 的 deprecation 警告（与兼容层无关）。\n这一轮最有价值的不是\"补了三个头\"，而是 static_assert 抓出两处**真实布局错误**：\n  ① WAVEFORMATEX 没按 Windows SDK 的 pack(1) 声明 → macOS 上 20 字节（Windows 18）。字段偏移碰巧相同，所以读字段不会错，但 cbSize==22 这条 WAVEFORMATEXTENSIBLE 判据算不平，把 WAVEFORMATEX* 重解释成 WAVEFORMATEXTENSIBLE* 时 Samples 落到 20 而不是 18 —— 限幅器会拿到错位的 wValidBitsPerSample，把合法格式判成不合法，**永远不生效**且完全静默。已在 mmsystem.h 加 #pragma pack(push,1) 并钉住 sizeof==18 / offsetof(cbSize)==16。\n  ② KSIDENTIFIER 最初写成扁平结构体（GUID+Id+Flags）= 24 字节，真实是 union 的 16 字节。改成 GUID + id()/flags() 访问器，布局回到 16。\nCXAPOBase 是**可实例化**的基类，不是纯虚壳：派生类不重写 Release，所以销毁责任必须落在基类的虚析构上。这条决定用 ASAN 的 UAF 探测证明了：Release() 到 0 后碰对象，ASAN 报 heap-use-after-free，释放栈是 RuntimeAudioPeakLimiter::~RuntimeAudioPeakLimiter() ← CXAPOBase::Release()，即派生类析构真的跑了。",
+      "verify": "已通过：RuntimeVoiceAudio.cpp -fsyntax-only -ferror-limit=0 = 0 错误；产品构建图 14/14 编译步骤全部成功（第一次走到链接）；新增 concord_win32_compat_xapo_selftest（CMake 目标，已接入 verify 脚本第 4 步）25 checks 全过，覆盖：float 立体声被接受 / mono·int16·低于 XAPO_MIN_FRAMERATE 被拒 / WAVEFORMATEXTENSIBLE 的 IEEE_FLOAT 子格式被接受而 PCM 子格式被拒 / 1.5 峰值被限到 ≤1.0 且两声道同增益 / SILENT 输出零 / disabled 直通 / 引用计数 1→2→1→0 且销毁 / QueryInterface 只认 IUnknown。",
+      "touches": [
+        "src/audio/backend/RuntimeVoiceAudio.cpp",
+        "compat/win32/include/xaudio2.h",
+        "compat/win32/include/xapobase.h",
+        "compat/win32/include/ks.h",
+        "compat/win32/include/ksmedia.h",
+        "compat/win32/include/mmsystem.h",
+        "compat/win32/include/windows.h",
+        "compat/win32/selftest/CompatXapoLimiterSemantics.cpp",
+        "cmake/PlatformApple.cmake",
+        "scripts/verify-win32-compat.sh"
+      ]
+    },
+    {
+      "id": "P2-05",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeMapRenderer 隔离 D3D11 依赖",
+      "status": "superseded",
+      "supersededBy": "S1：D3D11 全项目只被 1 个文件 include，走兼容层 + 软件渲染默认路径即可，无需改本文件",
+      "est": "60min",
+      "detail": "src/render/core/RuntimeMapRenderer.cpp 含 D3D11。默认路径本就是软件渲染（SoftwareFrame），把 D3D11 分支整体包进 #if _WIN32，非 Windows 只保留软件路径。",
+      "verify": "该 TU 编译通过；软件渲染相关 smoke 通过",
+      "touches": [
+        "src/render/core/RuntimeMapRenderer.cpp"
+      ]
+    },
+    {
+      "id": "P2-06",
+      "phase": "P2 消除失败 TU",
+      "title": "RuntimeNativeSessionDevices 平台化",
+      "status": "superseded",
+      "supersededBy": "S1：该 TU 的 Win32 依赖由兼容层承接，不再改写",
+      "est": "60min",
+      "detail": "src/runtime/session/win32/RuntimeNativeSessionDevices.cpp 在非 Windows 下不应参与构建，或改写为使用 PortableSessionDevices 抽象。先判断上游是否有 headless 等价物（src/runtime/session/headless/），优先「非 Windows 不构建这个 TU」而非重写。",
+      "verify": "product 构建图中不再出现该 TU 的 FAILED",
+      "touches": [
+        "cmake/PlatformApple.cmake 或 GameTargets 层",
+        "src/runtime/session/win32/"
+      ]
+    },
+    {
+      "id": "P2-07",
+      "phase": "P2 消除失败 TU",
+      "title": "三个 win32 窗口后端在 APPLE 下退出编译图",
+      "status": "superseded",
+      "supersededBy": "S5：窗口族由兼容层 + SDL3 后端承接；这三个 TU 不再需要退出编译图",
+      "est": "45min",
+      "detail": "RuntimeWindowHostWin32 / RuntimeWindowParentWin32 / RuntimePersistentMenuHostWin32 属于 concord_window_host_win32 与 concord_window_parent_win32 目标。这两个 target 应在非 Windows 下不创建（检查其 cmake 是否已有 WIN32 守卫，缺则补 elseif(APPLE) 跳过）。",
+      "verify": "build-product-mac 的 build.ninja 中不再出现这三个 TU；configure 成功",
+      "touches": [
+        "cmake/ 中对应 target 定义"
+      ]
+    },
+    {
+      "id": "P2-09",
+      "phase": "P2 消除失败 TU",
+      "title": "三个菜单去 Win32（多轮，需先拆分）",
+      "status": "superseded",
+      "supersededBy": "S1：三个菜单合计 788 处 Win32 引用，兼容层就位后源码一行不改",
+      "est": "多轮",
+      "detail": "RuntimeMainMenu / RuntimeCampaignMenu / RuntimeSkirmishMenu 依赖 GDI 位图与字体。开始前先拆成 <=1h 子步骤。注意 std::wstring 在 111 个文件里、macOS wchar_t 是 4 字节，端口边界须统一转 UTF-8，不要单独一轮做。",
+      "verify": "每个子步骤独立可验证",
+      "touches": [
+        "src/ui/main_menu/",
+        "src/ui/campaign/",
+        "src/ui/skirmish/"
+      ]
+    },
+    {
+      "id": "P3-01",
+      "phase": "P3 窗口与呈现",
+      "title": "SDL3 窗口 host 骨架",
+      "status": "superseded",
+      "supersededBy": "S5（并入：SDL3 窗口 host 与 Win32 窗口族是同一件事，拆开做会重复一遍消息循环）",
+      "est": "多轮",
+      "detail": "实现与 RuntimeWindowHostWin32 接口对齐的 SDL3 版本（新建 src/runtime/window/sdl3/），先只做开窗+事件循环+退出，不接游戏逻辑。开始前先拆子步骤。",
+      "verify": "能开出一个空窗口并正常关闭",
+      "touches": [
+        "新增 src/runtime/window/sdl3/"
+      ]
+    },
+    {
+      "id": "P4-01",
+      "phase": "P4 音频",
+      "title": "SDL3 音频后端",
+      "status": "done",
+      "est": "多轮",
+      "detail": "对齐 AsyncSoundDevice 接口实现 SDL3 audio stream。前置：P2-04 完成。开始前先拆子步骤。",
+      "verify": "菜单音效可播",
+      "touches": [
+        "src/audio/apple/",
+        "cmake/AppleAudioContracts.cmake",
+        "cmake/CompilerAndPlatform.cmake",
+        "tests/audio/apple/",
+        "compat/win32/src/RuntimeWin32CompatAudio.cpp"
+      ],
+      "started_at": "2026-11-10T19:40:00+08:00",
+      "substeps": [
+        {
+          "id": "P4-01a",
+          "title": "macOS 音频底座：RIFF/WAVE(含 IMA ADPCM) 解码 + AudioQueue 输出流 + 自测",
+          "status": "done",
+          "result": "自测 88 checks/0 failures；144 文件 8,095,320 样本与 afconvert 逐样本一致；300ms 素材实测 394–421ms 播完"
+        },
+        {
+          "id": "P4-01b",
+          "title": "7 个音频工厂的 Apple 实现 + cmake leaf 接线，缺口 8→0 首次链接成功",
+          "status": "done",
+          "result": "缺口 8→0（C 1 + C++ 7 全部兑现，零新增）；concord_runtime 链接成功（49,640,608 字节，Mach-O x86_64）；AudioDevices 自测 76 checks/0 failures；AudioOutput 回归 84/0；兼容层 14 层全过；普查 56/58（同 P4-01a）"
+        },
+        {
+          "id": "P4-01c",
+          "title": "产品级菜单音效实跑验收（依赖产品可运行）",
+          "status": "done",
+          "next_action": "产品级 concord_runtime 现已能运行（首次实跑输出：menu host ok，但 shell.pal 找不到 → 素材根目录没指对）。第一步把素材根指到 /Users/zhenglk/ai-project/ra2mac/RA2 后重跑，进菜单再验音效；音频代码本轮已就绪，先别再动。",
+          "result": "产品级 concord_runtime 在 ConcordRTS-GameData 下实跑：menu host ok、shell.pal 报错消失；CONCORD_AUDIO_TRACE=1 取到两条独立观测序列——drok.wav 3424239 帧/22050Hz 循环播放，playedSec 10.03 对 wallMs 10.07（比值 0.996）；uslide1 12981 帧整段播完。并修掉\"三个单槽族共用 table<1>() 同一静态槽位表\"的缺陷（滑入音效会把菜单音乐顶掉）。",
+          "evidence": "P4-01c-菜单音效实跑验收.md"
+        }
+      ],
+      "backend_decision": {
+        "date": "2026-11-10",
+        "chosen": "AudioToolbox / AudioQueue（macOS 原生）",
+        "why": [
+          "SDL3 在本机既无安装也无源码：build/dependencies/sdl3-3.4.16/ 不存在，brew/Cellar 无 sdl3，/usr/local/lib 无 SDL3。",
+          "cmake/Sdl3Window.cmake:8 明写 \"P11 SDL3 loader is currently verified on Windows only\"，第 11 行 \"no automatic dependency installation is performed\"——不允许自动下载。",
+          "P3-01（SDL3 窗口 host 骨架）已被 superseded，窗口侧最终走纯离屏 S7；SDL3 不再是共享依赖，\"与 P3 共用依赖\"的前提消失。",
+          "多平台方案 §P4 原文允许 CoreAudio 路线：\"优先 SDL3 Audio…需要低延迟再上 CoreAudio\"。"
+        ],
+        "cost": "若日后确实要 SDL3，只需换掉 RuntimeAppleAudioOutput.cpp 一个文件，接口与工厂不动。",
+        "unverified": "SDL3 路线零验证（本机不可得）；AudioQueue 在 Rosetta(x86_64) 下的实际播放待本轮自测证明。"
+      },
+      "status_note": "2026-11-10 22:35 P4-01c 完成并标 done：声音在产品路径上真的进了设备且按实时被消费，有可复算的墙钟对账。但\"菜单交互音效\"（点击/悬停）仍无证据——根因是 WM_TIMER 不投递 （菜单主循环阻塞在 GetMessageW，11 秒只耗 0.66s CPU），已立 S11。音频层本身不再欠账。",
+      "verification_ceiling": "本轮的 done 只覆盖\"音频后端在产品路径上工作\"：进场音乐 + 一次滑入音效可播且有量化对账。不覆盖：① 交互音效（需 S11 接通定时器与输入消息）；② 人耳/环回听感（只有帧消费数）；③ 155s 素材的 EOF 循环重启（只跑了 14s）；④ 播放中改音量（AudioQueue 无增益接缝）。",
+      "commit": "c301d95（破例里程碑提交，2026-11-10 23:18）",
+      "substep": " | 2026-11-10 23:18 人工破例提交 c301d95：P4-01a/b/c 成果入库（缺口 280→0、首次链接、首次出声），不等人 P4-02。提交规则同步修订为「里程碑例外 + 族收口」双锚点。"
+    },
+    {
+      "id": "P4-02",
+      "phase": "P4 音频",
+      "title": "XAudio2 多路语音：AudioQueue 上的混音器",
+      "status": "done",
+      "est": "多轮",
+      "detail": "兑现 XAudio2Create 的**真实**语义：多条 source voice 并行喂 16 位 PCM、SetVolume + 输出矩阵混到主声部、LoopCount、运行期改增益。当前实现刻意返回 E_NOTIMPL（RuntimeVoiceAudio::ready()==false）。不许用空壳引擎换 S_OK——那会让每条语音'播放成功但不出声'。",
+      "verify": "RuntimeVoiceAudio::ready()==true 且自测中多条 voice 混音的样本数与预期逐样本一致",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatAudio.cpp",
+        "compat/win32/src/RuntimeWin32CompatAudioInternal.h",
+        "tests/audio/apple/XAudio2MixerSmoke.cpp",
+        "tests/audio/apple/XAudio2VoiceAudioSmoke.cpp",
+        "cmake/AppleAudioContracts.cmake",
+        "cmake/PlatformApple.cmake"
+      ],
+      "depends_on": "P4-01b（已在 done 状态）",
+      "status_note": "2026-11-10 23:35 标 done。verify 的两半都成立：RuntimeVoiceAudio::ready()==true（产品门面，自测里 ready=1 / lastError=0）且多条 voice 混音逐样本一致（52 条硬编码断言）。引擎不是空壳：混音发生在 48kHz 立体声浮点缓冲，音量/矩阵/LoopCount/重采样/限幅全部在样本上生效。",
+      "started_at": "2026-11-10T23:20:00+08:00",
+      "substeps": [
+        {
+          "id": "P4-02a",
+          "title": "XAudio2 真引擎：COM 对象模型 + 48kHz 立体声软件混音器 + AudioQueue 输出",
+          "status": "done",
+          "result": "离线逐样本自测 52 checks/0 failures（直通/多路/运行期音量/无限与有限 LoopCount/24000→48000 线性重采样/播完自停/限幅 32735 非削波/主音量 0 静音/8 位无符号/float32/四类非法输入拒绝）；产品级语音自测 40 checks/0 failures（ready()==true、lastError()==S_OK、22050 单声道与 44100 立体声两条 voice 并行各消费 4233 / 8467 源帧、setMix 矩阵读回 0.3162/1.0）；真设备 samplesPlayed 到 1024；产品 concord_runtime 链接成功（缺口 0→0，1 TU + link 零 FAILED）；兼容层 14 层全过。"
+        }
+      ],
+      "verification_ceiling": "不覆盖：① 战斗内单位语音的实际听感（产品在菜单路径上根本不构造 RuntimeVoiceAudio，它是 unique_ptr 惰性创建）；② 重采样是线性插值而非 XAudio2 的多相滤波，长素材高频会有差异；③ 循环只支持整段循环（LoopBegin/LoopLength 非零时按 playBegin..playEnd 处理）；④ 源声部的 XAUDIO2_EFFECT_CHAIN 被忽略（产品只给主声部挂限幅器）；⑤ 无 Windows 听感基线可对照。",
+      "commit": "1f2e245（P4 族收口提交，2026-11-10 23:40）"
+    },
+    {
+      "id": "Q-01",
+      "phase": "Q 资源（可随时插队）",
+      "title": "按 artmd.ini 派生并抽取单位/建筑美术",
+      "status": "done",
+      "est": "60min",
+      "detail": "扩展 scripts/prepare-game-assets.py：从 artmd.ini 段名派生 VXL/HVA/SHP 文件名，按 Westwood CRC32 从 MIX 精确抽取到 ConcordRTS-GameData。纯数据任务，不碰源码，适合在被阻塞时执行。",
+      "verify": "抽样 10 个单位模型能在 mix_exports 下落盘且非零字节；MANIFEST 项数增加",
+      "touches": [
+        "scripts/prepare-game-assets.py",
+        "ConcordRTS-GameData/"
+      ],
+      "result": {
+        "artFiles": 3909,
+        "artBytes": 165519360,
+        "baseNames": 2504,
+        "derive": {
+          "art": 2526,
+          "newtheater": 1383
+        },
+        "sampleVoxels": "10/10 vxl+hva 非零，gtnk.vxl 经 --inspect-vxl-hva 解析为 Voxel Animation / sectionNamesMatch=yes",
+        "manifest": "469 → 4378 项",
+        "layout": "mix_exports/art/<base|temperat|snow|urban|urbann|desert|lunar>/<name>.<ext>",
+        "inventory": "local_data/art-inventory.json",
+        "entryPoint": "scripts/prepare-game-assets.py 第 5b 阶段 harvest_art()"
+      },
+      "completedAt": "2026-11-10T23:45:05+0800"
+    },
+    {
+      "id": "Q-02",
+      "phase": "Q 资源（可随时插队）",
+      "title": "剧场美术命名纠正：NewTheater 第二字符集合与温带默认图（GG*）",
+      "status": "done",
+      "est": "40min",
+      "detail": "Q-01 实测：建筑剧场变体以基名第 2 字符区分，数据里只出现 A(snow) 与 G(generic/温带)；项目现有 newTheaterCharForExtension(.tem→'t', .sno→'a') 与数据不符，温带候选名 GTPOWR.SHP 在全部 56 个归档里都不存在。需要：① 用 data 反推正确的字符集合（已枚举：GAPOWR 只命中 GA/GG）；② 修正 MapPreviewExporter 的候选名生成（属 compat/资产层，需先确认是否也在别处复用）；③ 用 art-inventory.json 交叉验证 10 个建筑的温带图确实落在 art/base/gg*.shp。注意：这是 mac 与 win 共用的资产层代码，改动前先确认 win 侧行为不回退。",
+      "verify": "对 10 个 NewTheater 建筑，候选名生成能在 art/base 命中 gg*.shp；map-preview 的结构精灵覆盖统计里温带建筑不再报缺图",
+      "touches": [
+        "src/assets/preview/MapPreviewExporter.cpp"
+      ],
+      "found_by": "Q-01",
+      "evidence": "Q-01-美术抽取说明.md",
+      "started_at": "2026-11-11T00:08:00+08:00",
+      "substeps": [
+        {
+          "id": "Q-02a",
+          "title": "剧场字符拆分：建筑（温带=G）与地表 overlay（温带=T）用两套映射",
+          "status": "done",
+          "result": "旧规则（.tem→'t' 共用）：769 个 NewTheater=yes 段里 **362 个首个候选名根本不存在**（gttech/ntweap/ytrock…），598 个靠 'g' 兜底才命中。新规则：首个候选命中 art/base/gg* 的段数 **21**（要求 ≥10），gt* 命中 **0**。受影响的还有 Y/N 前缀（ygtech / ngweap 也在 art/base）。把同一函数拆成 structureTheaterCharForExtension / overlayTheaterCharForExtension，并把 overlay 的兜底从 'g' 改成 't'；artIdSupportsNewTheater 的第二个字符集合补上 'G'。"
+        }
+      ],
+      "status_note": "2026-11-11 00:16 标 done。**原任务的前提被数据推翻**：温带建筑并没有真的缺图——旧代码虽然先探一个不存在的 gt*/nt*/yt* 名字，但后面还有 'g' 兜底候选，所以 4 个结构全部 found、Missing SHP=0（改动前后都是 0）。真正的缺陷是映射本身错（362/769 个死探针 + 一旦兜底被删就整片缺图），按\"数据模型修正\"交付。",
+      "verification_ceiling": "不覆盖：① map-preview 的结构精灵覆盖统计**拿不到**——TMP HTML 导出要求瓦片齐全，当前抽取缺 194 个瓦片；而 --map-object-art-report 不加载 theater，所以它根本不触发替代候选（这也是它改动前后都显示 Missing 0 的原因）。② 同一映射还复制在 RuntimeMapRenderer.cpp 与 RuntimeProductionResources.cpp 两处，本轮未改（渲染路径无对账手段），已立 Q-03。③ 地表 overlay 只做了静态推理（首个候选不变）。"
+    },
+    {
+      "id": "Q-03",
+      "phase": "Q 资源（可随时插队）",
+      "title": "渲染路径的剧场字符仍是错的映射（RuntimeMapRenderer / RuntimeProductionResources 两处复制）",
+      "status": "done",
+      "est": "40min",
+      "detail": "Q-02 只修了 MapPreviewExporter 的一份实现。同一段映射还复制在两处：src/render/core/RuntimeMapRenderer.cpp:1344 与 src/render/core/RuntimeProductionResources.cpp:1073，两处的 newTheaterCharForExtension 都是 .tem→'t'、兜底 'g'。因为它们也带 'g' 兜底，温带建筑在做渲染时**碰巧**仍能命中 art/base/gg*，但首个候选永远是死名（gt*/nt*/yt*），而且 artIdSupportsNewTheater 同样缺 'G'。要求：① 抽出唯一实现（一个平台无关的剧场字符模块），两处都调它，避免第三份复制；② 渲染侧要有对账手段（例如把\"首个候选是否存在\"计数打进诊断输出），否则改完仍然只能靠推理；③ 确认 Windows 侧行为不回退（同数据、同名字，理论上等价）。",
+      "verify": "运行时渲染的对象图候选名与 MapPreviewExporter 完全一致（同一函数），且首个候选命中率与 Q-02 的 21 条对得上",
+      "touches": [
+        "src/data/art/TheaterResourceLetters.h",
+        "src/assets/preview/MapPreviewExporter.cpp",
+        "src/render/core/RuntimeProductionResources.cpp",
+        "src/render/core/RuntimeMapRenderer.cpp"
+      ],
+      "found_by": "Q-02",
+      "evidence": "Q-02-剧场字符说明.md",
+      "status_note": "2026-11-11 00:27 标 done。**重构由并发实例完成**（三处调用点收进 data/art/TheaterResourceLetters.h），本轮补上它的字母序列修正并一并提交 db40249。唯一实现已成立：三个调用点都走 theaterResourceNameCandidates。",
+      "verification_ceiling": "不覆盖：① 渲染侧的\"候选命中率\"仍无运行时打点（本轮的对账是离线复刻规则 + 真实文件树）；② 没有跑进战斗看建筑真的画对（窗口是纯离屏，无像素比对基线）。",
+      "commit": "db40249（与 Q-04 合并提交）",
+      "verify_note": "第一句成立：三处调用点都走 theaterResourceNameCandidates()，候选名逐字相同。第二句不成立且已作废：Q-02 的\"gg* 直命中 21\"是在温带=G 的错误模型下统计的；按正确的 [剧场字母 T, 通用 G] 重算，温带首个候选命中 245/800（其中 ct* 234）。见 Q-03-渲染侧剧场字母对账.md。",
+      "completed_at": "2026-11-11T00:29:00",
+      "outputs": [
+        "Q-03-渲染侧剧场字母对账.md"
+      ]
+    },
+    {
+      "id": "Q-04",
+      "phase": "Q 资源（可随时插队）",
+      "title": "剧场候选序列改回 [剧场字母, 通用 G]：`1dc77df` 与 Q-03 的双字母表都会画错民用建筑",
+      "status": "done",
+      "est": "40min",
+      "detail": "证据见 RUNLOG 2026-11-11 00:24。769 个 NewTheater 段的交叉统计：只有 g 120 / 只有 t 213 / 两者都有 23。旧序列 `[t, g]` 首候选命中 242；改成 `[g]` 只有 149，且 213 个民用建筑（CAHOSP → cthosp.shp）会回落到雪地图 cahosp.shp。要求：① 在 TheaterResourceLetters.h 里把theaterResourceLetter('.tem') 改回 't'，通用 'G' 作为第二候选；② 取消\"建筑用 G / 地表用 T\"的双字母表（数据证明不成立），三个调用点统一用一条序列；③ 判据换成首候选命中 242/769 + 两个必须同时成立的样本 CAHOSP→cthosp / GATECH→ggtech。",
+      "verify": "首候选命中 242/769；CAHOSP 在温带地图命中 art/temperat/cthosp.shp，GATECH 命中 art/base/ggtech.shp",
+      "touches": [
+        "src/data/art/",
+        "src/assets/preview/",
+        "src/render/core/"
+      ],
+      "found_by": "Q-03（让路轮的只读校验）",
+      "evidence": "Q-02-剧场字符说明.md + RUNLOG 2026-11-11 00:24",
+      "started_at": "2026-11-11T00:25:00+08:00",
+      "substeps": [
+        {
+          "id": "Q-04a",
+          "title": "字母表改回 [剧场字母, 通用 G] 并统一三条调用路径",
+          "status": "done",
+          "result": "首候选命中 **149 → 242**（temperat 202 / base 40，全量 769 段）；`CAHOSP → cthosp.shp`（民用，命中 art/temperat）与 `GATECH → gttech(不存在) → ggtech.shp`（玩家，命中 art/base）**同时成立**；concord_rules_dump + concord_runtime 重建 0 FAILED；16 层全过。"
+        }
+      ],
+      "status_note": "2026-11-11 00:27 标 done。修正 `1dc77df` 引入的回归：把 .tem 的字母从 'G' 改回 'T'，让 'G' 回到\"通用兜底\"的第二位。三个调用点共用一条序列，双字母表取消。",
+      "verification_ceiling": "不覆盖：① 没有真跑进战斗/地图预览看像素（纯离屏无基线）；② `--export-map-tmp-html` 仍因缺 194 个瓦片跑不到覆盖统计；③ Windows 侧未复核（同数据同名字，理论上等价）。",
+      "commit": "db40249"
+    },
+    {
+      "id": "B-01",
+      "phase": "前置阻塞",
+      "title": "Windows 侧基线采集（需用户执行）",
+      "status": "done",
+      "est": "已交付",
+      "detail": "已完成（2026-11-10）。Windows 侧产出 baseline/core-windows-x64.json：MINGW64_NT-10.0-26300 / x86_64 / cmake 3.31.6-msvc6 / build-core-win / ctest 10 registered 10 passed 0 failed / 8 个 smoke 全 exit=0。对账结论：与 core-macos-p2-01.json 相比只有 1 处差异（cmake 版本，属工具链环境差异）；两条金标准哈希 1585785091039784157 跨平台逐位一致；secure_bytes 契约在 macOS 仍有 87 checks / backend=3（AppleGetentropy），与 Windows 的 87 checks / backend=1（WindowsCng）检查数相同、后端编号按设计不同。对照改造前的 core-macos-x86_64.json（3 处差异：git dirty、cmake、exit 77），P2-01 把差异从 3 处收敛到 1 处，即『Windows 零回归』已获证据。三点数据质量备注：①Windows 树为 (dirty)，且 build-core-win 已被 .gitignore 覆盖，说明是真实 tracked 改动，但哈希一致表明未扰动内核行为；②compiler 字段为空（脚本用 `c++ --version`，MinGW 无该别名）——已修 capture 脚本为 CXX/c++/g++/clang++/cl 回退链；③该基线只覆盖 core 目标，不含产品级构建，产品面仍以 macOS 侧 445 TU 为唯一观测点。",
+      "verify": "已通过：compare-core-baseline.py baseline/core-windows-x64.json baseline/core-macos-p2-01.json → 仅 cmake 一处差异；哈希无差异。",
+      "touches": [
+        "baseline/core-windows-x64.json"
+      ]
+    },
+    {
+      "id": "T-01",
+      "phase": "S Win32 兼容层（替代 P2-04..09）",
+      "title": "类型同一性对齐：LONG 不是 long、path::string_type 是 wstring",
+      "status": "done",
+      "est": "已完成 27 处（累计 38 处）",
+      "detail": "已完成（2026-11-10，11 处）：RuntimeShell.cpp 6 处、RuntimeDiplomacyPage.inl 1、RuntimeDiplomacyPageSmoke.inl 1、RuntimePlayerHotkeysUi.inl 2（max/min 各一）、RuntimePlayerDefeatNoticeSmoke.inl 1。统一改写为 std::max<LONG>(1L, x) / std::min<LONG>(...)：Windows 上 LONG==long，与默认推导是同一个实例化。\n已确认不能走的路线：把 shim 的 LONG 改成 long。macOS 的 long 是 64 位，RECT/BITMAPINFOHEADER 会从 16/40 变 32/72 字节，位图格式彻底不兼容；更糟的是结算数学会在 64 位下不再按 32 位回绕，属于静默的模拟结果差异。\n形态二（fs::path::c_str() 窄宽）：已用 shim 侧窄字符重载解决 CreateFileW，调用点零改动。后续若出现 DeleteFileW/GetFileAttributesW/MoveFileW 同类报错，照同一套路加重载即可。\n形态三（多声明符 auto）：size_t 在 LP64 是 unsigned long、uint64_t 是 unsigned long long，宽度同类型不同；已拆成两条声明（3 处）。\n剩余 27 处已于 2026-11-10 S5b 轮全部完成：RuntimeCampaignMenu.cpp 4（含 2 处 std::min）、RuntimeCampaignMenuUi.inl 4、campaign_clock_original/Methods.original.inl 2、RuntimeMainMenu.cpp 2、MapGpuWorldWin32.inl 2、MapLightRender.inl 2、BuildingDepthRender.inl 4、StructureSpriteGeometry.inl 1、MapRenderer.cpp 1（std::clamp，1L/16L 边界）。\n统一写法 std::max<LONG>/std::min<LONG>/std::clamp<LONG>：Windows 上 LONG==long，与默认推导是**同一个实例化**，零语义变化；macOS 上把 long 字面量收敛到 int32，与 LONG 同宽。\n两处 .original.inl（冻结的 Windows oracle）也改了，理由同上——在 Windows 上模板实参完全相同，oracle 行为逐位不变。这是刻意决定的：不改就得为 macOS 单独包一层 #ifdef，反而让 oracle 与产品代码分叉。\nclamp 那处的原始调用在 Windows 上能过，是因为 bounds-LONG 运算使第一个实参为 long；macOS 上 LONG==int 使实参退化为 int，与 1L/16L 冲突。std::clamp<LONG> 在两个平台都是同一个实例化。",
+      "verify": "已通过：RuntimeCampaignMenu.cpp / RuntimeMapRenderer.cpp / RuntimeSkirmishMenu.cpp / RuntimeMainMenu.cpp 四个 TU 的 -fsyntax-only -ferror-limit=0 均为 0 错误；产品构建图 -O3 实证编译通过（build3 只剩 RuntimeVoiceAudio）。Windows 侧无法复核，但模板实参在 Windows 上与原推导同一，风险为零。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/ui/diplomacy/RuntimeDiplomacyPage.inl",
+        "src/ui/diplomacy/diagnostics/RuntimeDiplomacyPageSmoke.inl",
+        "src/ui/input/RuntimePlayerHotkeysUi.inl",
+        "src/ui/input/diagnostics/RuntimePlayerDefeatNoticeSmoke.inl",
+        "src/simulation/abilities/unit_special/diagnostics/RuntimeGattlingContinuousFireSmoke.inl",
+        "src/simulation/movement/ground/diagnostics/RuntimeScatterDistanceSmoke.cpp",
+        "src/simulation/navigation/planning/diagnostics/RuntimePlannerCellPassabilityContract.inl"
+      ],
+      "note": "2026-11-10 03:06 工作区已有部分落地（RuntimeShell.cpp 6 处 std::max<LONG>、RuntimeDiplomacyPage.inl 等），但 RuntimeCampaignMenu.cpp 的 12 条 max 未复核，string_type 宽窄桥接也未复核，保持 pending。"
+    },
+    {
+      "id": "T-02",
+      "phase": "S Win32 兼容层（替代 P2-04..09）",
+      "title": "wchar_t 宽度桥接：macOS wchar_t=4 字节，项目按 UTF-16 假设写死",
+      "status": "done",
+      "est": "2 个已知点已完成；111 个文件的系统性排查待做",
+      "detail": "b0/S5a 取证暴露的独立问题：项目按「wchar_t 就是 UTF-16 码元」写死。\n已完成（2026-11-10）两个已知点，处理方式刻意不同：\n  ① RuntimePlayerHotkeysUi.inl:37/45 的 runtimeChatTextDraftFromWide / ToWide 在【真实运行路径】。只删断言会静默截断 BMP 外码点（U+1F600 变成两个非法码元），所以改成 #if defined(_WIN32) 保留原逐单元拷贝、#else 走真正的 UTF-32↔UTF-16 转码（含代理对拆分与孤立代理项替换为 U+FFFD）。Windows 分支逐字节未变。\n  ② RuntimeChatTextSmoke.inl 的 static_assert(sizeof(wchar_t)==2) 在诊断路径，且该 722 行探针以冻结的 Windows oracle 为基准（真实 HWND 回放 + 逐字节比对 oldWin32ChatUtf8）。POSIX 上断言/语料/预期三者都不成立，硬跑只会得到假失败。已整体 #if defined(_WIN32) 包住，非 Windows 返回显式打印 skipped 的桩，不伪造通过。\n仍待做（降级为 T-03，不再是编译阻塞）：全项目 111 个文件使用 std::wstring，编译面已无宽度假设引起的错误，但**运行期**语义未验证——路径相关代码要等窗口后端能跑起来才走得到。",
+      "verify": "已通过：RuntimeSkirmishMenu.cpp / RuntimeMainMenu.cpp 0 错误；产品构建图 -O3 编译通过。局限：只验证了『能编译』，没有任何一条 std::wstring 运行路径被执行过。",
+      "touches": [
+        "src/ui/input/RuntimePlayerHotkeysUi.inl",
+        "src/ui/input/diagnostics/RuntimeChatTextSmoke.inl"
+      ],
+      "note": "2026-11-10 03:06 工作区已在 RuntimePlayerHotkeysUi.inl 落地 POSIX 分支（按码点转换 + 代理对拆分），质量高于原计划；RuntimeChatTextSmoke.inl 的 sizeof(wchar_t)==2 断言是否处理未复核，保持 pending。",
+      "scope_note": "本轮（S5b）补齐的 4 处是 fs::path::string_type 的宽窄差异，不是 wchar_t 宽度本身：MenuAudio.original.inl:70（path.native() → path.wstring() 拼 mciSendStringW 命令）、MusicClockSmoke.inl 的 wide(...) 三处与 allowedRoot 比较一处、SkirmishMenu.cpp:529 的 MenuMusicPathEncoder lambda 返回值。path::wstring() 在 Windows 上就是 native()，零语义变化；在 POSIX 上是 UTF-8 → wchar_t 的转换，正是需要的。"
+    },
+    {
+      "id": "S6",
+      "phase": "S Win32 兼容层（替代 P2-04..09）",
+      "title": "GDI+ PNG 导出：gdiplus.h 声明已就位，实现留待 macOS 侧编码器",
+      "status": "done",
+      "est": "45min",
+      "detail": "compat/win32/include/gdiplus.h 已完成（约 130 行，仅声明）：GdiplusStartup/GdiplusShutdown/GetImageEncodersSize/GetImageEncoders/ImageCodecInfo/Bitmap。Bitmap::Save 提供 const wchar_t* 与 const char* 两个重载（fs::path::c_str() 在 POSIX 是窄字符）。PixelFormat32bppRGB 固定 0x00262008。\n实现目标是让下列三条诊断输出恢复：RuntimeAllWeaponMuzzleRender.inl（muzzles-N.png）、RuntimeNeutralBuildingPaletteAudit.inl（调色板审计图）、ensureRuntimeGdiplusStarted 的启动器。\n实现方式：不需要真的复刻 GDI+，只要一个 32bpp RGB → PNG 的编码器（可用 zlib deflate + PNG 分块，或系统 ImageIO），并把 GetImageEncoders 常量答案化（返回一个 image/png 的 CLSID）。\n注意：渲染结果本身不经过 GDI+，这条不阻塞任何运行路径，优先级低于 S5b。",
+      "verify": "build 后 CSV/PNG 诊断产物能在 macOS 上生成，且与 Windows 产物的像素内容一致（PNG 压缩字节可不同）"
+    },
+    {
+      "id": "S7",
+      "phase": "S Win32 兼容层",
+      "title": "窗口/消息/输入后端：兑现 81 个未定义符号（含 16 个此前仅声明的）",
+      "status": "done",
+      "est": "多轮（开始前先拆子步骤）",
+      "detail": "S5b 之后产品构建图里只剩一个编译失败（RuntimeVoiceAudio），但它挡在链接前面，所以 S7 是下一个结构性里程碑而不是可选项。\n要兑现的符号：SendInput / GetAsyncKeyState / EnumThreadWindows / FindWindowExW / SetWindowsHookExW / UnhookWindowsHookEx / CallNextHookEx / GetMenu / GetForegroundWindow / GetDoubleClickTime / MsgWaitForMultipleObjectsEx / GetCursorInfo / GetSystemPowerStatus / SetBrushOrgEx / GetThreadDpiAwarenessContext / GetAwarenessFromDpiAwarenessContext / XAudio2Create。\n设计要点：① 消息队列要成为 compat 层的一等对象——PeekMessage/GetMessage/MsgWait 都从它取，SendInput 往里投，EnumThreadWindows 按它枚举；② 钩子只在『本线程、WH_CBT、只关心 CREATEWND』这一种组合上做真实实现（8 个调用点全是这个用法），其余组合返回失败并打印，不假装；③ GetGuiResources 的 GR_USEROBJECTS 从此可以返回真实的窗口数。\nJobs（CreateJobObjectW/AssignProcessToJobObject）不在本任务：两进程互杀语义必须由 macOS 侧的进程组/kqueue 重新设计，不能靠 shim 假装。\n2026-11-10 链接实测：窗口/消息/输入族共 **81** 个未定义符号（含 RegisterClassExW/CreateWindowExW/DefWindowProcW/CallWindowProcW/GetMessageW/PeekMessageW/DispatchMessageW/DrawText 所依赖的 BeginPaint/EndPaint 等）。\n**前置阻塞**：构建配置显示 sdl3-window=OFF、sdl3-audio=OFF、metal-present=OFF、software-present=ON。即 SDL3 目前根本不在构建图里，brew 又因 macOS 版本号 26.7.1 崩过。所以 S7 的第一步是\"窗口后端到底建在什么之上\"的选型（SDL3 / 原生 Cocoa / 纯离屏无窗口），而不是写代码。选项 A 纯离屏：不开真窗口，只提供 DC + 消息队列的最小语义，让 smoke 能跑——代价是看不到界面；选项 B 原生 Cocoa：无外部依赖，但要写 NSApplication/NSView 事件循环；选项 C SDL3：得先修 brew 或手工编 SDL3。 [2026-11-10 完成：纯离屏路线，兑现 74 个 C-linkage，缺口 109→35]",
+      "verify": "开窗→收消息→SendInput 注入的键鼠事件能被子窗口收到→EnumThreadWindows 能枚举到→关闭无泄漏",
+      "touches": [
+        "新增 compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/include/windows.h"
+      ]
+    },
+    {
+      "id": "T-03",
+      "phase": "S Win32 兼容层",
+      "title": "std::wstring 的运行期语义验证（编译面已清零，运行面未验证）",
+      "status": "done",
+      "est": "多轮，依赖 S7 能跑起来",
+      "detail": "T-02 已把编译面的宽度假设清零，但**没有执行过任何一条 std::wstring 路径**。已知的三类风险：① 逐字节 UTF-16 语义的代码（哈希、长度断言、码元索引）在 wchar_t=4 字节下会给出不同结果；② 窄宽桥接若在中间层混用（而不是统一在 UTF-8 边界转换）会产出静默损坏的路径；③ 需要逐字节 UTF-16 语义的探针应当整体标 Windows-only，而不是假装跨平台。\n开始条件：S7 能让主菜单跑起来，才有观测点。",
+      "verify": "菜单文本正确显示；含 BMP 外码点（emoji）的路径与文本不丢字符",
+      "touches": [
+        "tests/ui/RuntimeChatTextEncodingSmoke.cpp",
+        "cmake/AppleTextContracts.cmake",
+        "cmake/CompilerAndPlatform.cmake"
+      ],
+      "started_at": "2026-11-11T00:17:00+08:00",
+      "substeps": [
+        {
+          "id": "T-03a",
+          "title": "宽字符运行期语义：产品的聊天文本编码 + 兼容层编解码 + 路径桥接，23 条断言真跑",
+          "status": "done",
+          "result": "自测 `concord_apple_chat_text_encoding_selftest` **23 checks / 0 failures**（`sizeof(wchar_t)=4`）：代理对 → 4 字节 UTF-8（F0 9F 98 80）；孤立/倒序代理整体拒绝而非替换；256 字节上限整体失败不截断；CP_ACP 在本平台=UTF-8，4 字节 UTF-8 只产出 **1 个** wchar_t；WideCharToMultiByte 往返逐字节一致；`path.wstring()` 把一个 emoji 变 1 个码点（13 ≠ 15 UTF-16 码元）、`string()` 往返逐字节不变。已接成验证脚本**第 16 层**。"
+        }
+      ],
+      "status_note": "2026-11-11 00:22 标 done。verify 的两半分别由两处证据承担：① \"含 BMP 外码点的文本与路径不丢字符\" = 本轮 23 条断言（跑的是产品真实函数 `encodeRuntimeChatTextUtf8`，不是复刻）；② \"菜单文本正确显示\" = S4-3 的窗口自测 61/61 + progress/S4-窗口出字-800x600.png（S4 已 done）。",
+      "verification_ceiling": "不覆盖：① 没有真跑\"用户输入 emoji → 聊天消息发出 → 显示\"的整条链（需要人机输入与网络）；② T-02 改的 `RuntimePlayerHotkeysUi.inl` 两个转换函数是 .inl、编在大 TU 里，无法单独链接，仍只有编译级证据；③ 菜单文本的像素级正确性沿用 S4-3 的结论。",
+      "commit": "276d585（T 族收口，2026-11-11 00:24）"
+    },
+    {
+      "id": "V-01",
+      "phase": "V 验证",
+      "title": "首次链接 concord_runtime 并产出未定义符号清单",
+      "status": "done",
+      "est": "已完成（1 轮）",
+      "detail": "2026-11-10 完成。14/14 编译步骤成功，第一次执行 link 步，ld 报出 **280 个未定义符号**，完整清单归档在 progress/undefined-symbols.txt（按族分好，带引用点数）。\n280 = C-linkage 180（兼容层范围） + 项目 C++ 100（Apple 构建图裁掉的 Windows 专属实现层）。\nC-linkage 分解：窗口/消息/输入 81、GDI 绘制+DC 状态 67、进程/文件/字符集/时间 17、音频/MCI/定时器 5、增强元文件 4、COM 初始化 2、CRT 的 _s 变体 3、本层自己忘了实现的重载 1（CreateFileW 窄参）。\n项目 C++ 分解：字体文字 30、MapNativeOverlay 20、呈现器（D3D11 15 + Dib 1）16、音频设备工厂 10、GDI+ 7、合成/背缓冲 13、其他 4。\n**最重要的结论**：兼容层（180）是机械工作；那 100 个 C++ 符号不是 shim 能兑现的，它们要么需要把选定的 win32 TU 放回 Apple 构建图（字体/覆盖绘制/背缓冲都是纯逻辑，只是住在 win32/ 目录里），要么需要 macOS 原生对位（D3D11 presenter 显然属后者）。这个判断把剩余工作从\"补 API\"改成了\"分文件判断\"。",
+      "verify": "已达成设计目标：ninja -C build-product-mac concord_runtime 走到 [14/14] Linking，ld 输出完整符号清单并已归档。注意 exit=1 是**预期**的——清单本身就是交付物。",
+      "touches": [
+        "progress/"
+      ]
+    },
+    {
+      "id": "S11",
+      "phase": "S5/S7 后续",
+      "title": "WM_TIMER 不投递：菜单主循环阻塞在 GetMessageW，定时器族在产品路径上从未触发",
+      "status": "done",
+      "est": "多轮",
+      "detail": "P4-01c 实测：产品级 concord_runtime 进菜单后，SetTimer(window,1,16) 注册的 WM_TIMER 一次都没到。证据三条：① 把观测点放进 isPlaying()（菜单每秒会调一次 ensureMusicPlaying）一条都不打印；② 进程 CPU 在 3s/11s 分别是 0:00.45/0:00.66，8 秒只用 0.21s，说明阻塞在取消息而不是在跑帧；③ 音乐只响了一次，因为 startPageMusic() 在进循环之前被直接调用。后果：菜单动画、updateDynamicState、音乐 EOF 重启、所有依赖定时器的交互全都不跑。开工顺序：先读 compat 层 SetTimerW/KillTimerW 与 GetMessageW 的实现，确认定时器消息是①根本没入队 还是 ②入队了但 GetMessageW 的等待条件不看定时器到期；再用最小可执行（一个窗口 + SetTimer(16ms) + 计数 WM_TIMER）钉住真实行为，最后才动主循环。",
+      "verify": "最小可执行在 1 秒内收到 ≥50 条 WM_TIMER；且产品级 concord_runtime 进菜单后 CONCORD_AUDIO_TRACE=1 出现 isPlaying/probe 周期输出（证明 ensureMusicPlaying 被调用）",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatTimer.cpp",
+        "compat/win32/src/RuntimeWin32CompatInput.cpp",
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/src/RuntimeWin32CompatInternal.h",
+        "compat/win32/include/windows.h",
+        "compat/win32/selftest/CompatTimerDeliverySemantics.cpp",
+        "compat/win32/selftest/CompatInputSemantics.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "found_by": "P4-01c",
+      "evidence": "P4-01c-菜单音效实跑验收.md",
+      "started_at": "2026-11-10T23:47:00+08:00",
+      "substeps": [
+        {
+          "id": "S11a",
+          "title": "定时器真派发：定时器表 + 取消息时合成 WM_TIMER / WM_PAINT",
+          "status": "done",
+          "result": "最小可执行（真实窗口 + 真 GetMessageW 循环）1 秒收到 **59** 条 WM_TIMER（判据 ≥50，理论 62）；回调型定时器 0.5s 内 29 次回调且不产生消息；同一 id 重设 100ms 后 250ms 只来 3 条；KillTimer 后 200ms 零条；SetTimer(1ms) 被夹到 10ms（200ms 19 条）；DestroyWindow 清空表。自测 37 断言全过，兼容层 15 层全过。产品级：进菜单后 CONCORD_AUDIO_TRACE=1 出现 **11 条/12s** `main-menu-music probe`（即 isPlaying 被 ensureMusicPlaying 每秒调用一次，此前为 0 条），CPU 从 0.66s/11s 升到 1.17s/12s。"
+        }
+      ],
+      "status_note": "2026-11-11 00:05 标 done。verify 两半都成立：① 最小可执行 1 秒 59 条 WM_TIMER；② 产品进菜单后 main-menu-music probe 每秒一条（isPlaying ← ensureMusicPlaying ← WM_TIMER），此前 P4-01c 记的是 0 条。",
+      "verification_ceiling": "不覆盖：① 屏幕上的可见动画——S7 的窗口是**纯离屏**对象，没有真实 NSWindow，所以\"动起来\"的可观测形态只有\"每 tick 一次整帧重绘\"，无法肉眼验收；② 交互音效（点击/悬停）仍无证据，它依赖真实鼠标消息路由，属 S7 的输入面；③ 音乐 EOF 重启（素材 155s，本轮只跑 12s）；④ 多线程：定时器表是进程级，与本层消息队列的既有取舍一致。",
+      "commit": "d4fc397（单成员族收口，2026-11-11 00:12）"
+    },
+    {
+      "id": "S8",
+      "phase": "S Win32 兼容层",
+      "title": "S8a 编译清零：smoke 的 36 条错误退 0（-fsyntax-only 0 error）",
+      "status": "done",
+      "est": "60min",
+      "detail": "S5b 的普查发现了一个产品构建图**看不到**的失败点：tests/multiplayer/RuntimeMultiplayerTwoProcessSmoke.cpp 属于独立 target concord_multiplayer_two_process_smoke，不参与 concord_runtime 的编译，所以 ninja 建 concord_runtime 永远不会报它。这正是 S5a 清单里记的『MultiplayerSmoke 36』——数字对上了，位置记错了（不在 src/，在 tests/）。\n36 条错误分解：\n  常量 6 个 / 12 处：EVENT_MODIFY_STATE(5) SYNCHRONIZE(5) FILE_MAP_ALL_ACCESS(3)  JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE(2) CREATE_NO_WINDOW(1) JobObjectExtendedLimitInformation(2)\n  结构 1 个 / 2 处：JOBOBJECT_EXTENDED_LIMIT_INFORMATION\n  声明 4 个 / 4 处：CreateJobObjectW AssignProcessToJobObject TerminateJobObject SetInformationJobObject（最后这个可能已有）\n  CRT 1 个 / 2 处：_TRUNCATE（strncpy_s 的哨兵值）\n  Interlocked 2 个 / 10 处：InterlockedExchange / InterlockedCompareExchange 的实参类型与既有声明不匹配（sessionPort 与 status 字段的实际类型要先确认）\n其中 Interlocked 是**必须真实现**的一族（不是声明就能过）：它要映射到 std::atomic 或 __atomic_* 内建，否则两进程共享内存的状态轮询在 ARM 上没有内存序保证。建议新建 compat/win32/src/RuntimeWin32CompatAtomic.cpp 并挂进 concord_apple_add_win32_compat_sources。\nJob 对象本身（CreateJobObjectW 等）本轮仍只声明：两进程互杀的语义在 macOS 上要靠进程组/信号重新设计，属于 S7 之后的事。",
+      "verify": "clang++ -fsyntax-only tests/multiplayer/RuntimeMultiplayerTwoProcessSmoke.cpp → 0 error；CompatHeaderSelftest.cpp -Wall -Wextra → EXIT=0",
+      "touches": [
+        "compat/win32/include/windows.h",
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/src/RuntimeWin32CompatAtomic.cpp",
+        "compat/win32/selftest/CompatMiscSemantics.cpp",
+        "compat/win32/selftest/CompatHeaderSelftest.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-11 01:03 S8a **done**：对端 238 行改动（windows.h +96 / CompatUser +101 / Atomic 新增 71 / CompatMisc +43）+ 本轮补的 CompatHeaderSelftest.cpp:325（volatile long→LONG）让 RuntimeMultiplayerTwoProcessSmoke.cpp 的 -fsyntax-only 从 36 error 退到 **0 error**。第 1 层 -Wall -Wextra 也 EXIT=0。",
+      "commit": "未提交（与 S8b 同族，收口时一起提交）"
+    },
+    {
+      "id": "S8b",
+      "phase": "S 兼容层",
+      "title": "S8b 让两进程 smoke 真能链接并运行：19 个符号的实现（事件/共享内存/Job/进程族）",
+      "status": "done",
+      "est": "3-5 轮（用户 2026-11-11 01:04 拍板：要让 smoke 真能跑，不接受只 -fsyntax-only）",
+      "detail": "S8a 只让编译清零，smoke 链接仍缺 19 个符号（17 个 Win32 + strncpy_s + ResetEvent/OpenEventW）。逐名清单（python3 扫 smoke 调用 24 个 windows.h 函数，compat/src 有实现的只有 7 个）：\n  事件族 6：CreateEventW / SetEvent / ResetEvent / OpenEventW / WaitForSingleObject / WaitForMultipleObjects\n  共享内存 4：CreateFileMappingW / OpenFileMappingW / MapViewOfFile / UnmapViewOfFile\n  Job 4：CreateJobObjectW / AssignProcessToJobObject / SetInformationJobObject / TerminateJobObject\n  进程族 4：CreateProcessW / TerminateProcess / GetExitCodeProcess / GetModuleFileNameW\n  其它 1：strncpy_s（_TRUNCATE → 截断并返回 STRUNCATE(80)，不清空目标）\nmacOS 对位：事件=pthread mutex+cond；共享内存=shm_open+ftruncate+mmap；Job=进程组/pid 表；进程族=fork+exec 或 posix_spawn + waitpid + _NSGetExecutablePath。必须复用 S7 的句柄模型（isRegisteredHandle + magic），不能自造 HANDLE。",
+      "verify": "clang++ -fsyntax-only 0 error + concord_multiplayer_two_process_smoke 链接成功 + 两进程 smoke 真跑一次（非 -fsyntax-only）",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatKernel.cpp",
+        "compat/win32/include/windows.h",
+        "cmake/PlatformApple.cmake",
+        "tests/multiplayer/RuntimeMultiplayerTwoProcessSmoke.cpp"
+      ],
+      "substep": "2026-11-11 01:08 第 1 轮 **partial**：新增 compat/win32/src/RuntimeWin32CompatKernel.cpp（469 行），兑现事件族 6 个（CreateEventW/OpenEventW/SetEvent/ResetEvent/WaitForSingleObject/WaitForMultipleObjects）+ strncpy_s。命名事件用 shm_open+mmap+PTHREAD_PROCESS_SHARED cond（manual-reset 需唤醒所有，信号量做不到）；超时用 CLOCK_REALTIME（macOS 不支持 COND_CLOCK_MONOTONIC）。自测 EventSemantics checks=32 failures=0（含 fork 跨进程握手）。smoke 缺口 17→12。边界：Wait 只认 event 句柄，process 等待返回 WAIT_FAILED（不假成功）。 | 2026-11-11 01:14 第 2 轮 **partial**：共享内存族 4 个（CreateFileMappingW/OpenFileMappingW/MapViewOfFile/UnmapViewOfFile）落地，mapping 持 fd + 每次 MapViewOfFile 独立 mmap，ViewRecord 记 raw/length 供 munmap。自测 MappingSemantics checks=23 failures=0，事件族回归 32/32。smoke 缺口 12→8。三个 macOS 陷阱：PAGE_READONLY==FILE_MAP_WRITE 数值撞车、shm 二次 ftruncate 返 EINVAL、mmap offset 须页对齐。 | 2026-11-11 01:26 **done**：进程族 4 个（CreateProcessW posix_spawn / TerminateProcess kill / GetExitCodeProcess waitpid / GetModuleFileNameW _NSGetExecutablePath）+ Job 4 个（pid 表 + kill，KILL_ON_JOB_CLOSE 在 CloseHandle 时触发）+ WaitForSingleObject/WaitForMultipleObjects 支持 process 句柄（事件+进程混合数组）。给 smoke 挂载 compat 源（CompilerAndPlatform.cmake 的 APPLE 分支，因 DevelopmentTargets 先于它执行）。**smoke 首次真正链接并跑通**：Child join lifecycle checks=29 failures=0 + 三进程(host/client/spectator) 120+ tick hash 一致 shutdown clean，EXIT=0。三族自测 32+23+31=86 断言全绿。",
+      "progress": {
+        "symbols_done": 19,
+        "symbols_remaining": 0,
+        "selftest": "EventSemantics 32 + MappingSemantics 23 + ProcessSemantics 31",
+        "smoke_run": "EXIT=0, lifecycle checks=29 failures=0, 3 processes 120+ ticks hashes consistent"
+      }
+    },
+    {
+      "id": "S9",
+      "phase": "S Win32 兼容层",
+      "title": "小族收口：EMF 4 + COM 2 + MCI 2 + 定时器 2 + CRT 3 = 13 个符号（CreateFileW 已拆到 S10）",
+      "status": "done",
+      "est": "已完成（1 轮，约 70min）",
+      "detail": "2026-11-10 完成 13 个，链接缺口 280 → 267（C-linkage 180 → 167），增强元文件 / COM / CRT 三族归零。\n分三类处理，理由完全不同：\n  ① 可以诚实成功：CoInitializeEx/CoUninitialize（macOS 无 COM 套间；调用方唯一依赖的契约是\"成功 ⇒ 必须配对 CoUninitialize\"，返回 S_OK 成立。刻意不返回 RPC_E_CHANGED_MODE——那会让调用方既不配对也不失败，等于宣称一件没发生的事）、timeBeginPeriod/timeEndPeriod（macOS 无全局 15.6ms 滴答，nanosleep 本就亚毫秒；返回 TIMERR_NOERROR 描述的是**结果状态**而不是\"我调了内核接口\"）。\n  ② 必须诚实失败：mciSendStringW 返回 MCIERR_DEVICE_NOT_INSTALLED(306)、mciGetDeviceIDW 返回 0。假装成功会让 RuntimeMenuSound 认为音乐在播、让 LegacyWaveDevice 建立指向虚空的所有权。\n  ③ 真实现：EMF 4 个 + _putenv_s/_wgetenv_s/gmtime_s。\n本轮最有价值的不是那 13 个符号，而是三处\"表层等价物会静默改变行为\"：\n  · _putenv_s(name,\"\") 是**删除**变量不是设空串。项目用 getenv 判空来决定诊断开关，换成 setenv(name,\"\",1) 会让 getenv 返回非空 \"\"，诊断图形永远打开而断言照旧通过。\n  · _wgetenv_s 的两段式调用必须两次给出同一个 count；变量不存在时返回 0（不是错误）且 count==0；缓冲不足返回 ERANGE 但仍给所需大小。三种形态差一个，调用方就走进错的分支。\n  · gmtime_s 的参数顺序与 gmtime_r **相反**，两个都是双指针，写反照样编译。\nEMF 是**真实现**（约 330 行）：录制型 DC（bitmap=nullptr, recording!=nullptr），BitBlt/StretchBlt 把源位图连同 BITMAPINFOHEADER 内嵌成 EMR_BITBLT/EMR_STRETCHBLT；CloseEnhMetaFile 补 108 字节头部 + 20 字节 EOF 并销毁录制 DC；EnumEnhMetaFile 按 nSize 串下去回调。5 条 static_assert 钉住布局（sizeof(ENHMETAHEADER)==108 / EMRBITBLT==100 / EMRSTRETCHBLT==108 / offsetof dwRop==40 / offBmiSrc==84）。\n  为什么不能是桩：产品的帧稳定性审计判据是 `copies != 1` → 报错。若 Enum 返回 TRUE 却不回调，copies=0 会走\"报错\"分支（安全的假失败）；但若记录流为空还把 copies 预置成 1，就变成永远通过。\n  录制型 DC 只记录 SRCCOPY：DSTINVERT（无像素表面）、HALFTONE 伸缩（EMR_STRETCHBLT 不带该字段）、源矩形部分越界（目标不变源变小会拉伸错）、写文件的 EMF、Enum 带缩放矩形——一律当场 FALSE 并说明。这些在 Windows 上有的能成功，所以是**假失败**而不是假通过，方向是有意的。",
+      "verify": "已通过：verify-win32-compat.sh 六步全过（395 声明 / 67 inline / 80 GDI / 25 XAPO / 47 EMF / 52 小族）。\n产品构建图 2/2 步编译全绿并走到链接，ld 报 267 个未定义符号；逐个复核 13 个符号确实消失，CreateFileW 窄参重载按计划仍在缺口里。\nEMF 自测的三条核心断言：① 单帧 → 恰好 1 条 EMR_BITBLT，内嵌像素与源 memcmp 逐字节一致，nBytes == 108+100+40+800*600*4+20、nRecords == 3；② **人为多录一帧 → 回放必须看到 2 条**（这是\"审计有效性\"的证明：永远只报 1 条的记录器也能让 ① 过）；③ 空录制 → 0 条且审计判失败。\n局限：EMF 只被自己的自测跑过；产品侧 runCampaignMenuPaintSmoke 需要 GetDC(nullptr)（S3）与 CampaignDeviceBitmapWin32（P5-01），那条真实链路一次都没跑。EMF 记录不了文本（EMR_EXTTEXTOUTW 未实现，因为 TextOutW 属 S4）。MCIERR_* 数值取自 mmsyscom.h 公开文档，未在真机对拍。",
+      "touches": [
+        "新增 compat/win32/src/RuntimeWin32CompatMisc.cpp",
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp（EMF 录制器，+330 行）",
+        "compat/win32/include/windows.h（ENHMETAHEADER/EMRSTRETCHBLT + 5 条 static_assert）",
+        "compat/win32/include/mmsystem.h（MCIERR_* 5 个常量）",
+        "新增 compat/win32/selftest/CompatMetafileSemantics.cpp（47 checks）",
+        "新增 compat/win32/selftest/CompatMiscSemantics.cpp（52 checks）",
+        "cmake/PlatformApple.cmake",
+        "scripts/verify-win32-compat.sh"
+      ]
+    },
+    {
+      "id": "P5-01",
+      "phase": "P 平台对位",
+      "title": "100 个项目 C++ 符号的分文件判断：哪些 win32 TU 能放回 Apple 构建图，哪些必须重写",
+      "status": "done",
+      "est": "1 轮完成（判断阶段，2026-11-10）",
+      "detail": "这是 V-01 最重要的产出：链接缺口里 100 个符号属于项目自己的 Win32 实现层，它们之所以缺失，是因为 concord_apple_strip_win32_sources 把 **/win32/** 整个从 Apple 构建图里裁掉了。\n**关键判断：这些不是都需要重写。** 按\"是否只是住在 win32/ 目录里\"分成三类：\n  ① 纯逻辑 + GDI 调用（字体类 30 个符号、MapNativeOverlay 20 个、合成/背缓冲 13 个、RadarPixelStore 2 个、DIB 呈现器 1 个）：只要 S3/S4 的 GDI 实现到位，**这些 .cpp 可以直接放回构建图**，源码一行不用改。这是本项目最大的杠杆——但前提是 S4 的文本光栅化真的能出字。\n  ② 平台绑定（D3D11FramePresenterWin32 15 个符号）：Direct3D 11 没有 macOS 对位（Metal 是不同的模型，不是换 API 名）。软件呈现路径（software-present=ON）已经存在，故本项的处理是**让它不被引用**，而不是实现它。\n  ③ 需要新实现（音频设备工厂 10 个 createXxxDeviceWin32、Gdiplus 7 个、menuWin32BmpReader 1、runRuntimeInternetMenuClockContract 1）：依赖 XAudio2 / GDI+ / Windows 位图 API，由 P4-01 与 S6 承接。\n**执行顺序建议**：先把 ① 里最少依赖的一组（背缓冲/合成，13 个）放回构建图，验证\"放回即编译\"这个假设；假设成立再推字体类。若放回后编译不过，说明这些 TU 还引用了别的 win32 头或 API，先补齐再推。\n**不要做的**：不要为这些类写 macOS 平行实现（例如另起一个 MainSystemFontsMac）。那会让两套渲染路径长期分叉，Windows 侧的修复永远不同步。先在 ① 上验证，再谈例外。",
+      "verify": "① 类 TU 放回后 ninja 编译通过；链接缺口从 280 降到 280−(①的符号数) 的量级",
+      "touches": [
+        "cmake/PlatformApple.cmake（strip 名单）",
+        "src/ui/**/win32/",
+        "src/render/**/win32/"
+      ],
+      "substep": "2026-11-10 P5-01 判断阶段 **done**：100 个 C++ 符号精确对账到 25 个 win32 TU + 2 个非 win32 异常 TU，逐名归类三大类（① 65 / ② 16 / ③ 19）。'放回即编译'假设实测成立：5 个最小依赖 TU 在 shim 头下 -fsyntax-only 零错误。三个关键结构性发现：① strip_win32_sources 函数是死代码（从未被调用），真正机制是三种条件分支；② MapNativeOverlay 挂在 D3D11FramePresenter 的 include 链下，放回必须先解耦；③ 放回=编译+链接两步。意外发现：MapNativeOverlay 缺的是头层声明（getenv_s 窄版 + 32 个 EMR 常量），不是实现。交付物：P5-01-项目C++符号判定表.md。",
+      "evidence": {
+        "symbols_reconciled": 100,
+        "breakdown": "① 纯逻辑+GDI 65（立即放回 16 + 补头层 20 + 前提S4 29）/ ② 平台绑定 16 / ③ 需新实现 19",
+        "syntax_check": "5 个类①a TU 在 shim 头下 -fsyntax-only 零错误；MapNativeOverlay 2 类头层缺口（getenv_s + EMR 常量）",
+        "key_findings": [
+          "strip_win32_sources 定义了但从未被调用（死代码）",
+          "三种条件分支：if(WIN32) 包裹 / if(NOT WIN32) return / 编译无条件但 link 在 if(WIN32) 里",
+          "SkirmishMusicPolicy 3 符号是\"编译了没链接\"（link 行在 if(WIN32) 里）",
+          "MapNativeOverlay 挂 D3D11 include 链，放回要解耦",
+          "MapNativeOverlay 前置是头层声明（getenv_s + 32 EMR 常量），不是实现"
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "phase": "S Win32 兼容层",
+      "title": "文件与 HANDLE 族（17 个 + CreateFileW 窄/宽两版）：原子存档的生产路径",
+      "status": "done",
+      "est": "1 轮完成（2026-11-10）",
+      "detail": "从 S9 拆出来的。原计划把 CreateFileW 的窄参重载算进 S9，查调用点后决定不还——它不可能单独实现。\n调用点里 **src/core/io/RuntimeAtomicFile.cpp:180 是生产路径**（原子写文件 = 保存游戏），而本层连宽版 CreateFileW、ReadFile、WriteFile、CloseHandle 全都没有。只补窄参重载等于给存档链路留一个\"能编译、一调就崩\"的入口，比留着链接错误更危险——链接错误会逼着人来看。\n要实现的一族（链接缺口 17 + 自造重载 1）：\n  CloseHandle GetCurrentProcess GetCurrentProcessId GetCurrentThreadId GetLastError SetLastError\n  WriteFile GetModuleHandleW GetProcAddress GetEnvironmentVariableA/W Sleep GetTickCount64\n  QueryPerformanceCounter GetSystemTime MultiByteToWideChar WideCharToMultiByte\n设计要点：\n  · HANDLE 怎么办：本层已经有三种\"句柄\"——GDI 对象指针、DC 指针、将来的文件描述符。CloseHandle 收到任意一种都必须能判断\"这不是我该关的\"并返回 FALSE，而不是把指针当 fd 关掉。需要一张按类型登记的句柄表，或给每类加 magic（GDI 已有 kObjectMagic / kDeviceMagic 的先例）。\n  · GetLastError 必须是**线程局部**的，且 SetLastError 之后 CloseHandle 之类的成功调用不能清掉它（Windows 上成功调用不清 LastError）。用 plain int 会立刻错。\n  · MultiByteToWideChar/WideCharToMultiByte 与 S9 里那对本地 UTF-8 助手是同一件事，应合并：S9 刻意没复用它们是为了避免\"实现之前自我调用\"的循环依赖，现在该把它们抬成公共实现。\n  · GetTickCount64 vs QueryPerformanceCounter：前者要单调不减且跨睡眠，用 mach_absolute_time 或 steady_clock；项目里有超时判据依赖它。",
+      "verify": "RuntimeAtomicFile.cpp 编译通过；一次真实的\"写临时文件→改名\"往返成功且崩溃点可恢复；GetLastError 在成功调用后不被清空；链接缺口从 267 降到 249 量级",
+      "touches": [
+        "compat/win32/include/windows.h",
+        "新增 compat/win32/src/RuntimeWin32CompatFile.cpp",
+        "新增 compat/win32/src/RuntimeWin32CompatProcess.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-10 S10 **done**：17 个 C-linkage（句柄/错误 3、进程线程 3、模块导出 2、WriteFile 1、环境变量 2、编码 2、时钟 4）+ 1 个自造窄参 CreateFileW 重载全部落地；新增共用件 RuntimeWin32CompatInternal.h（LastError / 句柄表 / 编解码内核），S9 的本地 UTF-8 助手改为委托（消除两份实现分叉的风险）；新增第 10 层自测 CompatFileSemantics.cpp 147 条断言，十层验证全过；链接缺口 225 → 207（C 124→107，C++ 101→100），S10 段 18 个零残留；普查 38/39（唯一失败仍是 S8 的多进程 smoke）。**纠正前提**：macOS 不定义 _WIN32，RuntimeAtomicFile.cpp 编的是 POSIX 分支，窄参 CreateFileW 的唯一引用点是 RuntimeCursorSmoke 的诊断走查，不是存档链路（依据是 ld 的引用点清单）。",
+      "plan": [
+        "✅ 句柄表 + CloseHandle：判据是登记表（只比较指针值，不解引用），GDI 指针一律 FALSE；表设计成 S7/S8 可复用（登记带 kind + 析构）。",
+        "✅ 两个时钟两条语义：GetTickCount64 → mach_continuous_time（含睡眠，deadline 判据依赖）；QPC → mach_absolute_time（纳秒）。QueryPerformanceFrequency 刻意不实现。",
+        "✅ 编解码合一：RuntimeWin32CompatInternal.h 的 decodeUtf8/decodeWide 是唯一实现；S9 的 52 条断言全过 = 收紧判据未改变合法输入行为。",
+        "遗留（写进 queue 而不是靠记忆）：① dwShareMode 无法实现，接受但忽略；② SECURITY_ATTRIBUTES 被忽略，一律 O_CLOEXEC，传可继承属性不会真的可继承；③ 只支持 UTF-8 码页；④ GetCurrentThreadId 永不复用（Windows 会复用），只满足「是不是同一线程」的判据。"
+      ],
+      "evidence": {
+        "symbols_implemented": 18,
+        "breakdown": "句柄/错误 3 + 进程线程 3 + 模块导出 2 + 文件 I/O 2（WriteFile + 窄参 CreateFileW）+ 环境变量 2 + 编码 2 + 时钟 4",
+        "link_gap": "225 → 207（C-linkage 124→107，项目 C++ 101→100）",
+        "selftest": "CompatFileSemantics.cpp 147 checks / 0 failures",
+        "verify": "十层全过：396 声明 / 67 inline / 80 GDI / 207 DC / 25 XAPO / 47 EMF / 52 小族 / 154 区域 / 141 图元 / 147 文件",
+        "census": "38/39（引用 Win32 符号的 TU 39/457；唯一失败仍是 S8 的 RuntimeMultiplayerTwoProcessSmoke.cpp）",
+        "build": "15 步编译全绿，走到 link，ld 报 207 个未定义符号（预期失败，清单即交付物）",
+        "s10_section_clear": "18 个逐名核对零残留",
+        "premise_corrected": "任务卡称 RuntimeAtomicFile.cpp:180 是原子存档生产路径；实际该 TU 在 macOS 走 POSIX 分支（_WIN32 未定义），窄参 CreateFileW 唯一引用点是 RuntimeCursorSmoke 的诊断走查",
+        "unverified": "① 无 Windows 金标准可对拍，147 条期望值按文档语义写死；② 产品侧调用点尚未真实运行（链接未通过）；③ 只支持 UTF-8 码页"
+      }
+    },
+    {
+      "id": "P5-02",
+      "phase": "P 平台对位",
+      "title": "放回类①a 的 16 个符号：改 5 个合约文件，验证\"放回即编译+链接\"",
+      "status": "done",
+      "est": "1 轮完成（2026-11-10）",
+      "detail": "P5-01 判断阶段的动手第一步。类①a 的 16 个符号分布在 5 个文件，依赖全部已实现，语法已验证零错误。操作：把 5 个合约文件里对应 leaf 的 if(WIN32) 扩成 if(WIN32 OR APPLE)，并把 target_link_libraries(concord_runtime PRIVATE <leaf>) 一并移出条件。注意 FramePresenterWin32.cpp 一个文件含 Dib(可放回)+composeWindowDeviceOverlayWin32(依赖S7)，整个文件放回让 composeOverlay 继续缺（可接受）。动手前先确认：D3D11FramePresenterWin32::create 的调用点在 CONCORD_APPLE_SOFTWARE_PRESENT=ON 下走软件分支（类②\"不被引用\"的前提）。",
+      "verify": "改后 ninja -C build-product-mac concord_runtime 编译通过；重链接后缺口从 207 降到 207-16=191（或接近，取决于是否有级联）。",
+      "touches": [
+        "cmake/MapNativeOverlayWin32.cmake 之外 —— 实际是 SkirmishBackBufferWin32Contracts.cmake 等 5 个",
+        "src/ui/surface/win32/MapCompositionWin32.cpp 所在 leaf",
+        "src/ui/skirmish/win32/RuntimeSkirmishBackBufferWin32.cpp",
+        "src/ui/radar/win32/RuntimeRadarPixelStoreWin32.cpp",
+        "src/ui/results/win32/RuntimeResultBitmapTextWin32.cpp",
+        "src/runtime/presentation/win32/FramePresenterWin32.cpp"
+      ],
+      "substep": "2026-11-10 P5-02 **done**：放回 4 个 win32 产品 leaf（9 个 C++ 符号），链接缺口 207 → 198（C 107 不变，C++ 100 → 91）。编译 0 错误、9 符号零残留、0 新增。**修正任务卡前提**：MapComposition 8 符号本轮没放——MapCompositionWin32.h include 了 MapNativeOverlayWin32.h，且 MapCompositionWin32 有成员 MapNativeOverlayWin32 并调用其方法，两者同 leaf，拆开独立放回会连带缺 MapNativeOverlay 20 符号。故 MapComposition 并入 P5-03。FramePresenter 实际兑现 2 符号（Dib ctor + composeOverlay），比任务卡记的 1 个多。",
+      "evidence": {
+        "symbols_implemented": 9,
+        "breakdown": "背缓冲 4 + 雷达 2 + 结果位图文字 1 + 帧呈现 2",
+        "link_gap": "207 → 198（C-linkage 107 不变，项目 C++ 100 → 91）",
+        "build": "cmake 配置 exit 0；ninja 编译 0 错误，走到链接",
+        "reconciled": "消失 9 / 新增 0（无级联）",
+        "files": [
+          "cmake/SkirmishBackBufferWin32Contracts.cmake（if(NOT WIN32)→if(NOT WIN32 AND NOT APPLE)，产品 leaf 留外、contract 测试进 if(WIN32)）",
+          "cmake/RadarPixelStoreContracts.cmake（拆 if(WIN32 OR APPLE) 产品 leaf / if(WIN32) 测试）",
+          "cmake/ResultBitmapTextContracts.cmake（同上）",
+          "cmake/SoftwareFrameContracts.cmake（FramePresenter leaf 扩 APPLE，D3D11 include 留 WIN32）"
+        ],
+        "corrected": "MapComposition 不能独立放回（依赖 MapNativeOverlay），16 → 9；FramePresenter 兑现 2 非 1",
+        "windows_regression": "条件分支逻辑等价（非实测）：WIN32 OR APPLE 在 Win 恒真、NOT WIN32 AND NOT APPLE 恒假、contract 测试仍锁 if(WIN32)"
+      }
+    },
+    {
+      "id": "P5-03",
+      "phase": "P 平台对位",
+      "title": "补 getenv_s + 32 个 EMR 常量，解耦 MapNativeOverlay 后放回 20 个符号",
+      "status": "done",
+      "est": "1 轮",
+      "detail": "放回 MapComposition 8 + MapNativeOverlay 20 = 28 符号（两者强耦合同 leaf，必须一起放）。三步：① 补头层 getenv_s 窄版声明 + 32 个 EMR 记录枚举常量（MapNativeOverlayReplayWin32.inl 的 switch 用到，S2 只补了 4 个），约 40 行；② 把 include(MapNativeOverlayWin32.cmake) 从 D3D11FramePresenter.cmake 末尾拆出，改在 Apple 条件下单独 include（D3D11FramePresenter 里有 FATAL_ERROR(fxc.exe)，Apple 绝不能 include 它）；③ 放回 leaf 后 ninja 编译 + 重链接，缺口 198 → 170。注意：MapCompositionWin32.h include MapNativeOverlayWin32.h，两者本就同 leaf（target_sources 合并），不需要拆 leaf，只需解耦 include 链 + 补头层。",
+      "verify": "补头层后 MapNativeOverlayWin32.cpp -fsyntax-only 零错误；解耦后 ninja 编译通过，缺口再降 20。",
+      "touches": [
+        "compat/win32/include/windows.h（getenv_s 声明 + EMR 常量）",
+        "compat/win32/src/RuntimeWin32CompatMisc.cpp（getenv_s 实现，可复用 _wgetenv_s 内核）",
+        "cmake/SoftwareFrameContracts.cmake（把 MapNativeOverlayWin32 从 D3D11 链拆出）",
+        "cmake/D3D11FramePresenter.cmake（去掉末尾的 include）",
+        "cmake/MapNativeOverlayWin32.cmake（加 include_guard + 条件）"
+      ]
+    },
+    {
+      "id": "P5-04",
+      "phase": "P 平台对位",
+      "title": "补 MapNativeOverlay 的 7 个 C-linkage（含 PlayEnhMetaFileRecord）",
+      "status": "done",
+      "est": "1-2 轮",
+      "detail": "P5-03 放回 MapNativeOverlay 后新增 7 个 C-linkage 缺口：GdiComment、GetEnhMetaFileBits、GetDeviceCaps、SetPolyFillMode、GetPolyFillMode、PtVisible、PlayEnhMetaFileRecord。前 6 个是机械活（分别对应：写 EMR_GDICOMMENT 记录 / 导出 EmfMetafile::bytes / 查 DC 尺寸 HORZRES等 / DC 状态 polyFillMode 字段读写 / 裁剪区判点），PlayEnhMetaFileRecord 是硬活——反序列化 EMR_BITBLT/STRETCHBLT/SETPIXELV/LINETO/图元 等记录并调用已实现的 GDI 回放到软件 DC。注意：GetDeviceCaps 的返回值是 EMF 图框换算的输入，值错会让比例漂移；PlayEnhMetaFileRecord 若静默不画会让 MapNativeOverlay 的 sample() 读到全背景色。全部补完后缺口 177 → 170。",
+      "verify": "7 个符号逐名消失、零新增；GetDeviceCaps 返回真实尺寸、PtVisible 与 GetClipBox 一致；misc/gdi selftest 全绿；重链接缺口 170。",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp",
+        "compat/win32/selftest/CompatGdiSemantics.cpp 或新 selftest"
+      ]
+    },
+    {
+      "id": "P5-05",
+      "phase": "P 平台对位",
+      "title": "收口输入/光标/定时器族（约 21 个 C-linkage）",
+      "status": "done",
+      "est": "1-2 轮",
+      "detail": "P5-04 后剩余 C-linkage 107 = 窗口/消息 58 + 文本/字体 12 + 输入/光标/定时器 21 + 其他 16。本轮收口\"输入/光标/定时器\"小族：键盘(GetAsyncKeyState/GetKeyState/GetKeyboardState/SetKeyboardState/MapVirtualKeyW/GetKeyNameTextW/SendInput)、光标(GetCursor/GetCursorInfo/GetCursorPos/SetCursor/SetCursorPos/LoadCursorW)、捕获(GetCapture/SetCapture/ReleaseCapture)、定时器(SetTimer/KillTimer/GetDoubleClickTime)、TrackMouseEvent、DrawFrameControl。多数是状态读写机械活；硬活是 SendInput(合成输入事件)、DrawFrameControl(画标准控件边框)、SetTimer/KillTimer(定时器回调，mac 侧无事件循环需诚实失败或桩)。注意：光标/捕获需真实窗口宿主，S7 未做前只能返回\"无光标/未捕获\"的诚实默认。完成后缺口 170 → 约 150。",
+      "verify": "21 个符号逐名消失、零新增；GetKeyState/GetAsyncKeyState 返回诚实默认；selftest 全绿；重链接缺口约 150。",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatInput.cpp 或 RuntimeWin32CompatMisc.cpp",
+        "compat/win32/selftest/CompatInputSemantics.cpp"
+      ]
+    },
+    {
+      "id": "P5-06",
+      "phase": "P 平台对位",
+      "title": "收口文本/字体族（11 个 C-linkage）",
+      "status": "done",
+      "est": "1-2 轮",
+      "detail": "P5-05 后剩余 C-linkage 86 = 窗口/消息 60 + 文本/字体 11 + 其他 13 + 线程/进程 1 + 音频 1。本轮收口文本/字体族：机械活 GetTextAlign/SetTextAlign（DC 状态）、GetAwarenessFromDpiAwarenessContext/GetThreadDpiAwarenessContext（DPI 感知诚实默认）、GetGlyphIndicesW（诚实返回 0）；字体度量 CreateFontW（记录字体参数，需与 GetObject/GetTextExtentPoint32W 配合）、GetTextExtentPoint32W（文本宽度测量，需要字体度量表或诚实估算）；文本绘制硬活 TextOutW/ExtTextOutA/DrawTextW/DrawTextA（无字形光栅化后端时需诚实 no-op 或简单 8x8 位图字体）。注意：文本绘制是硬活——诚实 no-op（返回 TRUE 但不画）会让 UI 文字缺失，属于\"静默不画\"风险，需先调查 compat 层已有的字体基础（stockTable 的 SYSTEM_FONT 等）能否支撑简单字形。完成后缺口 149 → 138。",
+      "verify": "11 个符号逐名消失、零新增；GetTextAlign/SetTextAlign 往返一致；CreateFontW 后 GetTextExtentPoint32W 返回合理宽度；selftest 全绿；重链接缺口 138。",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp 或 RuntimeWin32CompatText.cpp",
+        "compat/win32/selftest/CompatTextSemantics.cpp"
+      ]
+    },
+    {
+      "id": "P5-07",
+      "phase": "P 平台对位",
+      "title": "D3D11 presenter 15 符号「不被引用」：软件呈现路径已存在，把 D3D11 引用点 #if defined(_WIN32) 守卫掉",
+      "status": "done",
+      "est": "1 轮完成（2026-11-10）",
+      "detail": "剩余 28 里最大的一族（15 符号）。处置不是实现 D3D11/Metal，而是把 D3D11 presenter 从 Apple 构建图「编译出」——软件呈现（software-present=ON）本就存在，D3D11 分支在 Apple 恒为死代码。引用点不在「2 个文件」而是「3 个 .o」：RuntimeShell.cpp.o（13）、RuntimeSkirmishMenu.cpp.o（11）、RuntimeMapRenderer.cpp.o（4），用 nm -u *.o | grep D3D11FramePresenter 逐 .o 穷尽。守卫 4 文件：RuntimeShell.cpp（include+成员+WM_PAINT 8 组+2 GPU contract 调用点+MainFrameContract/MapGpuTiming include）、RuntimeSkirmishMenu.cpp（include+menuGpu/menuProbe+renderShellClient 块+WM_NCDESTROY+2 include/调用点）、RuntimeMapRenderer.cpp（14 GPU fixture/contract include）、RuntimeWindowLifecycleUi.inl（releaseGraphics reset）。",
+      "verify": "ninja 编译 0 错误、链接缺口 28→13、nm -u 三 .o 均 0 D3D11 残留、git diff 4 文件/61 增/2 删（删除为结构重排非逻辑）",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/ui/skirmish/RuntimeSkirmishMenu.cpp",
+        "src/render/core/RuntimeMapRenderer.cpp",
+        "src/runtime/window/win32/RuntimeWindowLifecycleUi.inl"
+      ],
+      "substep": "2026-11-10 P5-07 **done**：D3D11 presenter 15 符号「不被引用」，链接缺口 28→13（净降 15，零新增）。守卫 4 文件 61 增/2 删，Windows 分支逐字节未变。关键教训：引用点要对账到 .o 级（第三处 RuntimeMapRenderer.cpp.o 是 ld 输出 tail 漏掉的）。",
+      "evidence": {
+        "symbols_removed": 15,
+        "link_gap": "28 → 13（C-linkage 1 不变，项目 C++ 27 → 12）",
+        "d3d11_remaining": 0,
+        "files_changed": 4,
+        "insertions_deletions": "61 增 / 2 删（语义保持的结构重排）",
+        "mechanism": "#if defined(_WIN32) 守卫 D3D11 引用点（非实现、非 stub）",
+        "reference_objects": "RuntimeShell.cpp.o 13 / RuntimeSkirmishMenu.cpp.o 11 / RuntimeMapRenderer.cpp.o 4"
+      }
+    },
+    {
+      "id": "P5-08",
+      "phase": "P 平台对位",
+      "title": "音乐策略 3 + 杂项 2 编译接线：SkirmishMusicPolicy cmake 移出 if(WIN32)，BMP 读取与网络时钟契约 #if 守卫",
+      "status": "done",
+      "est": "1 轮完成（2026-11-10）",
+      "detail": "剩余 13 里的非音频 5 符号。三处编译接线：① SkirmishMusicPolicy::{start,stop,poll} 是 P5-01 点名的「第 3 种条件分支」（TU 编译了没链接）——把 target_link_libraries(concord_runtime PRIVATE concord_skirmish_music_policy) 移出 if(WIN32)，物理 win32 适配器留 if(WIN32)；策略只经抽象 MenuMusicDevice（内联析构+全纯虚）调用，零连带。② menuWin32BmpReader 是 Win32 专属（LoadImageW+GetDIBits 未实现），RuntimeMainMenu.cpp 的 include/loadBmp/调用点三处 #if 守卫，标题帧装饰性、返回值本就丢弃。③ runRuntimeInternetMenuClockContract 定义在 RuntimeInternetMultiplayerMenu.cpp 的 #if defined(_WIN32) 块内，RuntimeMainMenu.cpp 的诊断块 #if 守卫。",
+      "verify": "ninja 编译 0 错误（5 步全绿）、链接缺口 13→8（5 符号逐名消失、零新增）、git diff 2 文件/13 增/1 删",
+      "touches": [
+        "cmake/SkirmishMusicContracts.cmake",
+        "src/ui/main_menu/RuntimeMainMenu.cpp"
+      ],
+      "substep": "2026-11-10 P5-08 **done**：音乐策略 3 + 杂项 2 编译接线，链接缺口 13→8（净降 5，零新增）。剩余 8 全为音频工厂 P4-01，非音频杂项清零。",
+      "evidence": {
+        "symbols_removed": 5,
+        "link_gap": "13 → 8（C-linkage 1 不变，项目 C++ 12 → 7）",
+        "target_symbols_remaining": 0,
+        "files_changed": 2,
+        "insertions_deletions": "13 增 / 1 删",
+        "remaining": "8 = XAudio2Create + create*DeviceWin32 七连（P4-01 音频后端）"
+      }
+    },
+    {
+      "id": "Q-05",
+      "phase": "Q 呈现（当前唯一阻塞能看见的族）",
+      "title": "真窗口呈现层：Cocoa NSWindow 把离屏客户区帧贴上屏幕",
+      "status": "done",
+      "est": "3h",
+      "detail": "实测结论：渲染链路完全正常——EndPaint 钩子导出的客户区帧是一张完整菜单（1024x640，标题图/侧栏/6 个中文按钮/版本号齐全），但进程里没有任何 NSWindow，所以屏幕上什么都没有（ShowWindow 只翻 bool，见 RuntimeWin32CompatUser.cpp:532）。要做：① 用 objc runtime（或单独 .mm TU）建 NSWindow + NSView/CALayer；② 每帧把 CompatWindow::surface（32bpp 自顶向下 DIB）经 CGImageCreate 上传到 layer.contents；③ 需要 NSApplicationLoad + activateIgnoringOtherApps 才能前置与接收键盘；④ 消息循环仍是 compat 的 GetMessageW，Cocoa 只做贴图与收事件两侧，不改窗口对象模型。复用本轮已落地的 maybeDumpClientFrame() 取像素路径（EndPaint 处像素已完整）。",
+      "verify": "CONCORD_APPLE_COCOA_WINDOW=ON 构建后启动产品，屏幕上出现 1024x640 窗口且显示与 progress/Q-05-菜单首帧-1024x640.png 一致；导出的帧与屏幕截图逐像素相同；键盘上下键能在菜单项之间移动高亮。",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "found_by": "用户实测（有声无 UI）",
+      "evidence": "progress/Q-05-菜单首帧-1024x640.png",
+      "substep": "2026-11-11 01:33 **done**：新增 RuntimeAppleWindowSurface.h/.mm（Cocoa，ARC），NSApplication+NSWindow+NSView(layer)，每帧 CGImageCreate 挂 layer.contents。接口零 Win32 类型（避开 BOOL 与 Cocoa 冲突）；每帧重建 CGImage 不缓存（DIB 是复用的同一块内存）。接入 EndPaint + ShowWindow。**实测：NSWindow created 1024x640 title=Command & Conquer: Yuri's Revenge visible=1 + first frame attached to layer.contents**。边界：无截图像素证据（沙箱无显示访问）；输入仍未接入（只有画面）。",
+      "progress": {
+        "window": "NSWindow 1024x640 title 正确 visible=1",
+        "first_frame": "attached"
+      }
+    },
+    {
+      "id": "S8c",
+      "phase": "S 兼容层",
+      "title": "产品级重链复核 + 实跑复验（等 RuntimeShell 重编完成后纯链接）",
+      "status": "done",
+      "est": "1 轮（依赖一次 36k 行 -O3 编译完成）",
+      "detail": "windows.h 本轮被改过（ERROR_TIMEOUT + 类型宽度），RuntimeShell.cpp.o 对 ninja 已过期；上次 ninja 被中断后留下孤儿 clang(56950) 仍在编译。等它结束后：① 确认 .o mtime 新于 windows.h；② ninja -C build-product-mac concord_runtime 纯链接；③ cd ConcordRTS-GameData && 实跑产品复验菜单（期望 Runtime menu host: sharedWindow=yes sameProcess=yes titleStable=yes，Bink 走首帧降级）；④ 通过则 done。",
+      "verify": "ninja concord_runtime 链接成功 + 实跑输出含 sharedWindow=yes sameProcess=yes titleStable=yes",
+      "touches": [
+        "compat/win32/include/windows.h",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-11 01:33 **done**：RuntimeShell.cpp.o 重编完成（windows.h 变更触发），ninja concord_runtime → [4/4] Linking 成功，产品由最新 compat 源码重链；实跑菜单宿主正常（sharedWindow=yes sameProcess=yes titleStable=yes）。"
+    },
+    {
+      "id": "Q-06",
+      "phase": "Q 呈现与输入",
+      "title": "输入接入：AppKit NSEvent → Win32 WM_*（菜单从\"能看\"到\"能点\"）",
+      "status": "done",
+      "est": "1 轮完成（2026-11-11）",
+      "detail": "Q-05 让窗口出现，但事件仍只走 compat 的 GetMessageW 队列，那一侧没有 AppKit 输入源。本轮：① .mm 加 pumpEvents()（nextEventMatchingMask 排空 AppKit 队列，distantPast 不阻塞），翻译鼠标五键/滚轮/键按下抬起到 InputEvent；② User.cpp 加 appleInputDispatch() 投递 WM_MOUSEMOVE/WM_LBUTTONDOWN/WM_RBUTTONDOWN/WM_MBUTTONDOWN/WM_MOUSEWHEEL/WM_KEYDOWN/WM_KEYUP；③ GetMessageW 轮询里调 pumpEvents，取完再试一次 popMessage。关键：主循环不跑 NSRunLoop，必须主动排空；坐标要翻 y（AppKit 左下 vs DIB 左上）；键盘用硬件码表 + characters 兜底。",
+      "verify": "编译零警告 + ninja 链接成功 + 产品跑起无崩溃（CONCORD_INPUT_TRACE=1 可看逐事件日志）",
+      "touches": [
+        "compat/win32/src/RuntimeAppleWindowSurface.h",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/include/windows.h"
+      ],
+      "verification_ceiling": "无\"真实点击生效\"证据：本环境不能截图（screencapture 报 could not create image from display）、也不能合成鼠标（osascript 的 set position of mouse 不存在）。已验证链路装配 + 每轮 pumpEvents 被调用 + 投递逻辑；未验证真按一下菜单会跳转。另：修饰键未映射到 lParam 位、不产生 WM_CHAR；多窗口未支持。",
+      "substep": "2026-11-11 01:42 **done**：输入链路装配完成（.mm 128 行 + User.cpp 49 行 + MK_MBUTTON）。产品 50/50 链接成功、跑起 [cocoa] 两行无崩溃。真实点击待用户在自己桌面确认。 | 2026-11-11 01:50 补投递闭环自测 CompatAppleInputSemantics.cpp（26 断言，cmake target concord_apple_input_semantics_selftest）：不依赖 AppKit 事件源，直接驱动 appleInputDispatch 并核对 WM_MOUSEMOVE/L/R/MBUTTON*/WM_MOUSEWHEEL/WM_KEY*/坐标边界/空 context。滚轮 delta 高位字与 MK_MBUTTON 都已钉住。",
+      "progress": {
+        "selftest": "InputSemantics checks=26 failures=0"
+      }
+    },
+    {
+      "id": "Q-07",
+      "phase": "Q 呈现与输入",
+      "title": "菜单指针投递闭环：真实消息队列驱动一次点击，验证 换页/回程/像素差异",
+      "status": "done",
+      "est": "1 轮（2026-11-11）",
+      "detail": "Q-06 只钉住「InputEvent→WM_* 的翻译规则」（CompatAppleInputSemantics 26 条），从「消息进队列」到「屏幕上另一页」之间四段未验证：① GetMessageW/DispatchMessageW 真的把消息送到 mainMenuWindowProc；② hitButton 的 clientToBase 偏置（1024x640 → viewLeft/viewTop=112/20）+ sidebar 列区间 + slot 高度三处换算出正确按钮；③ phase 门禁（SlideIn 期间 hitButton 恒 -1）；④ 换页后重绘出的是另一屏。既有 --main-menu-ui-smoke-test 直接赋值 state.page 渲染四页，绕开了输入与状态机（画得对、点击可能是死的）。本轮新增 diagnostics/RuntimeMainMenuPointerNavigationSmoke.inl：PostMessageW 投递 WM_MOUSEMOVE/WM_LBUTTONDOWN/WM_LBUTTONUP 走真实消息循环，断言 hover→pressed/capture→page 改变→phase SlideIn→settle Idle→按钮集合变化→回程 Back 回 Home，并在固定区域（x∈[632,800) y∈[199,535)）统计像素差异（全幅差异被 Bink 动画与告警灯污染，恒不为零）。",
+      "verify": "ninja -C build-product-mac concord_runtime 链接成功；CONCORD_MAIN_MENU_POINTER_NAV_ONLY=1 CONCORD_MAIN_MENU_POINTER_NAV_OUTPUT=/tmp/ptrnav concord_runtime --main-menu-ui-smoke-test /tmp/x.bmp → checks=N failures=0 + 三个 BMP",
+      "touches": [
+        "src/ui/main_menu/diagnostics/RuntimeMainMenuPointerNavigationSmoke.inl",
+        "src/ui/main_menu/RuntimeMainMenu.cpp"
+      ],
+      "verification_ceiling": "仍是**合成**消息：证明「WM_* 进队列后菜单会换页」全链路成立，未证明 AppKit 真的产生事件、也未证明鼠标坐标与屏幕像素对齐（本环境不能截图、不能合成鼠标）。另：只走了 OpenSinglePlayer/OpenHome 两条动作；Campaign/Skirmish 会走到真实加载，未在自测里触发；多窗口、修饰键、WM_CHAR 仍不支持。",
+      "substep": "2026-11-11 01:54 **done**：新增 diagnostics/RuntimeMainMenuPointerNavigationSmoke.inl（373 行，48 断言）+ runRuntimeMainMenuSmokeTest 里一个 env 分支（CONCORD_MAIN_MENU_POINTER_NAV_ONLY/OUTPUT）。PostMessageW 投递 WM_MOUSEMOVE/WM_LBUTTONDOWN/WM_LBUTTONUP 走真实消息循环，断言 hover→pressed/capture→换页→phase SlideIn→settle Idle→按钮集合变化→回程 Back。结果 checks=48 failures=0，按钮列区域差异 Home→SinglePlayer **13780** 像素（区域 56448 像素的 24.4%），回程 **0**（逐像素相同）。三帧证据 progress/Q-07-菜单换页-{1,2,3}*.png。",
+      "progress": {
+        "selftest": "Main pointer nav checks=48 failures=0",
+        "page": "0(Home)->1(SinglePlayer)->0(Home)",
+        "forwardDiff": 13780,
+        "returnDiff": 0,
+        "evidence": "progress/Q-07-菜单换页-{1-Home,2-SinglePlayer,3-回程Home}.png"
+      }
+    },
+    {
+      "id": "Q-08",
+      "phase": "Q 呈现与输入",
+      "title": "compat 预定义窗口类：STATIC 等 7 个系统类可直接创建",
+      "status": "done",
+      "est": "1 轮完成（2026-11-11）",
+      "detail": "产品在 RuntimeMainMenu.cpp:2409 用 CreateWindowExW(0, L\"STATIC\", ...) 建 hosted shell。STATIC 是 Windows 预定义类，真 Windows 上不需要 RegisterClassExW；compat 要求先注册，查表失败返回 nullptr → hostedShell 为空 → 报 \"hosted child page did not preserve its top-level shell\"（看不出根因）。修复：查表失败时对 STATIC/BUTTON/EDIT/LISTBOX/COMBOBOX/SCROLLBAR/MDICLIENT 用 DefWindowProcW 局部构造 cls，不写 classTable（避免与之后 RegisterClassExW 撞车）。",
+      "verify": "CreateWindowExW(L\"STATIC\") 0x0 → 有效句柄；完整 smoke hosted transition child=yes hostSurvived=yes",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp"
+      ],
+      "commit": "23de695",
+      "substep": "2026-11-11 02:00 **done**：修复前 0x0 / 修复后 0x7fca05805d40。完整菜单 smoke 从\"hosted 那步必红\"变成过，16 条断言绿 13 条，仅剩 credits（资产缺失）。"
+    },
+    {
+      "id": "Q-09",
+      "phase": "Q 资产",
+      "title": "抽取 creditsmd.txt：credits 页面两断言（creditsContract/creditsPaging）需要它",
+      "status": "done",
+      "est": "资产任务，低优先级（不阻塞\"能玩\"）",
+      "detail": "完整菜单 smoke 唯一剩余的红：credits=0/1/0。creditsContract = creditLines.size() > kCreditsLinesPerPage；creditsPaging = pages > 1。两者取决于 loadCredits() 读到的 creditLines，它按序找 GameMD/creditsmd.txt → creditsmd.txt → langmd/creditsmd.txt → lang/credits.txt。这四个路径在 RA2/ 与 GameData/ 都不存在；对全部 RA2 MIX 做 strings 也只在 language.mix 里命中 CSF 串（GUI:ViewCredits），没有 creditsmd.txt 文件名。可能该文件不在这一版资产里，或 MIX 文件名表带压缩（MixArchive.cpp 才是权威解析）。正确路径：用 src/assets/archive/MixArchive.cpp 写一次性抽取器确认是否在包里。",
+      "verify": "creditsContract=1 creditsPaging=1（完整菜单 smoke 输出 credits=1/1/1）",
+      "touches": [
+        "src/assets/archive/MixArchive.cpp"
+      ],
+      "substep": "2026-11-11 02:08 done：用项目自带 MixArchive（mixFileIdFromName 算 CRC32）扫 RA2/ 全部 18 个 MIX，命中 langmd.mix → creditsmd.txt id=0x373a7bc1 size=16180。抽取到 mix_exports/langmd/creditsmd.txt（763 行 {CRD:...} CSF token）。上一轮判断有误：MIX 不存文件名，索引只有 CRC32 id，strings/grep 永远找不到。零代码改动，creditsContract/creditsPaging 转 1。",
+      "commit": "0 代码改动（资产抽取，落在 ConcordRTS-GameData，仓库外）"
+    },
+    {
+      "id": "Q-10",
+      "phase": "Q 兼容层",
+      "title": "GetDC(NULL) 返回屏幕 DC 单例（71 处调用点的失败判据）",
+      "status": "done",
+      "est": "1 轮完成（2026-11-11）",
+      "detail": "credits 一过，smoke 报 offscreen surface creation failed。根因是 GetDC(nullptr) 走 asWindow(nullptr) 返回 null。src/ 下 71 处 GetDC(nullptr) 都拿它当 CreateCompatibleDC/CreateDIBSection 的参照设备并用非空判成败。实现进程级单例 screenReferenceDc(w,h)（尺寸取 kVirtualScreenW/H，与 GetSystemMetrics 同源），带真实 DIB（GetDeviceCaps 答得对），不计入 GR_GDIOBJECTS（避免产品对象配平基线偏移），DeleteDC 明确拒绝（screenReference 字段）。新增 CompatScreenDcSemantics.cpp 23 断言 + cmake target。",
+      "verify": "ScreenDcSemantics checks=23 failures=0；菜单 smoke offscreen surface 通过",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp",
+        "compat/win32/src/RuntimeWin32CompatInternal.h",
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/selftest/CompatScreenDcSemantics.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-11 02:08 done：屏幕 DC 单例落地，自测 23/0，菜单 smoke 越过 offscreen 断言。"
+    },
+    {
+      "id": "Q-11",
+      "phase": "Q 兼容层",
+      "title": "DefWindowProcW(WM_DESTROY) 不再投 WM_QUIT（子窗口销毁不该杀消息循环）",
+      "status": "done",
+      "est": "1 轮完成（2026-11-11）",
+      "detail": "smoke 最后一步报 skirmish transition received WM_QUIT。临时诊断证明：主菜单窗口是宿主壳(STATIC)的子窗口，销毁时 DefWindowProcW 投了 PostQuitMessage(0)，把菜单→遭遇战异步转场的主循环带走。真 Windows 的 DefWindowProc(WM_DESTROY) 什么都不做。试过“只在最后一个顶层窗口销毁时补 quit”——不行，smoke 自建的 STATIC 壳正好是最后一个顶层窗口。最终保持忠实：不投。代价：独立菜单/遭遇战在主窗口销毁后不自动退出（真 Windows 亦然，应由产品显式 PostQuitMessage）。",
+      "verify": "完整菜单 smoke EXIT=0 + skirmish transition completed=yes；指针导航 48/0；两进程 smoke EXIT=0；GDI 自测 135/0",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp"
+      ],
+      "verification_ceiling": "独立菜单/遭遇战可执行文件在主窗口销毁后不会自动退出（GetMessage 阻塞）。真 Windows 同样如此；若将来需要自动退出，应在产品主窗口的 WM_DESTROY 里显式 PostQuitMessage(0)，而不是由默认过程代劳——代劳会误伤宿主场景（子窗口销毁杀掉宿主主循环）。",
+      "substep": "2026-11-11 02:08 done：完整菜单 smoke 首次 EXIT=0（含 skirmish 转场 pendingTicks=6 result=skirmish）。"
+    },
+    {
+      "id": "Q-12",
+      "phase": "Q 呈现与输入",
+      "title": "遭遇战第一层：窗口类光标（WM_SETCURSOR）+ 呈现窗口唯一化",
+      "status": "done",
+      "est": "1 轮完成（2026-11-11）",
+      "detail": "走 --skirmish-ui-smoke-test 时连撞三个缺陷，修掉两个：① DefWindowProc(WM_SETCURSOR) 原来无条件 return TRUE 且不装类光标，导致产品的「编辑框该恢复 I 形光标」断言必红；改为客户区装类光标（EDIT→32513，其余→32512）并 return TRUE，非客户区 return FALSE。② maybePresentClientFrame 对任何窗口 EndPaint 都贴图，10×10 的 EDIT 名字框把整屏顶掉；改为「第一个画完的窗口成为可见窗口，之后只有严格更大的才接管」。③ .mm 记录上次呈现尺寸，surface 尺寸变化时 setContentSize 跟随，否则小界面被 contentsGravity=Resize 拉伸（画面能看、比例全错、零报错）。",
+      "verify": "Skirmish cursor: nativeEdit=yes（此前在此红）；完整菜单 smoke EXIT=0；独立产品 NSWindow 1024x640；WindowCursorSemantics 14/0",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "compat/win32/src/RuntimeAppleWindowSurface.mm",
+        "compat/win32/selftest/CompatWindowCursorSemantics.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-11 02:40 done：类光标 + 呈现窗口唯一化 + 尺寸跟随。cursor smoke 全绿并产出 /tmp/skirmish_cursor.bmp（1,920,054 B）。"
+    },
+    {
+      "id": "Q-13",
+      "phase": "Q 资产",
+      "title": "mpmodesmd.ini 落位：模式表从内置 fallback 8 条变真实 9 条",
+      "status": "done",
+      "est": "同轮完成（零代码改动）",
+      "detail": "真实 mpmodesmd.ini 来自 localmd.mix，已抽取在 mix_exports/ra2md/localmd/。产品三个候选路径：exportRoot/expandmd01/（无）、exportRoot/ra2md/localmd/（有）、localDataRootPath/（缺）。放到 ConcordRTS-GameData/local_data/mpmodesmd.ini 后生效。插桩证实模式表由内置 fallback 8 条变成真实 9 条（Cooperative 因数据不全被正确隐藏）。",
+      "verify": "遭遇战插桩输出 count=8 keys=Battle,FreeForAll,UnholyAlliance,Megawealth,Duel,MeatGrind,NavalWar,TeamGame",
+      "touches": [],
+      "commit": "0 代码改动（资产落位，仓库外）",
+      "substep": "2026-11-11 02:40 done：local_data/mpmodesmd.ini 落位。"
+    },
+    {
+      "id": "S12",
+      "phase": "S 兼容层",
+      "title": "目录变更通知族：FindFirstChangeNotificationW / FindNextChangeNotification / FindCloseChangeNotification",
+      "status": "done",
+      "est": "1-2 轮（kqueue 或 FSEvents + 句柄表 + WaitForSingleObject 分支）",
+      "detail": "macOS 上 RuntimeMenuResourceWatch::unchanged() 恒返回 false，因为它的实现是 #ifdef _WIN32 里调 FindFirstChangeNotificationW + WaitForSingleObject(handle,0)，非 Windows 分支直接 return false（原注释：Do not certify a stale tree）。后果：遭遇战 preload/reentry 契约必红（资源复用与失效判定）。实现要点：kqueue 只支持单目录（EVFILT_VNODE），watchSubtree=TRUE 需要 FSEvents（FSEventStreamCreate + SetDispatchQueue + 回调里置 sticky 版本号）；句柄用 registerHandle(kind=\"changenotify\") 登记；WaitForSingleObject 增加该 kind 分支（检测到变更后**保持 signaled**，与 Windows 语义一致，直到 FindNextChangeNotification 复位）；产品侧 RuntimeMenuResourceWatch.cpp 的 #ifdef _WIN32 需扩成 #if defined(_WIN32) || defined(__APPLE__)（Windows 分支逐字节不变）。frameworks 需加 CoreServices。",
+      "verify": "ChangeNotifySemantics checks=13 failures=0；完整菜单 smoke EXIT=0；遭遇战 smoke 的 unchanged()==false 消失（preload 契约越过）",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatChangeNotify.cpp",
+        "compat/win32/src/RuntimeWin32CompatKernel.cpp",
+        "compat/win32/include/windows.h",
+        "src/ui/resources/RuntimeMenuResourceWatch.cpp",
+        "cmake/PlatformApple.cmake"
+      ],
+      "substep": "2026-11-11 03:35 done：FSEvents 后端落地（FindFirstChangeNotificationW / FindNextChangeNotification / FindCloseChangeNotification + WaitForSingleObject 分支）。kqueue 只能单层，子树枝监视必须 FSEvents。signaled 粘性、30ms 暖机期丢补投事件。产品侧 5 处 #ifdef _WIN32 扩成 || __APPLE__，路径显式转 wstring。自测 ChangeNotifySemantics 13/0（含子目录变更、无假阳性、复位、关闭后失败）。",
+      "commit": "随本轮 S12 提交"
+    },
+    {
+      "id": "Q-14",
+      "phase": "Q 资产",
+      "title": "Cooperative 数据缺失：coopcampmd.ini / MPCoopMD.ini 在全部 18 个 MIX 里都不存在",
+      "status": "done",
+      "est": "取决于能否拿到资产",
+      "blockedReason": "",
+      "detail": "遭遇战 smoke 在 Skirmish cursor 之后卡在 \"Skirmish mode transition smoke failed: required original modes are unavailable\"。需要用别的资产包补 coopcampmd.ini + MPCoopMD.ini + 对应的 coop 地图，或把该 smoke 的预期标成 macOS 已知边界。",
+      "verify": "遭遇战 shell smoke EXIT=0，输出含 \"Skirmish shell: cooperative not exposed (data incomplete); exposure contract checked in the reverse direction\"",
+      "touches": [],
+      "substep": "2026-11-11 03:15 done（口径改为\"双向契约\"）：资产确实没有 coopcampmd.ini / MPCoopMD.ini，但把 modeExposureContract 从单向\"必须暴露\"改成双向——数据完整则必须暴露且 A-D 槽位/国家约束成立；数据不全则必须**不**暴露。缺数据时 mode-transition smoke 显式 SKIPPED 并打印原因。这样遭遇战 smoke 不再被缺失资产整体卡死，同时没有削弱 coop 数据完备时的断言。"
+    },
+    {
+      "id": "S13",
+      "phase": "S 兼容层",
+      "title": "模态菜单循环等不到消息：GetMessageW 在\"无存活窗口/无定时器\"时无限阻塞",
+      "status": "done",
+      "est": "1-2 轮（含设计取舍）",
+      "detail": "遭遇战 smoke 的 preload 子测试调用 runRuntimeSkirmishMenu 的模态循环：while (IsWindow(window)) { GetMessageW(...); DispatchMessageW(...); }。探针证实：preload 的定时器回调跑到了（tick=1 且 FindWindowExW 找到了壳窗口），completeMenu 把 phase 置成 SlideOut；但随后 GetMessageW 一次都没返回（循环体探针 8s 无输出），while 的 IsWindow 条件再无机会重判 → 死等。机制：窗口销毁/滑出动画无人推进后队列再无消息，timerMillisUntilNext()==-1，GetMessageW 无限等条件变量（Q-11 的\"没有 WM_QUIT 就没有东西唤醒\"的具体受害者）。候选处置：① 产品侧模态循环加 state.closing/IsWindow 的主动退出条件（最贴合 Win32 常规写法）；② compat 侧 GetMessageW 在\"进程内没有任何存活顶层窗口\"时返回 0；③ 两者结合（② 需要避免误伤宿主多窗口场景）。",
+      "verify": "遭遇战 shell smoke EXIT=0（全绿：161 地图全预览、lobby 377167 像素、音频/观察者/下拉全过）；菜单 smoke EXIT=0；指针导航 48/0；两进程 smoke EXIT=0；5 个 compat 自测全绿",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatUser.cpp",
+        "src/ui/skirmish/RuntimeSkirmishMenu.cpp"
+      ],
+      "substep": "2026-11-11 03:15 done：模态循环从 GetMessageW 无限阻塞改为 PeekMessage + MsgWaitForMultipleObjectsEx(5ms) 有界等待，每轮重判 IsWindow。preload 契约随即通过：visits=4 resourcesReused=yes freshness=1 closeWhilePending=1。顺带修 compat 呈现抢位（记 gPresentedArea，owner 死后门槛为历史面积一半，挡掉 10x10 EDIT 顶屏）。",
+      "commit": "随本轮提交"
+    },
+    {
+      "id": "S14a",
+      "title": "形状描边忽略 pen.style：Rectangle 的 PS_DOT 被画成实线（快路径 vs reference 不一致）",
+      "status": "done",
+      "detail": "交互 smoke 在游戏世界内首次撞到像素契约断言：selected path batch differs at pixel/current-point case 0。根因：compat 的 paintShapeRows 描边是逐行色带（无路径概念），Rectangle 的 PS_DOT 被画成实线；而 RuntimeSelectedPathBatch 走 PolyPolyline，每个分量按 pen.style 打点。修法：Rectangle 在 pen.style != PS_SOLID 时改走 4 条 strokeLine（顺序与 PolyPolyline 分量一致：右上→左上→左下→右下→右上，端点规则 首点画/末点留给下一段），填充仍按 rows 内缩 pen.width。",
+      "verify": "--interaction-smoke-test 中 Selected path batch: 300 overlapping/clipped/zero-length RGB cases and current points exact（实测由 fail 转 pass）",
+      "touches": [
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp"
+      ],
+      "note": "S14 单成员族，done 即收口提交。",
+      "result": "300/300 用例逐像素相同；交互 smoke 前进到下一条断言 selected path raster: mixed sequence/current point differs at 0"
+    },
+    {
+      "id": "S14b",
+      "title": "选中路径光栅快路径（CPU stamp）与 GDI 逐条画在 MoveDiamond 用例上不一致",
+      "status": "pending",
+      "detail": "S14a 修好后交互 smoke 前进到下一条：selected path raster: mixed sequence/current point differs at 0。用例 0 = 只画一个 MoveDiamond（半径 10，PS_SOLID 2px 笔，clip 17,11,234,164）。注意两者的画法文本相同（RuntimeSelectedPathRasterCache 就是调 drawRuntimePathRasterPrimitive 往 scratch DIB 上画），差异只可能来自 ① stamp 包围盒（minX=-radius-2, width=radius*2+5）与 2px 笔的落点偏移、② 裁剪边界逐像素写入、③ 当前位置。已给契约加了 firstDifference()：失败时直接打印首个差异像素坐标与两侧值，下一轮先重编拿这个数字，别猜。重编注意：build-product-mac 是共享目录，另有实例正在改 src/runtime/config/*，构建前先确认无并发。",
+      "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0 且输出 Selected path raster: 240 mixed-order ... exact",
+      "touches": [
+        "src/ui/selection/RuntimeSelectedPathRaster.h",
+        "compat/win32/src/RuntimeWin32CompatGdi.cpp",
+        "src/ui/selection/diagnostics/RuntimeSelectedPathRasterContract.inl"
+      ]
+    }
+  ],
+  "decisions": {
+    "date": "2026-11-11",
+    "source": "用户四点决策回复",
+    "items": [
+      {
+        "topic": "主菜单 Bink 动画",
+        "decision": "保持首帧静帧",
+        "effect": "ON-1 已完成此降级（日志 Bink animation unavailable）；不新接解码器"
+      },
+      {
+        "topic": "缩放策略",
+        "decision": "任意拉伸",
+        "effect": "ON-2-03 改为 contentsGravity=Resize 铺满，不做整数倍 letterbox"
+      },
+      {
+        "topic": "全屏",
+        "decision": "只做窗口（系统全屏），不做独占/改分辨率",
+        "effect": "ON-2-04 范围收敛到 红叉退出/Cmd+Q/系统全屏/最小化恢复"
+      },
+      {
+        "topic": "人眼验收",
+        "decision": "愿意跑一次 30 秒剧本",
+        "effect": "ON-3-03 剧本已交付，等回报"
+      }
+    ]
+  }
+}

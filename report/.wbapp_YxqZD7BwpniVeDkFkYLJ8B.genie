@@ -1,0 +1,5 @@
+appId: wbapp_YxqZD7BwpniVeDkFkYLJ8B
+name: ra2mac 进度报表
+localDir: /Users/zhenglk/ai-project/ra2mac/report
+appType: web
+entryHtml: index.html

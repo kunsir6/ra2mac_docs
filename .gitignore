@@ -1,0 +1,14 @@
+.DS_Store
+*.tmp
+*.tmp.*
+*~
+*.bmp
+*.swp
+
+# 运行时心跳与锁：每次运行都会变，提交它只会制造噪音
+progress/.active
+progress/.lock/
+
+# Python 缓存
+__pycache__/
+*.pyc

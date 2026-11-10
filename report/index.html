@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ra2mac · ConcordRTS macOS 多平台支持 · 进度报表</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-soft: #0e131b;
+    --card: #121826;
+    --card-2: #161d2b;
+    --border: #1e2836;
+    --border-soft: #182232;
+    --text: #e9eef5;
+    --text-dim: #8b98a8;
+    --text-faint: #5c6878;
+    --blue: #4c8dff;
+    --blue-soft: rgba(76,141,255,.14);
+    --green: #2fd07a;
+    --green-soft: rgba(47,208,122,.14);
+    --amber: #e6a23c;
+    --amber-soft: rgba(230,162,60,.14);
+    --violet: #a78bfa;
+    --violet-soft: rgba(167,139,250,.14);
+    --mono: "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  /* 顶部背景光晕 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(1000px 500px at 15% -10%, rgba(76,141,255,.10), transparent 60%),
+      radial-gradient(800px 400px at 90% -20%, rgba(167,139,250,.08), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+
+  /* ---------- Header ---------- */
+  header { padding: 34px 0 8px; }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px; flex: none;
+    background: linear-gradient(135deg, #4c8dff, #7c5cff);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 18px; color: #fff;
+    box-shadow: 0 8px 24px rgba(76,141,255,.35);
+  }
+  .brand h1 { font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+  .brand .sub { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge {
+    font-size: 12px; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-dim);
+    display: inline-flex; align-items: center; gap: 6px; background: var(--card);
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .badge.live .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .badge.live { color: var(--green); border-color: rgba(47,208,122,.3); }
+
+  /* ---------- Hero 指标卡 ---------- */
+  .hero { padding: 20px 0 6px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .metric {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 20px 22px; position: relative; overflow: hidden;
+  }
+  .metric::after {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent, var(--blue)), transparent);
+    opacity: .5;
+  }
+  .metric .label { font-size: 12px; color: var(--text-dim); letter-spacing: .04em; text-transform: uppercase; }
+  .metric .value { font-size: 40px; font-weight: 800; letter-spacing: -.02em; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+  .metric .value .unit { font-size: 16px; font-weight: 600; color: var(--text-dim); margin-left: 4px; }
+  .metric .hint { font-size: 12.5px; color: var(--text-faint); }
+  .metric .hint b { color: var(--text-dim); font-weight: 600; }
+  .metric.gap { --accent: var(--blue); }
+  .metric.gap .value { color: var(--blue); }
+  .metric.task { --accent: var(--green); }
+  .metric.round { --accent: var(--amber); }
+  .metric.census { --accent: var(--violet); }
+
+  /* ---------- 区块标题 ---------- */
+  section { padding: 28px 0 4px; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .sec-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .sec-head h2 .no { color: var(--text-faint); font-family: var(--mono); font-size: 13px; margin-right: 8px; }
+  .sec-head .desc { font-size: 13px; color: var(--text-dim); }
+
+  /* ---------- 缺口演进 ---------- */
+  .gap-panel { display: grid; grid-template-columns: 1.65fr 1fr; gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .chart-wrap { padding: 8px 6px 4px; }
+  .chart-svg { width: 100%; height: auto; display: block; }
+  .chart-svg .grid-line { stroke: var(--border-soft); stroke-width: 1; }
+  .chart-svg .axis-label { fill: var(--text-faint); font-size: 11px; font-family: var(--mono); }
+  .chart-svg .x-label { fill: var(--text-dim); font-size: 11px; }
+  .chart-svg .pt { fill: var(--bg); stroke: var(--blue); stroke-width: 2.5; }
+  .chart-svg .pt.end { fill: var(--blue); }
+  .chart-svg .pt-val { fill: var(--text); font-size: 12px; font-weight: 700; font-family: var(--mono); }
+  .chart-svg .pt-val.end { fill: var(--blue); }
+  .gap-breakdown { display: flex; flex-direction: column; gap: 14px; }
+  .big-gap { display: flex; align-items: baseline; gap: 10px; }
+  .big-gap .n { font-size: 56px; font-weight: 800; color: var(--blue); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .big-gap .d { font-size: 13px; color: var(--text-dim); }
+  .bar-track { height: 10px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; display: flex; }
+  .bar-track .seg-c { background: linear-gradient(90deg, #7c5cff, #4c8dff); }
+  .bar-track .seg-cpp { background: linear-gradient(90deg, #4c8dff, #3bd0c0); }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; }
+  .legend .item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+  .legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .legend .sw.c { background: linear-gradient(135deg, #7c5cff, #4c8dff); }
+  .legend .sw.cpp { background: linear-gradient(135deg, #4c8dff, #3bd0c0); }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .kv .cell { background: var(--bg-soft); border: 1px solid var(--border-soft); border-radius: 12px; padding: 12px 14px; }
+  .kv .cell .k { font-size: 12px; color: var(--text-dim); }
+  .kv .cell .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kv .cell.c .v { color: var(--violet); }
+  .kv .cell.cpp .v { color: #3bd0c0; }
+
+  /* ---------- 任务看板 ---------- */
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .phase {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 18px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .phase-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .phase-title { font-size: 14px; font-weight: 700; }
+  .phase-count { font-size: 11px; color: var(--text-faint); font-family: var(--mono); }
+  .phase-bar { height: 5px; border-radius: 999px; background: var(--bg-soft); overflow: hidden; margin-bottom: 12px; }
+  .phase-bar .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2fd07a, #4c8dff); transition: width .4s; }
+  .task {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 10px; border-radius: 10px; border: 1px solid transparent;
+    transition: background .15s, border-color .15s;
+  }
+  .task:hover { background: var(--card-2); border-color: var(--border); }
+  .task .id { font-family: var(--mono); font-size: 11px; color: var(--text-faint); min-width: 46px; padding-top: 1px; }
+  .task .t { font-size: 13px; line-height: 1.45; }
+  .task .t .st { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 999px; margin-right: 7px; vertical-align: 1px; font-weight: 600; letter-spacing: .02em; }
+  .st.done { background: var(--green-soft); color: var(--green); }
+  .st.pending { background: var(--amber-soft); color: var(--amber); }
+  .st.superseded { background: var(--violet-soft); color: var(--violet); }
+  .task.pending { opacity: .92; }
+  .task.superseded { opacity: .55; }
+  .task.superseded .t { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+
+  /* ---------- 里程碑时间线 ---------- */
+  .timeline { display: flex; overflow-x: auto; gap: 0; padding: 8px 4px 4px; }
+  .tl-node { flex: 1; min-width: 150px; position: relative; padding: 0 12px; }
+  .tl-node::before {
+    content: ""; position: absolute; top: 14px; left: 0; right: 0; height: 2px;
+    background: var(--border);
+  }
+  .tl-node:first-child::before { left: 50%; }
+  .tl-node:last-child::before { right: 50%; }
+  .tl-dot {
+    position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%;
+    margin: 0 auto 10px; display: grid; place-items: center;
+    background: var(--bg); border: 2px solid var(--border);
+    font-size: 13px;
+  }
+  .tl-node.done .tl-dot { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+  .tl-node.active .tl-dot { border-color: var(--amber); color: var(--amber); background: var(--amber-soft); box-shadow: 0 0 0 5px var(--amber-soft); }
+  .tl-node.todo .tl-dot { border-color: var(--border); color: var(--text-faint); }
+  .tl-body { text-align: center; }
+  .tl-body .tl-title { font-size: 13px; font-weight: 600; }
+  .tl-body .tl-desc { font-size: 11.5px; color: var(--text-faint); margin-top: 3px; line-height: 1.5; }
+
+  /* ---------- 焦点 & 纪律 ---------- */
+  .two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+  .focus-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); }
+  .focus-item:last-child { border-bottom: none; }
+  .focus-item .fi-id { font-family: var(--mono); font-size: 12px; color: var(--amber); min-width: 56px; padding-top: 2px; font-weight: 600; }
+  .focus-item .fi-body .fi-t { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .focus-item .fi-body .fi-d { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; }
+  .rule { display: flex; gap: 11px; padding: 10px 0; }
+  .rule .ic { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; margin-top: 1px; }
+  .rule .ic.g { background: var(--green-soft); color: var(--green); }
+  .rule .ic.b { background: var(--blue-soft); color: var(--blue); }
+  .rule .ic.a { background: var(--amber-soft); color: var(--amber); }
+  .rule .rb { font-size: 13px; }
+  .rule .rb b { color: var(--text); font-weight: 600; }
+  .rule .rb span { color: var(--text-dim); }
+
+  footer { padding: 32px 0 48px; text-align: center; color: var(--text-faint); font-size: 12px; }
+  footer .sep { margin: 0 8px; opacity: .4; }
+  footer a { color: var(--text-dim); text-decoration: none; }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 980px) {
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .gap-panel, .two-col { grid-template-columns: 1fr; }
+    .board { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 620px) {
+    .board { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .metric .value { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ================= Header ================= -->
+  <header>
+    <div class="header-top">
+      <div class="brand">
+        <div class="logo">RM</div>
+        <div>
+          <h1>ra2mac · ConcordRTS macOS 多平台支持</h1>
+          <div class="sub">在 macOS 上运行《红警2 / 尤里的复仇》 · 增量支持 Mac，保留 Windows 多平台编译</div>
+        </div>
+      </div>
+      <div class="badges">
+        <span class="badge live"><span class="dot"></span>推进中</span>
+        <span class="badge">轮训周期 1 小时</span>
+        <span class="badge">更新于 <span id="updated"></span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= Hero 指标 ================= -->
+  <div class="hero">
+    <div class="grid-4" id="metrics"></div>
+  </div>
+
+  <!-- ================= 缺口演进 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2><span class="no">01</span>链接缺口演进</h2>
+      <span class="desc">链接是唯一权威清单 — 编译干净 ≠ 实现齐全</span>
+    </div>
+    <div class="gap-panel">
+      <div class="card chart-wrap">
+        <div id="chart"></div>
+      </div>
+      <div class="card gap-breakdown">
+        <div>
+          <div class="big-gap"><span class="n" id="curGap"></span><span class="d">未定义符号（起点 280）</span></div>
+          <div class="bar-track" style="margin-top:14px" id="gapBar"></div>
+          <div class="legend" style="margin-top:12px">
+            <div class="item"><span class="sw c"></span>C-linkage <b id="cCount"></b></div>
+            <div class="item"><span class="sw cpp"></span>项目 C++ <b id="cppCount"></b></div>
+          </div>
+        </div>
+        <div class="kv">
+          <div class="cell c"><div class="k">C-linkage</div><div class="v" id="cV"></div></div>
+          <div class="cell cpp"><div class="k">项目 C++</div><div class="v" id="cppV"></div></div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-dim);line-height:1.6">
+          已消解 <b style="color:var(--green)" id="solved"></b> 个符号（<b id="pct"></b>）。放回 leaf 会把「尚未实现的 Win32 API」一并带出成新缺口，故曲线不单调向下，但净缺口持续收敛。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 任务看板 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2><span class="no">02</span>任务推进看板</h2>
+      <span class="desc">36 项任务 · 按阶段分组 · 随时标记进展</span>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <!-- ================= 里程碑 ================= -->
+  <section>
+    <div class="sec-head">
+      <h2><span class="no">03</span>里程碑</h2>
+      <span class="desc">从零改动内核到可运行的路标</span>
+    </div>
+    <div class="card">
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </section>
+
+  <!-- ================= 焦点 & 纪律 ================= -->
+  <section>
+    <div class="two-col">
+      <div class="card">
+        <div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:15px">当前焦点 · 下一轮</h2></div>
+        <div id="focus"></div>
+      </div>
+      <div class="card">
+        <div class="sec-head" style="margin-bottom:6px"><h2 style="font-size:15px">推进纪律</h2></div>
+        <div id="rules"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    ra2mac 进度报表 · 数据源 queue.json / RUNLOG.md / undefined-symbols.txt
+    <span class="sep">·</span> 每轮推进后重新部署刷新
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   数据区 —— 每轮推进后只需更新此对象，再重新部署
+   ============================================================ */
+const DATA = {
+  meta: {
+    updated: "2026-11-11 02:10",
+    scale: "src 79.6 万行 C++20 · 2110 文件",
+  },
+  metrics: {
+    gap: { cur: 0, start: 280, c: 0, cpp: 0 },
+    task: { done: 47, total: 52, superseded: 5, pending: 0 },
+    round: { done: 47, diag: 4 },
+    census: { pass: 57, total: 57 },
+  },
+  gapHistory: [
+    { label: "V-01 首次链接", gap: 280, c: 180, cpp: 100 },
+    { label: "S9 小族收口",  gap: 267, c: 167, cpp: 100 },
+    { label: "S3-1 DC 状态", gap: 241, c: 141, cpp: 100 },
+    { label: "S3-3 图元光栅", gap: 225, c: 124, cpp: 101 },
+    { label: "S10 文件进程", gap: 207, c: 107, cpp: 100 },
+    { label: "P5-02 放回 leaf", gap: 198, c: 107, cpp: 91 },
+    { label: "P5-03 MapOverlay", gap: 177, c: 114, cpp: 63 },
+    { label: "P5-04 补 7 符号", gap: 170, c: 107, cpp: 63 },
+    { label: "P5-05 输入光标", gap: 149, c: 86, cpp: 63 },
+    { label: "P5-06 文本字体", gap: 138, c: 75, cpp: 63 },
+    { label: "S4-1 放回字体", gap: 109, c: 83, cpp: 26 },
+    { label: "S7 窗口消息",  gap: 35, c: 1, cpp: 34 },
+    { label: "S6 GDI+ PNG",  gap: 28, c: 1, cpp: 27 },
+    { label: "P5-07 D3D11 不被引用", gap: 13, c: 1, cpp: 12 },
+    { label: "P5-08 音乐策略+杂项", gap: 8, c: 1, cpp: 7 },
+    { label: "P4-01 CoreAudio 后端", gap: 0, c: 0, cpp: 0 },
+  ],
+  phases: [
+    {
+      title: "多平台骨架", tag: "P0–P1",
+      tasks: [
+        { id: "P1-01", st: "done", t: "新建 cmake/PlatformApple.cmake（纯新增）" },
+        { id: "P1-02", st: "done", t: "CompilerAndPlatform.cmake 追加 APPLE 分支" },
+        { id: "P1-03", st: "done", t: "验证多平台骨架成立，产出 P1 报告" },
+      ],
+    },
+    {
+      title: "底座 __APPLE__ 分支", tag: "P2",
+      tasks: [
+        { id: "P2-01", st: "done", t: "RuntimeSecureBytes 安全随机源" },
+        { id: "P2-02", st: "done", t: "RuntimeInternetTcpTunnelProxy 补 POSIX 头" },
+        { id: "P2-03", st: "done", t: "RuntimeUiClockWin32 平台化" },
+        { id: "P2-04", st: "done", t: "RuntimeVoiceAudio 音频 SDK 依赖处置" },
+        { id: "P2-08", st: "done", t: "RuntimeShell win32 依赖处置（转兼容层）" },
+        { id: "P2-05", st: "superseded", t: "RuntimeMapRenderer 隔离 D3D11" },
+        { id: "P2-06", st: "superseded", t: "RuntimeNativeSessionDevices 平台化" },
+        { id: "P2-07", st: "superseded", t: "三个 win32 窗口后端退出编译图" },
+        { id: "P2-09", st: "superseded", t: "三个菜单去 Win32" },
+      ],
+    },
+    {
+      title: "Win32 兼容层", tag: "S",
+      tasks: [
+        { id: "S1",  st: "done", t: "头层：windows.h / mmsystem.h / commdlg.h shim" },
+        { id: "S2",  st: "done", t: "对象管理 + 位图传输族" },
+        { id: "S3",  st: "done", t: "GDI 矢量绘制与 DC 状态族" },
+        { id: "S5",  st: "done", t: "窗口 / 输入 / 钩子族（声明层）" },
+        { id: "S9",  st: "done", t: "小族收口：EMF / COM / MCI / 定时器 / CRT" },
+        { id: "S10", st: "done", t: "文件与 HANDLE 族（17 + 窄参 CreateFileW）" },
+        { id: "S4",  st: "done", t: "GDI 文本族（CoreText 字形光栅，真实窗口观测点验收通过）" },
+        { id: "S6",  st: "done", t: "GDI+ PNG 导出（ImageIO 编码器）" },
+        { id: "S7",  st: "done", t: "窗口 / 消息 / 输入后端（74 符号 · 纯离屏）" },
+        { id: "S8",  st: "done", t: "Job / 共享内存 / 事件 / 进程族（两进程 smoke 真跑通）" },
+      ],
+    },
+    {
+      title: "类型对齐与链接验证", tag: "T·V",
+      tasks: [
+        { id: "T-01", st: "done", t: "类型同一性：LONG / path::string_type" },
+        { id: "T-02", st: "done", t: "wchar_t 宽度桥接（UTF-16 假设）" },
+        { id: "T-03", st: "done", t: "std::wstring 运行期语义验证（含 BMP 外码点不丢字符）" },
+        { id: "V-01", st: "done", t: "首次链接，产出权威缺口清单（280）" },
+      ],
+    },
+    {
+      title: "链接对账 · 放回 leaf", tag: "P5",
+      tasks: [
+        { id: "P5-01", st: "done", t: "100 个 C++ 符号分文件判定" },
+        { id: "P5-02", st: "done", t: "放回第一批 win32 leaf（9 符号）" },
+        { id: "P5-03", st: "done", t: "放回 MapNativeOverlay（28 符号）" },
+        { id: "P5-04", st: "done", t: "补 7 个 C-linkage（含回放硬活）" },
+        { id: "P5-05", st: "done", t: "收口输入/光标/定时器族（21 符号）" },
+        { id: "P5-06", st: "done", t: "收口文本/字体族（11 符号）" },
+        { id: "P5-07", st: "done", t: "D3D11 presenter 不被引用（15 符号）" },
+        { id: "P5-08", st: "done", t: "音乐策略 + 杂项接线（5 符号）" },
+      ],
+    },
+    {
+      title: "基线 / 资产 / 后端", tag: "其他",
+      tasks: [
+        { id: "B-01", st: "done", t: "Windows 侧基线采集" },
+        { id: "P4-01", st: "done", t: "CoreAudio 音频后端（产品首次链接并出声，缺口 8→0）" },
+        { id: "P4-02", st: "done", t: "XAudio2 多路语音混音（mixer 52 / voice 40 断言）" },
+        { id: "Q-01", st: "done", t: "单位 / 建筑美术派生" },
+        { id: "Q-05", st: "done", t: "Cocoa 呈现层（NSWindow 1024×640 首帧上屏）" },
+        { id: "Q-06", st: "done", t: "输入接入（AppKit 事件 → WM_*，26 断言）" },
+        { id: "Q-07", st: "done", t: "菜单点击换页闭环（48 断言 / 像素差 13780→0）" },
+        { id: "Q-08", st: "done", t: "预定义窗口类（STATIC 等 7 个）" },
+        { id: "Q-09", st: "done", t: "creditsmd.txt 抽取（MIX 里靠 CRC32 才找得到）" },
+        { id: "Q-10", st: "done", t: "屏幕 DC 单例（GetDC(NULL)，71 处调用点）" },
+        { id: "Q-11", st: "done", t: "DefWindowProcW(WM_DESTROY) 不再误投 WM_QUIT" },
+        { id: "P3-01", st: "superseded", t: "SDL3 窗口 host 骨架" },
+      ],
+    },
+  ],
+  timeline: [
+    { st: "done", title: "P0 内核零改动", desc: "macOS 编译 170/170 · ctest 10/10" },
+    { st: "done", title: "P1 多平台骨架", desc: "APPLE 分支接入，Windows 零回归" },
+    { st: "done", title: "兼容层 S1–S10", desc: "Win32 shim 头 + 实现推进中" },
+    { st: "done", title: "V-01 权威清单", desc: "首次链接，缺口 280 可分区对账" },
+    { st: "done", title: "S7 窗口消息后端", desc: "纯离屏对象模型，缺口 280 → 35" },
+    { st: "done", title: "S6 GDI+ PNG 导出", desc: "ImageIO 编码器，缺口 35 → 28" },
+    { st: "done", title: "P5-07 D3D11 不被引用", desc: "15 符号编译出，缺口 28 → 13" },
+    { st: "done", title: "P5-08 音乐策略+杂项", desc: "5 符号编译接线，缺口 13 → 8" },
+    { st: "done", title: "P4-01 CoreAudio 后端", desc: "缺口 280 → 0，concord_runtime 首次链接" },
+    { st: "done", title: "产品首次实跑出声", desc: "音乐进设备，playedSec/wallMs = 0.996" },
+    { st: "done", title: "S11 WM_TIMER", desc: "定时器真派发，菜单恢复每秒探针" },
+    { st: "done", title: "S8 两进程 smoke", desc: "host+client+spectator 120+ tick，hash 一致" },
+    { st: "done", title: "Q-05 Cocoa 呈现层", desc: "NSWindow 1024×640 首帧上屏" },
+    { st: "done", title: "Q-07 点击换页闭环", desc: "48 断言，像素差 13780 / 返回 0" },
+    { st: "done", title: "Q-09~Q-11 菜单全链路", desc: "完整菜单 smoke EXIT=0，含遭遇战转场" },
+    { st: "active", title: "遭遇战实跑", desc: "选图 → 开局，这是「能玩」的最后一道门" },
+  ],
+  focus: [
+    {
+      id: "遭遇战",
+      title: "从主菜单进遭遇战，真的开一局",
+      desc: "完整菜单 smoke 已 EXIT=0（含 result=skirmish），但遭遇战窗口本身还没跑过。下一步用 Q-07 的手法（PostMessageW 投真实消息走队列）驱动遭遇战菜单：选图 → 开始 → 进游戏。",
+    },
+    {
+      id: "已达成",
+      title: "菜单四层证据链闭合",
+      desc: "链接（缺口 280→0）· 窗口（NSWindow 1024×640 标题正确）· 输入（26 断言钉住 WM_* 翻译 + 48 断言点击换页，像素差 13780→0）· 内容（完整菜单 smoke EXIT=0）。",
+    },
+  ],
+  rules: [
+    { ic: "g", txt: "<b>链接是唯一权威清单</b> — <span>编译干净 ≠ 实现齐全，每轮收尾看 ld 缺口是否收敛。</span>" },
+    { ic: "b", txt: "<b>绝不改既有 if(WIN32) 分支</b> — <span>只追加 elseif(APPLE)，源码零改动、Windows 零回归。</span>" },
+    { ic: "a", txt: "<b>诚实 no-op 判据</b> — <span>看效果不看 API 名；表层等价物会静默改行为（如 _putenv_s）。</span>" },
+    { ic: "a", txt: "<b>修一个错误暴露下一个</b> — <span>每轮重跑 -ferror-limit=0 全量诊断，不用上轮清单排期。</span>" },
+    { ic: "g", txt: "<b>1 小时轮训 + 心跳锁</b> — <span>单任务 ≤1 小时可验证，.active 心跳防并发，done 前必贴真实输出。</span>" },
+  ],
+};
+
+/* ============================================================
+   渲染
+   ============================================================ */
+const $ = (s) => document.querySelector(s);
+document.getElementById("updated").textContent = DATA.meta.updated;
+
+// 指标卡
+const m = DATA.metrics;
+const solved = m.gap.start - m.gap.cur;
+const pct = Math.round(solved / m.gap.start * 1000) / 10;
+$("#metrics").innerHTML = `
+  <div class="metric gap">
+    <div class="label">链接缺口 · 未定义符号</div>
+    <div class="value">${m.gap.cur}<span class="unit">/ ${m.gap.start}</span></div>
+    <div class="hint">已消解 <b>${solved}</b> 个（${pct}%）</div>
+  </div>
+  <div class="metric task">
+    <div class="label">任务进度</div>
+    <div class="value">${m.task.done}<span class="unit">/ ${m.task.total}</span></div>
+    <div class="hint"><b>${m.task.pending}</b> 待做 · <b>${m.task.superseded}</b> 已由兼容层覆盖</div>
+  </div>
+  <div class="metric round">
+    <div class="label">推进轮次</div>
+    <div class="value">${m.round.done}<span class="unit">轮</span></div>
+    <div class="hint">另有 <b>${m.round.diag}</b> 轮诊断（无代码改动）</div>
+  </div>
+  <div class="metric census">
+    <div class="label">编译普查 TU</div>
+    <div class="value">${m.census.pass}<span class="unit">/ ${m.census.total}</span></div>
+    <div class="hint">2 未通过：S8 两进程 smoke + CompatUser 自测</div>
+  </div>`;
+
+// 缺口构成
+$("#curGap").textContent = m.gap.cur;
+$("#cCount").textContent = m.gap.c;
+$("#cppCount").textContent = m.gap.cpp;
+$("#cV").textContent = m.gap.c;
+$("#cppV").textContent = m.gap.cpp;
+$("#solved").textContent = solved;
+$("#pct").textContent = pct + "%";
+$("#gapBar").innerHTML =
+  `<div class="seg-c" style="width:${m.gap.c/m.gap.cur*100}%"></div>` +
+  `<div class="seg-cpp" style="width:${m.gap.cpp/m.gap.cur*100}%"></div>`;
+
+// 趋势图（内联 SVG）
+(function drawChart() {
+  const W = 640, H = 236, padL = 46, padR = 18, padT = 24, padB = 40;
+  const pts = DATA.gapHistory;
+  const gMax = 290, gMin = 165; // y 轴范围
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const x = (i) => padL + i * (iw / (pts.length - 1));
+  const y = (g) => padT + (gMax - g) / (gMax - gMin) * ih;
+
+  let grid = "";
+  for (let g = 280; g >= 180; g -= 20) {
+    grid += `<line class="grid-line" x1="${padL}" y1="${y(g)}" x2="${W-padR}" y2="${y(g)}"/>`;
+    grid += `<text class="axis-label" x="${padL-8}" y="${y(g)+4}" text-anchor="end">${g}</text>`;
+  }
+
+  const linePts = pts.map((p, i) => `${x(i)},${y(p.gap)}`).join(" ");
+  const area = `M ${x(0)} ${y(pts[0].gap)} ` + pts.map((p,i)=>`L ${x(i)} ${y(p.gap)}`).join(" ") +
+               ` L ${x(pts.length-1)} ${H-padB} L ${x(0)} ${H-padB} Z`;
+
+  let dots = "";
+  pts.forEach((p, i) => {
+    const isEnd = i === pts.length - 1;
+    const dy = isEnd ? -16 : (i === 0 ? 14 : 14);
+    dots += `<circle class="pt ${isEnd?'end':''}" cx="${x(i)}" cy="${y(p.gap)}" r="${isEnd?5.5:4}"/>`;
+    dots += `<text class="pt-val ${isEnd?'end':''}" x="${x(i)}" y="${y(p.gap)+dy}" text-anchor="middle">${p.gap}</text>`;
+    dots += `<text class="x-label" x="${x(i)}" y="${H-padB+18}" text-anchor="middle">${p.label}</text>`;
+  });
+
+  $("#chart").innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="链接缺口演进趋势">
+      <defs>
+        <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#4c8dff" stop-opacity=".35"/>
+          <stop offset="100%" stop-color="#4c8dff" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${grid}
+      <path d="${area}" fill="url(#area)"/>
+      <polyline points="${linePts}" fill="none" stroke="#4c8dff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+    </svg>`;
+})();
+
+// 任务看板
+$("#board").innerHTML = DATA.phases.map((ph) => {
+  const done = ph.tasks.filter(t => t.st === "done").length;
+  const total = ph.tasks.length;
+  const pct = Math.round(done / total * 100);
+  const rows = ph.tasks.map(t => `
+    <div class="task ${t.st}">
+      <span class="id">${t.id}</span>
+      <span class="t"><span class="st ${t.st}">${t.st === "done" ? "完成" : t.st === "pending" ? "待做" : "已覆盖"}</span>${t.t}</span>
+    </div>`).join("");
+  return `
+    <div class="phase">
+      <div class="phase-head">
+        <span class="phase-title">${ph.title}</span>
+        <span class="phase-count">${done}/${total}</span>
+      </div>
+      <div class="phase-bar"><div class="fill" style="width:${pct}%"></div></div>
+      ${rows}
+    </div>`;
+}).join("");
+
+// 里程碑
+$("#timeline").innerHTML = DATA.timeline.map((tl) => {
+  const icon = tl.st === "done" ? "✓" : tl.st === "active" ? "◉" : "○";
+  return `
+    <div class="tl-node ${tl.st}">
+      <div class="tl-dot">${icon}</div>
+      <div class="tl-body">
+        <div class="tl-title">${tl.title}</div>
+        <div class="tl-desc">${tl.desc}</div>
+      </div>
+    </div>`;
+}).join("");
+
+// 焦点
+$("#focus").innerHTML = DATA.focus.map(f => `
+  <div class="focus-item">
+    <div class="fi-id">${f.id}</div>
+    <div class="fi-body"><div class="fi-t">${f.title}</div><div class="fi-d">${f.desc}</div></div>
+  </div>`).join("");
+
+// 纪律
+$("#rules").innerHTML = DATA.rules.map(r => `
+  <div class="rule">
+    <div class="ic ${r.ic}">${r.ic === "g" ? "✓" : r.ic === "b" ? "◈" : "!"}</div>
+    <div class="rb">${r.txt}</div>
+  </div>`).join("");
+</script>
+</body>
+</html>
