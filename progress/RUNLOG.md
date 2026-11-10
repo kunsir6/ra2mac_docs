@@ -5000,3 +5000,68 @@ python 读 queue.json 正常，v65 / 76 任务）。**把软链换成真目录�
 - `ra2mac_docs`：1 个提交，工作树干净。
 - `ConcordRTS`：`git status` 仍为空，源码仓库不受影响。
 - 备份：`/tmp/ra2mac-docs-backup-20261111.tgz`（14 MB，迁移前全量）。
+
+## 2026-11-11 06:45 · ON-2-02 · diagnose-only
+
+**熔断**：明文两条都不触发（queue 无 in_progress；RUNLOG 末两条 = 05:42 ON-2-01 superseded + 06:22 文档库 done）。
+**但并发让路成立**，按 `rules.lock` 与 `lock_gap_mtime_after_release` 转 diagnose-only：零源码改动、零构建、
+连 `ninja -n` 都没跑（对端持有共享 build 目录）。
+
+### 并发证据（硬判据 = mtime，不是 pid）
+
+```
+now=06:45:39
+.active = {"state":"held","pid":34694,"start":"2026-11-11T06:33:38+08:00","by":"manual-continue","task":"TBD"}
+active mtime 06:33:38        queue.json mtime 06:27:36 (v66, 我读到的就是最新版)
+06:35:20  src/ui/selection/RuntimeSelectedPathRaster.h
+06:35:25  src/ui/selection/diagnostics/RuntimeSelectedPathRasterContract.inl
+06:44:03  build-product-mac/.ninja_log      ← 采样瞬间仍在写
+.ninja_lock 06:35 出现 → 06:44 消失 → 复现（构建会话在重启）
+```
+pid 34694 已不存在，但按 2026-11-10 的教训 pid 不可作判据；两个被改文件正是 **S14b** 的 touches，
+对端在做 S14b 的 `firstDifference()`。`git -C ConcordRTS status --porcelain` 只有这两个文件（13 增 2 删）。
+**本轮未取 .active**（对端持锁中），收尾也不碰它。
+
+### 产出：`reports/ON-2-前排任务现状对账.md`
+
+四条结论（全部可在 HEAD=cdad6ab 上复核）：
+
+1. **ON-4-01 的代码已经在 HEAD 里**。`git show 82af67d -- compat/win32/src/RuntimeWin32CompatGdi.cpp` 的
+   hunk 就是 `if (pen.present && pen.style != PS_SOLID)` + 4×`strokeLine(corners[i], corners[i+1])`，
+   与 ON-4-01 detail 逐字对应（右上→左上→左下→右下，相位从 0 起）。**这条只剩 verify，而 verify 被 S14b
+   的同一条断言链挡住**（当前失败点是 `selected path raster: mixed sequence/current point differs at 0`）。
+   教训：S14 的修复被拆进 ON-4-01 时没人回看提交 → 任务文本与已存在的实现重复。
+2. **ON-2-02 的两个前提都不成立**。① present 不是「每个 EndPaint 都贴」：全仓 `present()` 只有一个调用点
+   （`RuntimeWin32CompatUser.cpp:999`，在 WM_PAINT 绘制路径里）；② 「同一帧被贴多次」已被**失效层**合并——
+   `InvalidateRect`(:1019) 只置 `w->dirty`，`popMessage`(:1119 起) 合成 WM_PAINT 时逐窗口看 dirty，
+   `BeginPaint` 清位；`RedrawWindow(RDW_UPDATENOW)`(:1053)/`UpdateWindow`(:626) 这两条同步旁路也都先看 dirty。
+   当下真问题是反向的「贴得太少」（世界 45s 两次）。另 `git grep CVDisplayLink|CADisplayLink HEAD` = **0 命中**，
+   显示节奏是全新代码。
+3. **ON-2-03 的 ① 已做完**：`RuntimeAppleWindowSurface.mm:129` 已有
+   `gView.layer.contentsScale = gWindow.backingScaleFactor`（注释就写着 ON-2-03，实测本机 2.0）。
+   真剩 ②`styleMask` 无 `NSWindowStyleMaskResizable`（:103-104）③尺寸回写 (:143-152) 只判
+   `surface != gPresented`，**没有「谁改的」来源位**——「换界面」与「用户拖动」共用一个状态位。
+4. **ON-3-01 是唯一「越早做越省」的**：present 处已有 `CGImageRef`，自证对象应是
+   `(CGImageRef)gView.layer.contents`（commit 之后读），画进 `CGBitmapContext`（bitmapInfo 必须与
+   `kSurfaceBitmapInfo` 一致）算 FNV-1a 再与 `CONCORD_MENU_DUMP` 的 BMP 对账。
+   `git grep "onscreen-attest|presentHash" HEAD` = **0 命中**，全未做。
+5. ON-2-04 的丢弃点定位到 `RuntimeAppleWindowSurface.mm:429`
+   `if (event.type == NSEventTypeAppKitDefined) continue;`（红叉只走 orderOut，进程在）。
+
+### queue v66→v67（只加注与规则，**零 status 翻转**）
+
+- ON-4-01 / ON-2-02 各补一条 note（防下一轮按 stale detail 重做）；ON-2-02 建议拆 a/b 两步。
+- 新增 rules：`present_is_per_paint_not_per_endpaint`、`detail_text_may_already_be_implemented`。
+- 状态计数复核：done 58 / pending 12 / superseded 6 / **in_progress 0**，76 条不变。
+
+### 下一轮建议
+
+1. 先确认对端释放（`.active` released 且源码 mtime 早于 released）→ **ON-3-01**（上屏自证，只加取证不改行为）。
+2. **ON-2-03 + ON-2-04 合并一轮**（同一个 .mm，验收用窗口级抓图 `screencapture -l <windowNumber>`）。
+3. **ON-4-03** 帧循环之后才回到 **ON-2-02** 真做节流；否则会花一轮量一个分母为 2 的比值。
+4. S14b 的数字（`firstDifference()`）留给拿到独占构建的轮次，本轮不猜。
+
+### 未验证
+
+零构建零运行零抓图（对端占用共享 build 目录与窗口）。以上 file:line 全部出自 `git show HEAD:` 读取，
+不是工作树——工作树里那两个文件是对端的在制品。

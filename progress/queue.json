@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 66,
-  "updated": "2026-11-11T06:27:36",
+  "version": 67,
+  "updated": "2026-11-11T06:45:47+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -133,7 +133,9 @@
     "cgimagecreate_cost_is_microseconds": "CGImageCreate 不是瓶颈：provider 是 no-copy，图像对象不分配像素缓冲。1024x640 实测（/tmp/pc/bench.mm，20000 次）：provider+image 每帧新建 1.3µs/帧；只缓存 provider 0.7µs/帧；全缓存 0µs 但会冻结。60fps 下能省的上限是 0.04ms/s。凡是以\"每秒上百 MB 分配\"为理由优化呈现路径的，先按这个基准复算。",
     "present_rate_is_degenerate_today": "当前产品的提交频率接近 0：主菜单挂机 20s 内 present < 10 次（只在交互时重绘）；--skip-main-menu --skip-skirmish-menu 进世界 45s 只有 **2** 次（首帧 + resize 后那帧），因为游戏内帧循环还没做（ON-4-03）。所以\"每帧开销\"类优化现在没有可测收益，要做就先做帧循环，再看 ON-2-02 的提交合并。",
     "window_capture_by_window_number": "窗口级取证可行：`screencapture -x -o -l <NSWindow.windowNumber> out.png` 对自建窗口全部成功（18KB、内容正确），不需要屏幕录制授权。抓图前必须自己 activateIgnoringOtherApps + makeKeyAndOrderFront，否则抓到的是上一张合成快照（被遮挡窗口不更新合成）——这正是\"屏幕冻住\"与\"窗口被挡住\"无法区分的原因。产品窗口（windowNumber=1836）试过一次could not create image from window，差异未查清，ON-3-01 开工先复测。",
-    "doc_repo": "项目管理文档自 2026-11-11 起在独立仓库 /Users/zhenglk/ai-project/ra2mac/ra2mac_docs（main 分支）做版本管理：reports/ 放各轮报告，progress/ 放 queue.json、RUNLOG.md 与取证截图，report/ baseline/ scripts/ 原样收纳。项目根目录的 progress 是指向 ra2mac_docs/progress 的**软链**，所以所有写死的 progress/... 路径不变，**不要**把软链换成真目录。每轮收尾必须在该仓库提交一次（即使本轮不是 done），文案 `docs:` / `queue:`，绝不 push。新报告写入 ra2mac_docs/reports/，不要再写项目根。 远程：origin = https://github.com/kunsir6/ra2mac_docs（**public**，2026-11-11 关联并已推送 main，默认分支 main）。自动化**只在本地提交、绝不 push**；本地会领先 origin，推送由人执行。"
+    "doc_repo": "项目管理文档自 2026-11-11 起在独立仓库 /Users/zhenglk/ai-project/ra2mac/ra2mac_docs（main 分支）做版本管理：reports/ 放各轮报告，progress/ 放 queue.json、RUNLOG.md 与取证截图，report/ baseline/ scripts/ 原样收纳。项目根目录的 progress 是指向 ra2mac_docs/progress 的**软链**，所以所有写死的 progress/... 路径不变，**不要**把软链换成真目录。每轮收尾必须在该仓库提交一次（即使本轮不是 done），文案 `docs:` / `queue:`，绝不 push。新报告写入 ra2mac_docs/reports/，不要再写项目根。 远程：origin = https://github.com/kunsir6/ra2mac_docs（**public**，2026-11-11 关联并已推送 main，默认分支 main）。自动化**只在本地提交、绝不 push**；本地会领先 origin，推送由人执行。",
+    "present_is_per_paint_not_per_endpaint": "2026-11-11 06:44：ON-2-02 的文本假设「每个 EndPaint 都直接 present，同一帧可能被贴多次」。实测架构不是这样：present() 全仓只有一个调用点（RuntimeWin32CompatUser.cpp:999，位于 WM_PAINT 的绘制路径），而失效层已有合并——InvalidateRect 只置 w->dirty，popMessage 合成 WM_PAINT 时逐窗口看 dirty，BeginPaint 清位。所以同一次失效不会被贴两遍；RedrawWindow(RDW_UPDATENOW) / UpdateWindow 是仅有的同步旁路，它们也先看 dirty。要论证「贴了多次」必须给出计数证据（submits vs paints），不能用「每帧都贴」当默认前提。真正的缺口是反方向的：世界 45s 只有 2 次 present，因为没有定时器驱动的失效（见 ON-4-03）。",
+    "detail_text_may_already_be_implemented": "2026-11-11 06:44：ON-4-01 的 detail 与 82af67d(S14a) 的改动逐字相同——任务文本在继承/搬运过程中可能与更早的提交重复（S14 的修复被拆进 ON-4-01 时没有回看提交）。开工前先按 verify 的失败点定位到具体断言，再决定要不要动 detail 描述的那个函数；否则会把已存在的实现重写一遍，或误判成「没做」。判据示例：git show HEAD:<file> | grep <关键调用>，比读报告快且不会被 stale 描述骗。"
   },
   "tasks": [
     {
@@ -197,7 +199,7 @@
         "compat/win32/src/RuntimeAppleWindowSurface.mm",
         "compat/win32/src/RuntimeWin32CompatUser.cpp"
       ],
-      "note": "CVDisplayLink 已 deprecated（macOS 15 起建议 CADisplayLink/NSView.displayLink），实现时按 SDK 条件分支，二者取其一。【2026-11-11 补充】先量分母：当前菜单挂机 <10 次/20s、世界 2 次/45s，比值 1.0±0.05 无从谈起。开工顺序应为：先加 present 计数（compat/win32/src/RuntimeAppleWindowSurface.mm 里一个计数器 + exit 打印即可，ON-2-01 试过、零风险），再谈脏帧合并。"
+      "note": "CVDisplayLink 已 deprecated（macOS 15 起建议 CADisplayLink/NSView.displayLink），实现时按 SDK 条件分支，二者取其一。【2026-11-11 补充】先量分母：当前菜单挂机 <10 次/20s、世界 2 次/45s，比值 1.0±0.05 无从谈起。开工顺序应为：先加 present 计数（compat/win32/src/RuntimeAppleWindowSurface.mm 里一个计数器 + exit 打印即可，ON-2-01 试过、零风险），再谈脏帧合并。 【2026-11-11 06:44 诊断·前提更正】两个前提都不成立：① present 不是「每个 EndPaint 都贴」，而是「每个 WM_PAINT 一次」——全仓只有 RuntimeWin32CompatUser.cpp:999 一个 present() 调用点，RedrawWindow(RDW_UPDATENOW)/UpdateWindow 两条旁路也都先看 w->dirty；②「同一帧被贴多次」已被脏标志在**失效层**合并（InvalidateRect 只置 dirty，BeginPaint 清位），当下真实问题是反向的「贴得太少」（世界 45s 两次）。另 git grep CVDisplayLink|CADisplayLink = 0 命中，显示节奏是全新代码。建议拆两步：ON-2-02a = present 计数器 + 触发来源分类 + atexit 打印（无前置，顺便给 ON-3-01 供数）；ON-2-02b = 脏帧合并 + 与显示节奏对齐（必须排在 ON-4-03 之后，否则分母≈2，比值无从谈起）。"
     },
     {
       "id": "ON-2-03",
@@ -278,7 +280,7 @@
       "touches": [
         "compat/win32/src/RuntimeWin32CompatGdi.cpp"
       ],
-      "note": "由 S14 转入，内容不变。"
+      "note": "由 S14 转入，内容不变。 【2026-11-11 06:44 诊断】本条 detail 描述的改动**已存在于 HEAD**：82af67d(S14a) 让 Rectangle 在 pen.style != PS_SOLID 时走 4 条 strokeLine（右上→左上→左下→右下，相位从 0 起），与 detail 逐字对应。剩下的只有 verify，而 verify 被 S14b 的同一条断言链挡住（当前失败点是 selected path raster: mixed sequence/current point differs at 0）。开工前先跑 verify 定位断言，不要按 detail 重做。"
     },
     {
       "id": "ON-4-02",
