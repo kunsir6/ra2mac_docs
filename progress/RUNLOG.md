@@ -5175,3 +5175,114 @@ queue v69 · done 60 / pending 11 / superseded 7 · **in_progress 0**（78 条�
 下一轮建议 `ON-4-05`（清 projection history，把 interaction smoke 的 EXIT=0 收掉），
 或 `ON-2-03`+`ON-2-04` 合并一轮（同一个 .mm，用户决策已明确）。
 `ON-3-01b` 与 `ON-2-02` 都还在等前置（ON-4-02 / ON-4-03），不要提前做。
+
+## 2026-11-11 07:58 · ON-2-02a · done（呈现计量 + 主人自身帧不再被抢位规则丢弃）
+
+自动化轮。开局复核：无 in_progress（计数 0）、RUNLOG 末两条均 done、`.active` released 07:26:54、
+源码无未提交改动。07:47:25 写 `.active=held`（task=ON-2-02a）。队首 pending 是 ON-2-02，
+按它 06:44 诊断里已写好的拆法执行 02a（02b 需 ON-4-03 前置，已按依赖重排到 ON-4-03 之后）。
+
+### 做了什么
+
+1. `compat/win32/src/RuntimeWin32CompatUser.cpp` 加计量装置（`CONCORD_PRESENT_STATS=1`，
+   默认零输出、零文件）：
+   - WM_PAINT 按**来源**四分：队列合成 / `UpdateWindow` / `RedrawWindow(RDW_UPDATENOW)` / 应用直投，
+     四者之和恒等于分发总数（不相等就说明计数口径错了，汇总行会给出 -1）；
+   - `dirtyMarks` 与 `merged`（置脏时已经脏 → 被失效层合并的次数）；
+   - `attempts / blank / takeover{self,other} / submits / redundant / rate / owner`；
+   - `CONCORD_PRESENT_STATS_UNTIL_SEC=n` 到点打印汇总并 `_Exit`（世界主循环没有可靠退出路径）。
+2. 计量立刻打出一个真缺陷并修复：抢位规则只允许「**严格更大**者接管」，而当前呈现主人与
+   自己面积相等 → `area > gPresentedArea` 恒假 → **主人自己的每一次后续重绘都被丢弃**。
+   修法是给主人自己开绿灯（其余规则一行不动）。
+
+### 验证命令的真实输出
+
+主菜单挂机 15s（修复前，`cd ConcordRTS-GameData`）：
+
+```
+[present-stats] paint-window #1 hwnd=0x7fca887752c0 size=1024x640
+[present-stats] reason=until-sec elapsed=15.00s paints=201 {queue=201 update=0 redraw=0 app=0}
+  endpaint=201 dirtyMarks=201 merged=0 attempts=203 blank=2 takeover=200 {self=200 other=0}
+  submits=1 redundant=0 owner=1024x640 rate=0.07/s
+```
+
+同一场景修复后：
+
+```
+[present-stats] reason=until-sec elapsed=15.01s paints=200 {queue=200 ...}
+  attempts=202 blank=2 takeover=0 {self=0 other=0} submits=200 redundant=0 rate=13.33/s
+user 2.89s / real 15.58s ≈ 18.5%
+```
+
+游戏内世界 20s（`--skip-main-menu --skip-skirmish-menu`）：
+
+```
+[present-stats] reason=until-sec elapsed=20.00s paints=888 {queue=0 update=887 redraw=0 app=1}
+  attempts=890 blank=2 takeover=0 submits=888 redundant=881 rate=44.40/s owner=1024x640
+user 12.36s / real 21.03s ≈ 59%
+```
+
+三帧上屏自证（`CONCORD_MAIN_MENU_POINTER_NAV_ONLY=1` + `CONCORD_ONSCREEN_ATTEST_LIMIT=3`）：
+
+```
+idx=1 layerHash=0x62361240 dibHash=0x62361240 providerHash=0x62361240 match=yes
+idx=2 layerHash=0x43fc9950 dibHash=0x43fc9950 providerHash=0x43fc9950 match=yes
+idx=3 layerHash=0x4e30f9e8 dibHash=0x4e30f9e8 providerHash=0x4e30f9e8 match=yes
+```
+
+三个**互不相同**的 hash、逐帧 `match=yes`：屏幕真的连换三帧且每帧与同帧 DIB 逐像素一致
+（修复前后两帧到不了 present）。
+
+回归：
+
+| 项 | 结果 |
+|---|---|
+| 编译+链接 `ninja -C build-product-mac concord_runtime` | 1 TU + link，0 FAILED |
+| `--main-menu-ui-smoke-test <bmp>` | **EXIT=0**，像素基线与 ON-1-02 逐字相同（sideTopFrames=2 warningFrames=91 slotFrames=17 rampPixels=1056,781,1428） |
+| `--skirmish-ui-smoke-test <bmp>` | EXIT=0 |
+| 指针导航（`CONCORD_MAIN_MENU_POINTER_NAV_ONLY=1` + `..._OUTPUT`） | **checks=48 failures=0** pages=0->1->0 forwardDiff=13780 returnDiff=0 |
+| `--interaction-smoke-test` | EXIT=1，仍是既有 ON-4-05（projection history），与本轮无关 |
+| `verify-win32-compat.sh` 16 层 | **全部通过**（42/67/135/211/25/47/66/154/141/147/37/23/135/42/… 含第 15 层窗口 42 checks） |
+
+### 三条口径（已进 rules）
+
+1. `takeover_rule_blocked_the_owner`：任何"只允许更大者接管"的门都必须给主人自己开绿灯。
+   这条缺陷能藏住，是因为它同时满足"所有既有判据都绿"：`CONCORD_MENU_DUMP` 导的是 DIB（每帧都对）、
+   attest 默认 `LIMIT=1` 只验第 1 帧、进程不崩、CPU 在动。ON-2-01 当时把"屏幕不动"归因给 CGImage
+   缓存（已回退），真正的门在缓存之前。
+2. `world_paint_path_is_updatewindow`：菜单 200/200 走队列合成，世界 887/888 走 `UpdateWindow`
+   同步旁路、队列合成为 0。两个场景的绘制路径**相反**，不能互相代表。
+3. `present_layer_dedup_is_not_the_cost_centre`：菜单 redundant=0（present 层无重复可合并）；
+   世界 redundant=881/888，但每帧 CGImage 建造成本仅 1.3µs，真正浪费是**空转重绘**。
+   在 present 层加去重门需要全帧 hash（>1ms/帧）才安全，比省下的还贵 → 不该做。
+
+### 队列变更（v69 → v70）
+
+- `ON-2-02` → **ON-2-02a done**（原 detail 的"脏帧合并"被证据否掉，verify 收窄为可自动复算的四条）；
+  新增 `ON-2-02b`（只剩"与显示刷新对齐"，**排在 ON-4-03 之后**）；
+  新增 `ON-2-06`（世界 idle 空转重绘，与 ON-4-03 同源但判据是"不动时不空转"），也排在 ON-4-03 之后。
+- 按依赖把 02b/06 移到 ON-4-03 之后，使"数组顺序 = 优先级"继续成立；下一个 pending 是 **ON-2-03**。
+- 新增 3 条 rules（见上）。
+- 产出 `ra2mac_docs/reports/ON-2-02a-呈现节奏计量与主人帧修复.md`。
+
+### 未验证 / 局限
+
+- `redundant` 用 1/32 像素采样签名，是**上界**（小于采样格的局部变化会被算成"没变"）；
+  反向不会发生，故"有没有重复提交"可靠，"重复几帧"偏低。
+- 只有主菜单与世界两档；遭遇战大厅/加载页仍需 ON-4-02 的合成输入。
+- 世界 idle CPU 从 42–45%（S14a）升到 59%，多出的是 44 次/秒纹理上传——这是"该上屏的都上屏"的
+  代价，正解在 ON-2-06/ON-4-03 让空转重绘不发生。
+- 无 Windows 复核。
+
+### 下一轮
+
+**ON-2-03**（Retina/缩放，用户已定"任意拉伸"，单文件 `.mm`，判据是 contentsScale==2 且
+拖动到 1.7 倍后画面铺满不变形）。之后 ON-2-04（窗口语义）、ON-4-05（projection history）。
+`ON-2-06` 与 `ON-2-02b` 都在 ON-4-03 之后，别提前做。
+
+提交：`6dc93e8`（1 文件 +229/−1，仅 `compat/win32/src/RuntimeWin32CompatUser.cpp`）。
+走的是 rules.commit 的**里程碑例外**：ON-2 族未收口（ON-2-03/02b/04 仍 pending），
+但本轮达成可复算的量化效果——上屏提交 1→200/15s、被丢弃帧 200→0、三帧 attest 三个不同
+dibHash 全 match=yes，属"产品画面从冻在第一帧变为连续刷新"，不再按 partial 处理。
+`git diff` 复核：唯一被改写的既有行是 `if (!takeOver) return;`（改成带计数的分支），
+非 `if(WIN32)` 分支、非删除文件。未 push。
