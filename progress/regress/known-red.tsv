@@ -1,10 +1,9 @@
-﻿# 已知红清单：id<TAB>原因<TAB>状态
+# 已知红清单：id<TAB>原因<TAB>状态
 # 规则：只登记"确认与本轮改动无关"的红，每条必须带一句原因。
 # status 取值：env-gap（资产缺口）/ fixture-gap（测试夹具缺口）/ code-red（产品缺陷）
 #              / code-red:needs-metering（疑为产品缺陷，先加只读计量再定性）
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 interaction	几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）已全部通过，M-12 收窄到右键命中：命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后无人顶替（见 fix-plan M-12）	code-red:needs-metering
-render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
-result	计量 changed=0 tick/frames/save 均正常；已排除「没重绘」（缓存门带 !runtimeResultScoreIsAnimated），疑 uiClock 在冒烟里冻结导致 elapsed 不变（见 fix-plan M-17）	code-red:needs-metering
+render	自然地图阴影 candidates=7 drawn=5 但 structures=0；已定性为建筑零投影（structureCand=2 structureEmpty=2：进了通道、掩码「解析成功」却压暗 0 像素），产品缺陷，待拆掩码侧（见 fix-plan M-18）	code-red
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

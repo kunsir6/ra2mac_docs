@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 110,
-  "updated": "2026-11-12T06:28:00+08:00",
+  "version": 111,
+  "updated": "2026-11-12T08:08:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2478,14 +2478,26 @@
  {
   "id": "M-17",
   "title": "result 记分动画两次 paint 出同一张画面",
-  "status": "pending",
+  "status": "done",
   "phase": "问题修复",
   "detail": "计量：changed=0（need>=1000），tick=300/300、frames=6/6、saved=yes 三项正常，只有画面没变。缓存门里已有 && !runtimeResultScoreIsAnimated(*state)，且此处置为真，所以不是「没重绘」。待验：记分帧的时间源是 runtimeUiClockNow（uiClock->nowMs()），冒烟只改 campaignScore.presentationStartedAtMs；若 uiClock 在冒烟里冻结，两次 paint 的 elapsed 相同。先加一行只读打印确认 uiClock 是否推进，再决定「探针推进时钟」还是「记分页按 elapsed 取帧」——两种改法方向相反。",
   "verify": "result 条不再报 stalled；回归保持 PASS>=7 且 RED-NEW=0。",
   "touches": [
    "src/runtime/host/RuntimeShell.cpp"
   ],
-  "note": "计量出处 7f71e72；报告 reports/FIX-07-build冒烟转绿.md §3。"
+  "note": "已完成 4cdc891：记分页读 runtimeUiClockNow（CLOCK_MONOTONIC），探针用 GetTickCount64 写起点，两纪元相减恒为巨大值 → runtimeUiScoreElapsed 两次都钳到末帧 → changed=0 假象。探针改按渲染所读时钟取起点，产品零改动；实测 changed=23872/24486/34795。报告 reports/FIX-08-时钟纪元与建筑零投影.md §1。"
+ },
+ {
+  "id": "M-18",
+  "title": "建筑完全不投影（render 的真红）",
+  "status": "pending",
+  "phase": "问题修复",
+  "detail": "自然地图阴影 candidates=7 drawn=5 shp=5 但 structures=0。注意 drawn=5 而四个 kind 计数器全 0 是算术上不可能的读数——地形树木的软阴影也记进 shadowsDrawn 却没 kind 接住，所以那一行不能当证据。补只读拆分后 structureCand=2 structureEmpty=2：两栋可见建筑都进了地面阴影通道、授权掩码都「解析成功」（shpMask=true）、却压暗 0 像素。shpMask 为假时会退到软阴影兜底必然压暗，故只剩「掩码本身是空的」一种可能 → 建筑根本没有影子，产品缺陷。下一层待拆：shadowImage 宽高/非零像素数/span 数，以及结构阴影中心与 viewport 的关系；再决定是 SHP 阴影帧取错帧（解析）还是 span 生成问题。",
+  "verify": "render 条 structures>0 且 structureEmpty=0；回归保持 PASS>=8 且 RED-NEW=0。",
+  "touches": [
+   "src/render/core/RuntimeMapRenderer.cpp"
+  ],
+  "note": "定性计量 06c8ea2；报告 reports/FIX-08-时钟纪元与建筑零投影.md §2。下一轮起手。"
  }
   ],
   "decisions": {

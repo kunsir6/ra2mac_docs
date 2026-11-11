@@ -6971,3 +6971,30 @@ ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报
 `Building queue` 全绿。回归 **PASS=6 KNOWN-RED=5 → 7 KNOWN-RED=4，RED-NEW=0**。
 `known-red.tsv` 删掉 build 行。`result` 记分动画已拆四子条件计量（`changed=0`，tick/frames/save 正常），
 登记 M-17：待验 uiClock 在冒烟里是否冻结。队列 v109 → v110。
+
+## 2026-11-12 第 7 轮：两条 needs-metering 各归其位
+
+### M-17 result 记分动画「卡在缓存」→ 两个时钟纪元
+
+记分页取动画进度用 `runtimeUiClockNow(state)`（macOS = `CLOCK_MONOTONIC`），
+而探针用 `GetTickCount64() - 650` / `- 1600` 写 `presentationStartedAtMs`。
+两个纪元在 macOS 上不同 → `now - start` 恒为巨大正值 → `runtimeUiScoreElapsed`
+两次都走 `now - start` 并钳到末帧 → 两张位图逐像素相同 → `changed=0`，
+被读成「暂停帧缓存冻帧」。探针改为以 `runtimeUiClockNow(state)` 为基准构造
+「650/1600ms 之前」，产品侧零改动。实测 `changed=23872/24486/34795`（阈值 1000）。
+
+### S-06 render 阴影 structures=0 → 拆开才知道是建筑零投影
+
+`candidates=7 drawn=5 shp=5` 但四个 kind 全 0 —— 这是算术上不可能的读数：
+地形树木的软阴影也记进 `shadowsDrawn`，却没有 kind 计数器接住。
+补 `structureShadowCandidates` / `structureShadowEmptyMasks` 后：
+`structureCand=2 structureEmpty=2`，即两栋可见建筑都进了地面阴影通道、
+授权掩码都「解析成功」、却压暗 0 像素。`shpMask` 为假时会退到软阴影兜底
+必然压暗，所以只剩「掩码本身是空的」一种可能 → **建筑根本不投影**。
+定性为产品缺陷，单独立项 M-18，本轮不动产品代码。
+
+### 验证
+
+回归 **PASS=7 KNOWN-RED=4 → 8 KNOWN-RED=3，RED-NEW=0**。`known-red.tsv` 删 `result` 行，
+`render` 行由 `code-red:needs-metering` 改为 `code-red`（真因已钉死，不再需要计量）。
+队列 v110 → v111（M-17 done、新增 M-18）。报告 `reports/FIX-08-时钟纪元与建筑零投影.md`。
