@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 97,
- "updated": "2026-11-11T18:32:00+08:00",
+ "version": 98,
+ "updated": "2026-11-11T18:46:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -176,7 +176,9 @@
   "dist_app_hash_is_not_comparable": "2026-11-11 实测：不能拿 .app 里 concord_runtime 的 sha256 与 build 产物对账——ad-hoc 重签名会改写文件，哈希必然不同（两份 thin 产物分别签名）。判定 dist 是否为旧包要按 mtime：app 内二进制早于 build 产物 60s 以上即为旧包。repo 里残留的 build-product-*/app/*.app.stale 一律不要用（rules.stale_app_bundle_trap）。",
   "priority_2026_11_11_evolution": "2026-11-11 傍晚用户定调：游戏已能运行，暂不方便做大量人工验证，后续按「无人值守可自证」排序。新顺序：EVO-01 回归编排器（done）→ EVO-02 红基线分诊 → EVO-03 diagnostics 驱动入口（解锁 ON-5-01/ON-3-01b/ON-4-02d）→ EVO-04 日志与崩溃现场 → EVO-05 存档读档往返 → EVO-06 世界重绘只读计量 → EVO-07 首次启动引导+dmg。判据变更：凡是「必须人眼看一眼」的任务一律降级，凡是能变成断言/计量的任务优先。ON-5-02b 仍是纯测量，可随时后台插跑。",
   "triage_2026_11_11": "2026-11-11 EVO-02 分诊结论（6 条 KNOWN-RED 全部落定）：build=code-red（compat 未实现 CP1252，零售 Text= 里的 0x85 省略号被逐字节 widen 成 U+0085；日志有 'only UTF-8 is supported here' 为直接证据）；command=code-red（两栖船靠岸卸不下坦克，纯合成夹具、两次同点失败、与平台无关）；interaction=fixture-gap（建筑全 Neutral）；campaign=env-gap（13/40 无地图 + Bink 缺失，该 gate 在 macOS 按现定义永远不会绿，应改白名单而不是修）；render / result=code-red:needs-metering（未定因，先加只读计量）。教训：红基线必须先分诊再修，否则会把夹具缺口当产品缺陷修，或把上游绿过的断言当自己的锅。分诊表 reports/EVO-02-红基线分诊.md。",
-  "system_cursor_hidden_needs_full_coverage": "2026-11-11 U-06：隐藏系统指针的前提是「每个区域都有游戏自绘指针」，而这个前提必须逐区域验证，不能只看地图区。实测反例：世界页面右侧栏（HUD）此前根本不是自绘——runtimeMouseCursorFrameForPoint 对视口外一律返回 nullopt，Windows 上被系统箭头遮住，macOS 隐藏系统指针后指针整体消失。以后新增「原生页面/浮层」时的检查项：该区域内 runtimeMouseCursorFrameForPoint 是否返回帧；不返回就必须显式回落标准箭头。"
+  "system_cursor_hidden_needs_full_coverage": "2026-11-11 U-06：隐藏系统指针的前提是「每个区域都有游戏自绘指针」，而这个前提必须逐区域验证，不能只看地图区。实测反例：世界页面右侧栏（HUD）此前根本不是自绘——runtimeMouseCursorFrameForPoint 对视口外一律返回 nullopt，Windows 上被系统箭头遮住，macOS 隐藏系统指针后指针整体消失。以后新增「原生页面/浮层」时的检查项：该区域内 runtimeMouseCursorFrameForPoint 是否返回帧；不返回就必须显式回落标准箭头。",
+  "get_key_state_units": "GetKeyState 与 GetKeyboardState 共用一张字节表但位布局不同：表里按下=字节 bit7(0x80)，GetKeyState 返回 SHORT 的按下=bit15(0x8000)、bit0 是锁存位。搬运必须显式做，直接强转会让所有 `& 0x8000` 判据恒假，症状与『没人写表』完全一样。",
+  "compat_headers_no_windows_in_objcxx": "Objective-C++(.mm) 里禁止 include 带 <windows.h> 的 compat 头：会与 AppKit 的 Polygon/GetCurrentProcess/GetProcessInformation 互撞而编译失败（调换包含顺序治标不治本）。需要什么就拆一个不含 windows.h 的小头（如 RuntimeWin32CompatKeyState.h），平台常量翻译留在 .cpp。"
  },
  "tasks": [
   {
@@ -2114,6 +2116,24 @@
    ],
    "result": "interaction 输出 HUD cursor 行并通过，随后仍停在既知缺口（repair cursor）；11 条回归分类与修前完全一致；dist/ConcordRTS-0.1.0-arm64.app 18:28 重打包，旧包改名 .stale。",
    "note": "教训：U-05「产品自绘指针覆盖全窗口」是假设而非验证；隐藏系统指针前应先证明所有区域都有自绘指针。"
+  },
+  {
+   "id": "U-07",
+   "title": "快捷键：Ctrl+数字编队不生效 —— GetKeyState 既没数据源、返回单位也错",
+   "status": "done",
+   "phase": "U 可玩性收尾",
+   "detail": "用户实测：T 屏幕内同类全选有效，Ctrl+数字编队没反应。绑定层是好的且一直被单测覆盖（TeamCreate_n = digit|Control），但那些测试直接构造 code 去比对，从不经过 GetKeyState。真实链路 runtimeWindowProc(WM_KEYDOWN) → handleRuntimeKeyboardIngressKey → handleRuntimePlayerCommandKey → runtimePlayerCurrentKeyCode → GetKeyState。compat 层两处独立缺陷：① g_keyState[256] 从来没人写（唯一写入者 SetKeyboardState 在产品里无调用），AppKit 的 FlagsChanged 事件在 emit() 里被 default 整体丢弃，表恒零；② GetKeyState 把字节表直接强转 SHORT，0x80 留在 bit7，而产品 20+ 处判据都是 & 0x8000 —— 即使表写好了也恒假，症状与①完全一样。修法：GetKeyState 做 bit7→bit15 搬运；新增 setVirtualKeyDown/clearModifierKeyDown/setModifierKeyState，让 appleInputDispatch(KeyDown/KeyUp 先写表再 PostMessageW)、DispatchMessageW(四个键消息派发前写表) 与 .mm 的 emit()(每个事件按 modifierFlags 覆盖式同步、windowDidResignKey 清修饰键) 都写表；鼠标消息 wParam 补上 MK_SHIFT/MK_CONTROL。",
+   "verify": "interaction smoke 新增断言穿过完整消息循环（新建 WS_POPUP 不上屏窗口 + PostMessageW/PeekMessageW/DispatchMessageW）：选 4 辆 HTNK → Ctrl↓ 1↓ 1↑ Ctrl↑ → 断言 teams[0] 恰为这 4 辆；再清空选择 → 只按 1 → 断言 teams[0] 未被改写且选择被找回（反向判据防修饰键卡住）。修复前输出 'Ctrl+1 did not create team 1 (GetKeyState probably reports no Ctrl)'，修复后 'Team keys: ctrl+1 create=4 units plain1 recall=1'，随后仍停在既有 KNOWN-RED（repair cursor）证明非空转。全量回归 PASS=5 KNOWN-RED=6 RED-NEW=0，与修前逐条相同（GetKeyState 语义变更影响 20+ 处判据，无连带红条）。dist 18:44 重打包并复跑同一断言。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatInput.cpp",
+    "compat/win32/src/RuntimeWin32CompatUser.cpp",
+    "compat/win32/src/RuntimeWin32CompatInternal.h",
+    "compat/win32/src/RuntimeWin32CompatKeyState.h",
+    "compat/win32/src/RuntimeAppleWindowSurface.mm",
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "result": "Ctrl+数字编队、Shift/Alt 组合键在消息层恢复；F1–F12 键码补齐（View1-4/SetView/Taunt 依赖它们，此前被 keyCode==0 丢弃）。",
+   "note": "两处教训：① 绑定层单测全绿不能证明输入链路通，断言必须穿过消息循环，否则绕过的正是 GetKeyState 这一段；② .mm 不要 include 带 windows.h 的头（与 AppKit 的 Polygon/GetCurrentProcess 互撞），改为拆出不含 windows.h 的 RuntimeWin32CompatKeyState.h，AppKit 常量→VK 的映射留在 .cpp。仍未修：GetAsyncKeyState 恒 0、MapVirtualKeyW 恒 0（只影响键盘重绑定界面显示）；F 键映射未端到端验证（需真键盘）。详见 reports/U-07-快捷键与键状态.md。"
   }
  ],
  "decisions": {

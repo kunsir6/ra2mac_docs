@@ -6542,6 +6542,57 @@ interaction 仍停在既知的 `no owned structure for repair cursor`（EVO-10 �
 
 产出 `reports/U-06-世界侧栏指针消失.md`；队列 v96 → v97。
 
+## 2026-11-11 18:45 U-07 快捷键：Ctrl+数字编队不生效
+
+### 症状与误判风险
+
+用户报：T 屏幕内同类全选已验证通过，但 Ctrl+数字编队没反应。
+绑定层与单测都是好的（`TeamCreate_n = digit|Control`，TeamKeySmoke 全绿），
+所以第一反应会是"绑定表写错"或"控制器没接上"——都不是。
+
+### 根因（两处，都在 compat 层，各自独立）
+
+1. **表从来没人写**：`g_keyState[256]` 的唯一写入者 `SetKeyboardState` 在产品里无调用；
+   AppKit 的 `FlagsChanged`（修饰键只走这个事件）在 `emit()` 里被 `default: return;` 整体丢弃。
+2. **取出来单位还错**：`GetKeyState` 把字节表直接强转 `SHORT`，按下位停在 bit7(0x80)，
+   而产品 20+ 处判据都是 `& 0x8000`。即使表写好了也恒假。
+
+第 2 条更隐蔽：修了第 1 条仍然全红，报错文案一模一样。
+
+### 修法
+
+- `GetKeyState` 显式搬运 bit7 → bit15（bit0 锁存位同样搬）；
+- 三条输入路径都写表：`appleInputDispatch`（先写表再 `PostMessageW`）、
+  `DispatchMessageW`（四个键消息派发前）、`.mm` 的 `emit()`（每个事件按 `modifierFlags` 覆盖式同步）；
+  `windowDidResignKey:` 清修饰键，防 Ctrl 卡住；
+- 鼠标消息 `wParam` 补 `MK_SHIFT`/`MK_CONTROL`（Shift+点击加选、Ctrl+点击强制攻击依赖它）；
+- 拆出 `RuntimeWin32CompatKeyState.h`（不含 windows.h）：`.mm` 直接 include 内部头会与 AppKit
+  的 `Polygon`/`GetCurrentProcess` 互撞而编译失败，调换包含顺序只是治标；
+- 顺带补 F1–F12 键码（`View1-4`=F1-F4、`SetView`=Ctrl+F1-F4、`Taunt_1-8`=F5-F12 此前全被丢弃）。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| 新增断言（interaction，穿过完整消息循环） | `Team keys: ctrl+1 create=4 units plain1 recall=1` |
+| 修复前同一断言 | `Interaction smoke test failed: Ctrl+1 did not create team 1 (GetKeyState probably reports no Ctrl).` |
+| 全量回归 11 条 | `PASS=5 KNOWN-RED=6 RED-NEW=0`，与修前逐条相同 |
+| dist | 18:44 重打包并复跑同一断言；旧包改名 `.stale` |
+
+断言放在 HUD 指针之后、修理光标之前，所以它必须通过才能走到既知缺口——不是空转。
+
+### 新 rule
+
+- `get_key_state_units`：字节表 bit7 vs SHORT bit15，搬运必须显式做。
+- `compat_headers_no_windows_in_objcxx`：`.mm` 不 include 带 windows.h 的 compat 头，按需拆小头。
+
+### 诚实清单
+
+`GetAsyncKeyState` 仍恒 0、`MapVirtualKeyW` 仍恒 0（只影响键盘重绑定界面的按键名显示）；
+F 键映射未端到端验证（需真键盘或辅助功能授权）。所以"快捷键适配完全了吗"答案仍是**没有**。
+
+产出 `reports/U-07-快捷键与键状态.md`；队列 v97 → v98。
+
 
 ### 附：仓库历史哈希变化（2026-11-11 18:30 观察）
 
