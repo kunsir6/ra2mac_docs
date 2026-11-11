@@ -6,7 +6,7 @@
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 interaction	地图 10 个建筑全 Neutral，断言要己方建筑做修理光标（RuntimeShell.cpp:38341 要求 owner==economy.owner）	fixture-gap
 render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
-build	compat 只实现 UTF-8，CP1252 请求返回 0，0x85 被逐字节 widen 成 U+0085（日志有 "only UTF-8 is supported here"）	code-red
+build	CP1252 编码断言已修（FIX-02/b2ee6fc，evaTextEncoding 已绿）；现停在 real music playback probe mci=error-306 —— macOS 无 MCI 后端，探针口径应 skip （见 fix-plan M-08）	env-gap
 campaign	40 个任务 13 个 Map= 为空 + Bink 视频缺失；该 gate 按现定义在 macOS 永远不会绿，应改白名单	env-gap
 result	暂停态第二次 WM_PAINT 走 reuseCachedFrame，记分动画不前进；断言源自 2026-10-10 上游（Windows 侧历史绿）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red
