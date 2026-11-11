@@ -6236,3 +6236,46 @@ attest 两帧 match=yes。两份产物已重建（14:53）。
 尚未复验：真人鼠标（本机无辅助功能授权）。给了排查工具 `CONCORD_INPUT_TRACE=1`。
 
 队列 v89 → v90。产出 `reports/U-03-点击无反应.md`。
+
+## 2026-11-11 · 「又彩虹圈」的真相：跑的是 11:29 的旧包
+
+用户复测报"点开始游戏又转彩虹圈"。没有急着改代码，先看进程还在不在——在。
+
+### 采样一眼看出不对
+
+```
+Path: /Users/zhenglk/AiProjects/ra2mac/ConcordRTS/build-product-arm/app/ConcordRTS.app/…
+主线程：runRuntimeSkirmishMenu → MsgWaitForMultipleObjectsEx → sleep_for
+pumpEvents 出现 0 次
+```
+
+这是**修复前**的行为（U-01 之后 MsgWait 里应该有 pumpEvents）。再看包名：
+`ConcordRTS.app`，不是 `ConcordRTS-0.1.0-arm64.app`。查 mtime 与哈希：
+
+```
+旧 build-product-arm/app/ConcordRTS.app   11:29  7e774452…
+新 dist/ConcordRTS-0.1.0-arm64.app        14:53  dbce1928…
+```
+
+**它跑的是加架构后缀之前残留的旧包。** 修复没失效，是根本没跑到修复后的二进制。
+build 目录里这种同名旧包有三个（arm 11:29 / x86 11:31 / mac 05:02），谁来双击都可能中招。
+
+### 处置
+
+三个 `ConcordRTS.app` 全部改名 `.app.stale`；构建目录只剩带架构后缀的产物。
+新规则 `stale_app_bundle_trap`：判定用户跑的是哪个包，最快看 `sample` 头部的 Path；
+以后让用户复测必须给**唯一绝对路径**，不能只说"双击 .app"。
+
+### 顺带修 autostart 的假成功
+
+验证时发现 `[autostart] Start button not in layout: hits=19` —— 第 5 轮布局还没建完，
+旧实现直接标记"已点击"然后放弃。**自动化跑完了但其实没点**，比失败更贵。
+改成找不到就重试（上限 600 轮），日志区分"还没布局好"与"一直没出现"。
+修后：`posting Start click at 829,282 (after 76 iterations)`。
+
+### 验证
+
+dist 产物（16:32 重建）端到端：三次 input target 切换 → loading complete →
+世界 5 秒 150 帧，EXIT=0。
+
+队列 v90 → v91。
