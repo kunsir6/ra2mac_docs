@@ -23,7 +23,10 @@ OUT="$PROJECT_ROOT/dist"
 APP_NAME="尤里红警"
 BUNDLE_ID="org.concord.rts.yuri"
 VERSION="0.1.0"
-MIN_MACOS="11.0"
+# 必须与二进制 LC_BUILD_VERSION 的 minos 一致（build 时 -DCMAKE_OSX_DEPLOYMENT_TARGET）。
+# 声明高于实际 minos：Finder 允许多打开一步，dyld 仍然拒绝；
+# 声明低于实际 minos：老系统能装、一启动就崩。两边都错。
+MIN_MACOS="12.0"
 ICON_SOURCE="$SRC_REPO/packaging/icon-source.png"
 DRY_RUN=0
 
@@ -188,7 +191,53 @@ if mean <= 8:
     sys.exit("pack-dist: 系统仍显示通用占位图标（自定义 icns 未被 IconServices 采用）")
 PY
 
-# ⑦ 验证 C：包内二进制能跑（core smoke）。
+# ⑦ 验证 C：最低系统版本「声明 == 实际」。
+#
+#    Info.plist 的 LSMinimumSystemVersion 只是给 Finder/LaunchServices 看的提示；
+#    真正决定"能不能启动"的是 Mach-O 的 LC_BUILD_VERSION.minos——dyld 只看后者。
+#    两者不一致时系统按 plist 放行、dyld 按 minos 拒绝，用户看到的就是笼统的
+#    「系统版本太低」，没有任何日志指向真正原因。本机实测过 plist=11.0 / minos=27.2
+#    这一对（构建时没传 CMAKE_OSX_DEPLOYMENT_TARGET，默认跟本机 SDK 走），
+#    拷到 macOS 12 的 Intel 机上直接打不开。所以这里做成硬断言，而不是注释提醒。
+#
+#    minos 由构建参数决定，脚本改不了；能做的是"不配对就拒绝出包"。
+DECLARED_MIN="$(read_plist LSMinimumSystemVersion)"
+BINARY="$APP/Contents/MacOS/concord_runtime"
+if [ -z "$DECLARED_MIN" ]; then
+    echo "pack-dist: Info.plist 缺少 LSMinimumSystemVersion" >&2
+    exit 1
+fi
+if [ "$DECLARED_MIN" != "$MIN_MACOS" ]; then
+    echo "pack-dist: plist 声明 ${DECLARED_MIN}，但脚本 MIN_MACOS=$MIN_MACOS" >&2
+    exit 1
+fi
+if ! command -v vtool >/dev/null 2>&1; then
+    echo "pack-dist: 找不到 vtool（Xcode Command Line Tools），无法校验 minos" >&2
+    exit 1
+fi
+ARCH_LIST="$(lipo -archs "$BINARY")"
+for arch in $ARCH_LIST; do
+    ARCH_MIN="$(vtool -arch "$arch" -show-build "$BINARY" 2>/dev/null \
+        | awk '/minos/ {print $2; exit}')"
+    if [ -z "$ARCH_MIN" ]; then
+        echo "pack-dist: 读不到 $arch 切片的 minos" >&2
+        exit 1
+    fi
+    if [ "$ARCH_MIN" != "$MIN_MACOS" ]; then
+        cat >&2 <<EOF
+pack-dist: $arch 切片的 minos=${ARCH_MIN}，与 MIN_MACOS=$MIN_MACOS 不一致。
+  plist 声明的最低版本是 ${DECLARED_MIN}，二进制实际要求 ${ARCH_MIN}。
+  两者不等时，系统按 plist 放行、dyld 按 minos 拒绝，用户只会看到笼统的
+  「需要更新 macOS」而拿不到真正原因。
+  重新构建（两个架构都要）：
+    cmake -S "$SRC_REPO" -B <build-dir> -DCMAKE_OSX_DEPLOYMENT_TARGET=$MIN_MACOS
+EOF
+        exit 1
+    fi
+done
+say "min-macos ${DECLARED_MIN}（plist 与 $(echo "$ARCH_LIST" | tr ' ' '+') 的 minos 一致）"
+
+# ⑧ 验证 D：包内二进制能跑（core smoke）。
 "$APP/Contents/MacOS/concord_runtime" --smoke-test >/dev/null 2>&1 || {
     echo "pack-dist: 包内二进制 --smoke-test 失败" >&2
     exit 1
