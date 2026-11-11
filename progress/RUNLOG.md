@@ -5440,3 +5440,68 @@ idx=3 layerHash=0x83b9bd68 dibHash=0x83b9bd68 providerHash=0x83b9bd68 match=yes 
 就写着「x86 强模型测不出来，换 ARM 就是稳定复现的错」），单次全绿不算证明，ON-5-02 建议优先在 arm 上做。
 
 产出：`reports/ARM-01-arm64迁移验证.md`。源码仓库无改动（`git status` 干净，`build-*/` 已在 `.gitignore`）。
+
+## 2026-11-11 11:40 · PKG-01 · done（双 thin 产物：arm64 与 x86_64 各一份，渲染逐字节相同）
+
+用户决策：「最终输出产物，直接两份。intel 下 intel，arm 的下 arm」→ 不做 universal，出两份单架构 `.app`。
+
+### 怎么出的
+
+一份源码、两组参数，源码不分叉：
+
+```
+arm64 : cmake -B build-product-arm ...            → --target concord_app
+x86_64: cmake -B build-product-x86 -DCMAKE_OSX_ARCHITECTURES=x86_64 → --target concord_app
+```
+
+`concord_app` 是从已链接二进制**复制**出 bundle 的显式目标，所以 `build-product-*/concord_runtime`
+这个开发形态路径不变，既有 smoke / script 全部继续可用。
+
+| 交付物 | 架构 | 二进制 | .app |
+|---|---|---|---|
+| `dist/ConcordRTS-0.1.0-arm64.app` | arm64 | 45,322,272 B | 45 MB |
+| `dist/ConcordRTS-0.1.0-x86_64.app` | x86_64 | 52,637,120 B | 52 MB |
+
+两份都 `codesign --verify --deep --strict` 通过，plist 均含 `NSHighResolutionCapable=true` /
+`LSMinimumSystemVersion=11.0` / `CFBundleIdentifier=org.concord.rts`。
+
+### 等价性证据（这条比计数相同强）
+
+两份产物各跑 `--main-menu-ui-smoke-test`，导出的 BMP **SHA-256 完全相同**：
+
+```
+arm64  : 7f3708c822cdac09e9025e8a2357028d
+x86_64 : 7f3708c822cdac09e9025e8a2357028d
+```
+
+计数也逐项相同（sideTopFrames=2 / warningFrames=91 / slotFrames=17 / rampPixels=1056,781,1428）。
+**计数相同只说明统计口径一致，BMP 逐字节相同说明每一个像素一致**——compat 的 GDI 光栅、
+字体光栅器、调色板路径在两架构上完全等价。
+attest 方面两份都三帧 `layerHash==dibHash==providerHash` + `failures=0`。
+
+### 新进 rules 的测量陷阱（差点误判）
+
+首轮测得 `arm scale=2.0`、`x86 scale=1.0`，看着像「x86 产物 Retina 坏了」。做对照才发现：
+
+```
+裸二进制（build-product-*/concord_runtime）       arm=2.0
+.app 内二进制直接 exec                      arm=1.0  x86=1.0
+```
+
+arm 的 `.app` 内二进制同样 1.0 → 差异只来自**启动方式**。高分辨率由 LaunchServices 启动时决定，
+绕过它直接 exec bundle 内二进制会退回 legacy 1x。
+所以 `scale` 判据只在裸二进制方式下可信；`.app` 真机双击才能验 Retina。
+本次 `open --args` 参数没生效、`launchctl setenv` 被沙箱拒，Retina 未闭环——**Intel 用户的 Retina 仍未验证**。
+
+### 交付注意
+
+`.app` 里 `Contents/Resources/data-root` 是 134 字节**文本指针**（指向 `ConcordRTS-GameData` 绝对路径），
+不是数据副本。发给别人不能只发 `.app`，必须同时给数据树或改这个指针。
+
+### 队列变更（v72 → v73）
+
+- `decisions` 追加「最终交付形态（架构）」一条。
+- 新增 rules：`delivery_two_thin_binaries`、`retina_scale_measurement_trap`。
+- 新增 `PKG-01`（done）。
+
+产出 `reports/PKG-01-双产物交付.md`。源码仓库仍无改动；`dist/` 在仓库外，不入库。

@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 72,
- "updated": "2026-11-11T10:45:00+08:00",
+ "version": 73,
+ "updated": "2026-11-11T11:35:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -148,7 +148,9 @@
   "present_layer_dedup_is_not_the_cost_centre": "ON-2-02a：菜单 submits=200 且 redundant=0（present 层无重复可合并）；世界 redundant=881/888 但每帧 CGImage 建造成本只有 1.3µs（ON-2-01 已测），真正的浪费是**空转重绘**（44 次/秒画同一画面），应在帧循环解决（ON-2-06/ON-4-03），不要在 present 层加去重门——那需要全帧 hash（>1ms/帧）才安全，比它省下的还贵。",
   "commit_must_be_verified": "每次提交后必须跑 git fsck --no-progress 与 git status --short，不能只看 git log。2026-11-11 实证：179c84e 的 commit 对象与 message 都在、git log 读起来正常，只有 compat/ 子树对象没落盘，git status/diff 全部 fatal；而下一轮自动化第一件事就是 git add/diff，不校验就会以\"莫名其妙的 fatal\"炸开且无法归因到上一轮。",
   "product_full_build_is_broken": "产品级 `cmake --build build-product-arm`（1823 目标）在 [182/1823] 失败于 concord_mod_history_noop_smoke：RuntimeModExtensionsHistoryNoopSmoke.cpp 调用 advanceRuntimeModExtensions(宿主自造类型)，而唯一声明是 src/runtime/session/detail/RuntimeProductionOperations.h:9631 的 advanceRuntimeModExtensions(RuntimeGameSessionState&)，测试既没 include 该头、类型也不匹配。与架构无关，历史上一直存在——过去所有验证都只编 concord_runtime 主目标，从没触发。因此：判据命令沿用 `cmake --build <dir> --target concord_runtime`；要恢复全量构建见 ARM-02。",
-  "lighting_simd_off_on_arm64": "src/render/lighting/RuntimeLightingLookupRaster.h 用 __SSE2__ 选路，arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，故金标准哈希不受影响；但该文件的系数是「只在能逐项精确复现 rounded 查找表时才被接受」，若将来把光照纳入像素级判据，必须单独验证标量与 SSE2 逐像素一致。性能影响待 ON-4-04 量化。"
+  "lighting_simd_off_on_arm64": "src/render/lighting/RuntimeLightingLookupRaster.h 用 __SSE2__ 选路，arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，故金标准哈希不受影响；但该文件的系数是「只在能逐项精确复现 rounded 查找表时才被接受」，若将来把光照纳入像素级判据，必须单独验证标量与 SSE2 逐像素一致。性能影响待 ON-4-04 量化。",
+  "delivery_two_thin_binaries": "交付形态 = 两份 thin 产物，不做 universal（用户 2026-11-11 决策）。arm64: cmake --build build-product-arm --target concord_app → build-product-arm/app/ConcordRTS.app；x86_64: cmake -DCMAKE_OSX_ARCHITECTURES=x86_64 -B build-product-x86 → 同上 --target concord_app。出口目录 /Users/zhenglk/AiProjects/ra2mac/dist/，命名 ConcordRTS-<version>-<arch>.app，不入库。注意 .app 内的 Contents/Resources/data-root 是**文本指针**（指向 ConcordRTS-GameData 绝对路径），不是数据副本；把 app 发给别人必须同时给数据树或改这个指针。",
+  "retina_scale_measurement_trap": "2026-11-11 实测陷阱：attest 里的 scale 只在**裸二进制**（不在 .app 内）直接执行时可信——arm 裸二进制得到 scale=2.0，而 arm/x86 的 .app 内二进制直接 exec 都得到 scale=1.0。原因是高分辨率由 LaunchServices 启动时决定，直接 exec bundle 内二进制会退回 legacy 1x。故「x86 切片在 Rosetta 下 scale=1.0」不能证明产物有 Retina 缺陷，也不能证明没有——Retina 判据必须在真 Intel 机器上以裸二进制方式复验。"
  },
  "tasks": [
   {
@@ -1685,6 +1687,16 @@
     "tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp"
    ],
    "note": "与架构无关（arm/x86 同样失败），属历史遗留。修复前「全量构建」不得作为验收项。"
+  },
+  {
+   "id": "PKG-01",
+   "title": "双 thin 产物交付：arm64 与 x86_64 各一份 .app，菜单渲染逐字节相同",
+   "status": "done",
+   "detail": "按用户决策出两份单架构 .app，不做 universal。arm64 走 build-product-arm 原生编译；x86_64 在 arm 机器上交叉编译（CMAKE_OSX_ARCHITECTURES=x86_64）。两份均 ad-hoc 签名、codesign --verify --deep --strict 通过，落到 dist/ConcordRTS-0.1.0-<arch>.app。",
+   "verify": "lipo -archs 分别为 arm64 / x86_64；两类 smoke EXIT=0；--main-menu-ui-smoke-test 导出的 BMP 两份 SHA-256 完全相同（7f3708c8…）；两份 attest 各三帧 match=yes、failures=0。",
+   "touches": [],
+   "note": "体积 arm64 45M / x86_64 52M。data-root 是指针文件不是数据副本。x86 产物在 Rosetta 下 attest scale=1.0 属测量假象（见 rules.retina_scale_measurement_trap），真 Intel 机器上的 Retina 行为未验。详见 reports/PKG-01-双产物交付.md。",
+   "result": "2026-11-11 11:35 done：两份产物就绪，渲染输出逐字节相同。"
   }
  ],
  "decisions": {
@@ -1710,6 +1722,11 @@
     "topic": "人眼验收",
     "decision": "愿意跑一次 30 秒剧本",
     "effect": "ON-3-03 剧本已交付，等回报"
+   },
+   {
+    "topic": "最终交付形态（架构）",
+    "decision": "出两份 thin 产物：Intel 机器出 x86_64，arm 机器出 arm64；不做 universal fat binary",
+    "effect": "源码仍是一份、两组编译参数（CMAKE_OSX_ARCHITECTURES）。交付目录 dist/ 下按架构命名；两个产物实测菜单位图 SHA-256 完全相同。Intel 产物最终验收应在真 Intel 机器上做。"
    }
   ]
  }
