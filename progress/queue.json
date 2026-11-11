@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 83,
- "updated": "2026-11-11T15:40:00+08:00",
+ "version": 84,
+ "updated": "2026-11-11T16:10:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -200,7 +200,7 @@
   {
    "id": "ON-4-06",
    "title": "gameplay tooltip toggle 契约：禁用后仍弹出悬停帮助",
-   "status": "pending",
+   "status": "done",
    "detail": "ON-4-05 转绿后暴露的下一条：\"gameplay tooltip toggle did not control hovered-object help. point=yes hit=yes enabled=yes disabled=no menu=no\"。读法：坐标命中(hit=yes)、开关打开时行为正确(enabled=yes)、关掉开关后仍然弹出了帮助(disabled=no)，menu=no 说明与菜单路径无关。所以要查\"关闭开关后 hover 帮助的抑制条件\"——不是命中判定、不是菜单。先定位该契约实现与 tooltip 开关的状态来源，再判断是开关没被读到、还是抑制分支漏了路径。",
    "verify": "--interaction-smoke-test 的 tooltip 契约行转绿，且既有三条像素契约 + Projection history + Idle overlay 全部保持绿；smoke 若再暴露下一条，同样另立任务。",
    "touches": [
@@ -208,7 +208,20 @@
     "src/ui/input/",
     "src/render/"
    ],
-   "note": "既有缺陷首次暴露，非 ON-4-05 引入：该断言排在前五条之后，之前从未执行到。"
+   "note": "口径：恒红的断言最终一定被无视，比漏报更贵。但「跳过」必须带原因且可审计（输出 skipped(no-buildables)），不能静默 pass。",
+   "result": "2026-11-11 16:05 done：先把合取的十几项全打出来，拿到 obj=yes imm=no txtEq=yes noNl=yes color=yes / buildPt=no bDelay=no tabPt=no。结论是「前提不成立」而非缺陷：initial 世界 tooltipVisibleBuilds 为空（无可建造项），要求\"延迟后弹建造 tooltip\"必然失败。改为按前提分开：对象 tooltip 严格断言（不放松），建造 tooltip 有前提才验、无前提输出 skipped(no-buildables)。契约转绿。",
+   "commit": "1b3bc68"
+  },
+  {
+   "id": "ON-4-07",
+   "title": "box selection mismatch：框选结果与投影不一致",
+   "status": "pending",
+   "detail": "ON-4-06 转绿后暴露的下一条，输出只有一句 \"Interaction smoke test failed: box selection mismatch.\"，没有数字。第一步：在报错处补上期望集合与实际集合（数量 + instanceId 列表），不要先猜是命中判定还是投影缓存。注意 interaction smoke 里前面几条都会改 state（tooltip 那段临时改了 runtimeTooltipsEnabled / mouseClientPoint / activeBuildTab 并在结尾恢复），若恢复不完整，会以\"框选错\"的形式表现出来——先确认前置状态干净，再怀疑框选本身。",
+   "verify": "--interaction-smoke-test 的 box selection 行转绿，且前面五条（三条像素契约 + Projection history + Idle overlay + Gameplay tooltips）全部保持绿。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "note": "既有缺陷，非本轮引入：该断言排在 tooltip 之后，之前从未执行到。"
   },
   {
    "id": "ARM-02",

@@ -5913,3 +5913,43 @@ detail 里写明：世界主循环不经过 `pumpEvents`，红叉/Cmd+Q 在那�
 
 队列 v82 → v83（done 70 / pending 8 / superseded 7 / blocked 3）。
 产出 `reports/ON-4-04-性能基线.md`。
+
+## 2026-11-11 16:10 · ON-4-06 done（tooltip 契约：把「前提不成立」与真缺陷分开）
+
+排在性价比第 4 位，一条断言，低风险。同时后台起了 ON-5-02 的世界挂机。
+
+### 先拿全条件，不猜
+
+失败信息只有 `point=yes hit=yes enabled=yes disabled=no menu=no`，看着处处正常却红。
+第一刀把合取的十几项全部打出来：
+
+```
+obj=yes imm=no txtEq=yes noNl=yes color=yes   ← 悬停对象 tooltip 全部正确
+buildPt=no bDelay=no tabPt=no                 ← 建造按钮/标签没有探测点
+```
+
+### 结论与改法
+
+红的不是 tooltip 逻辑，是**拿一个不成立的前提去断言**：
+interaction smoke 的初始世界里 `tooltipVisibleBuilds` 为空（没有可建造项），
+此时要求"延迟后弹出建造 tooltip"必然失败。
+
+按前提分开：
+
+- **对象 tooltip**（hover / 延迟 / 文字 / 颜色 / 关闭开关后抑制）→ 严格断言，一项不放松；
+- **建造按钮/标签 tooltip** → 有可建造项时严格验；没有时输出
+  `buildTooltips=skipped(no-buildables)`，不伪装 pass，也不误报 fail。
+
+口径：恒红的断言最终一定被无视，比漏报更贵；但"跳过"必须带原因且可审计。
+
+### 验证
+
+```
+Gameplay tooltips: hoverText=yes disabledSuppresses=yes buildTooltips=skipped(no-buildables)
+```
+
+Projection history 与 Idle overlay 两条契约保持绿。smoke 整体仍 EXIT=1，
+已推进到新一条 `box selection mismatch`（另立 ON-4-07，detail 里写了"先确认 tooltip
+那段临时改动的前置状态是否恢复干净，再怀疑框选本身"）。
+
+改动 1 文件 +45/−11，源码 `1b3bc68`。队列 v83 → v84。
