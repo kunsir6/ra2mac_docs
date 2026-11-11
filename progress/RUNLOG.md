@@ -6311,3 +6311,40 @@ unhide（失焦、Cmd+Tab、异常退出），指针就永久消失，用户只�
 真机上屏自证 2 帧 match=yes。两份产物重建（16:35）。
 
 队列 v91 → v92。
+
+## 2026-11-11 · U-05 指针策略定案（用像素 A/B 否决了一次"看起来更对"的方案）
+
+用户报：世界两个指针、游戏内菜单该有的箭头没有。
+
+### 走错一步，但被证据拦住
+
+先按 Windows 语义镜像 SetCursor（nullptr→隐藏、handle→显示箭头），逻辑上很顺：
+产品用 SetCursor 表达每一屏的意图。实现后加追踪发现世界每秒几十次
+`SetCursor(32512)` —— 于是做像素 A/B 验证（`CGWarpMouseCursorPosition` 固定真实
+指针 + `screencapture -C` 带光标截图）：
+
+```
+hide=0（显示系统指针）：同一位置两个箭头 —— 白色描边系统箭头 + 灰色游戏自绘箭头
+hide=1（隐藏系统指针）：只剩灰色游戏箭头，位置一致
+```
+
+结论推翻镜像方案：产品的 SetCursor 请求在这套引擎里**不代表**系统指针该不该出现，
+它只是 Windows 时代的历史痕迹。镜像被完整回退。
+
+### 保留的兜底
+
+真凶更可能是 cursor rect 属于窗口级状态——窗口激活/失焦/重新 orderFront 时会被
+AppKit 整体丢弃，而此前只在建窗口时 invalidate 一次，丢了就补不回来。补两处：
+
+1. `windowDidBecomeKey:` → `invalidateCursorRectsForView`
+2. 每个输入事件 → 主动 `[invisibleCursor set]`（最后一道保险）
+
+另保留两个钩子（需显式开环境变量，生产零开销）：
+`CONCORD_CURSOR_TRACE=1` 打印每次 SetCursor；`CONCORD_CURSOR_SELFTEST=1` 周期性
+投合成 mouseMoved，用于无人值守驱动完整输入链路——这一轮正是靠它把光标链路跑通。
+
+### 结果
+
+用户复测："体验可以了，这个问题解决了。" 两份产物 16:54 重建。
+
+队列 v92 → v93。

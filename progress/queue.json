@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 92,
- "updated": "2026-11-11T16:40:00+08:00",
+ "version": 93,
+ "updated": "2026-11-11T16:56:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -169,7 +169,7 @@
   "hwnd_direct_smoke_cannot_cover_input_binding": "直接用 PostMessageW / SendMessageW 投到自己手里 HWND 的 smoke（交互 smoke、大厅 flow smoke）证明不了\"AppKit 事件有没有送对窗口\"——它们绕过了输入绑定这一层，所以 U-03 那三类问题在它们全绿的情况下依然存在。要覆盖输入链路必须走 AppKit → 翻译 → gInputSink → 队列 → 窗口过程 的完整路径，或至少断言 [cocoa] input target 与当前呈现窗口一致。",
   "macos_game_window_input_defaults": "macOS 上有三个默认行为会让游戏\"点不动/点不准\"，建窗口时必须显式处理：① NSView.acceptsFirstMouse 默认 NO → 激活窗口的那一次点击被系统吃掉（\"第二下才行\"）；② window.acceptsMouseMovedEvents 默认 NO → 平时没有 mouseMoved，产品的 WM_MOUSEMOVE 永远不来，命中判定用旧坐标（\"每一下都错位\"）；③ 输入目标要随呈现窗口重绑（见上条）。症状都像\"输入没接通\"，但实际是三个不同层次。",
   "stale_app_bundle_trap": "2026-11-11 实测踩坑：用户复测\"又彩虹圈\"，采样发现它跑的是 build-product-arm/app/ConcordRTS.app（11:29）——加架构后缀之前残留的旧包，与新包（dist 16:32）哈希不同。这不是修复失效，是根本没跑到修复后的二进制。一次排查因此绕了一整轮。处置：把 build-product-{arm,x86,mac}/app/ConcordRTS.app 全部改名为 *.app.stale；构建目录现在只会产出带架构后缀的 ConcordRTS-<ver>-<arch>.app。判定\"用户跑的是哪个包\"最快的方法：sample 头部的 Path 字段；其次是比对 Contents/MacOS/concord_runtime 的 mtime 与哈希。以后让用户复测时，必须给出**唯一绝对路径**，不要只说\"双击 .app\"。",
-  "system_cursor_hidden_by_cursor_rect": "macOS 上游戏自绘指针时，必须把**系统指针**在窗口区域内藏掉，否则两者重叠。做法：view 的 resetCursorRects 里 addCursorRect(self.bounds, 不可见光标)，默认开启，CONCORD_HIDE_SYSTEM_CURSOR=0 可关。不要用 [NSCursor hide]：那是全局计数，漏一次 unhide（失焦/Cmd+Tab/异常退出）指针就永久消失。cursor rect 是区域限定的，出窗口自动恢复。注意本 SDK 里 +[NSCursor invisibleCursor] 不可用（no known class method），要用 1×1 空图 + initWithImage:hotSpot: 自建并缓存。建窗口后需主动 invalidateCursorRectsForView，否则要等鼠标移动才生效。"
+  "system_cursor_hidden_by_cursor_rect": "macOS 上游戏自绘指针，因此窗口区域内必须隐藏系统指针：view 的 resetCursorRects 里 addCursorRect(self.bounds, 不可见光标)。默认开启，CONCORD_HIDE_SYSTEM_CURSOR=0 可关。三条实证要点：① 不要镜像 Win32 的 SetCursor：世界里产品每秒几十次请求 StockArrow，而游戏同时自绘箭头，   镜像会让系统箭头回来（像素 A/B：hide=0 出现白+灰两个箭头，hide=1 只剩灰色）。② 不要用 [NSCursor hide]：全局计数，漏一次 unhide 指针永久消失。③ cursor rect 会被窗口激活/失焦/orderFront 丢掉，必须 windowDidBecomeKey 重新 invalidateCursorRectsForView，并在每个输入事件里补一次 [invisibleCursor set]。另：本 SDK 无 +[NSCursor invisibleCursor]，用 1×1 空图 initWithImage:hotSpot: 自建。"
  },
  "tasks": [
   {
@@ -222,6 +222,20 @@
    ],
    "commit": "267cce3",
    "note": "用 cursor rect 而不是 [NSCursor hide]：区域限定、出窗口自动恢复，不用配对 unhide。本 SDK 无 +[NSCursor invisibleCursor]（编译报 no known class method），改用 1×1 空图自建并缓存。建窗口时主动 invalidateCursorRectsForView 一次，否则要等鼠标移动才生效。未复验：加载页若不自绘指针，会暂时看不到光标——需要时用环境变量关掉。"
+  },
+  {
+   "id": "U-05",
+   "title": "指针策略定案：一律隐藏系统指针（SetCursor 镜像经像素 A/B 否决）",
+   "status": "done",
+   "detail": "用户报\"进世界两个指针、游戏内菜单该有的箭头没有\"。尝试过镜像 Win32 的 SetCursor （nullptr→隐藏、handle→显示箭头），并用 CGWarpMouseCursorPosition + screencapture -C 做像素 A/B：hide=0 时同一位置出现两个箭头（白色系统 + 灰色游戏自绘），hide=1 只剩游戏那个。结论：产品的 SetCursor 请求在这套引擎里不代表\"系统指针该不该出现\"——世界每秒几十次 StockArrow，而游戏同时自绘箭头。镜像方案完整回退，保持一律隐藏。",
+   "verify": "A/B 截图证据（hide=0 两个箭头 / hide=1 一个）；菜单 smoke rampPixels=1056,781,1428 不变；skirmish EXIT=0 且 161 预览；真机上屏自证 2 帧 match=yes。用户复测确认体验正常。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm",
+    "compat/win32/src/RuntimeAppleWindowSurface.h",
+    "compat/win32/src/RuntimeWin32CompatInput.cpp"
+   ],
+   "commit": "40a117e",
+   "note": "根因候选：cursor rect 是窗口级状态，窗口激活/失焦/orderFront 时会被 AppKit 丢弃，此前只在建窗口时 invalidate 一次。补两处兜底：windowDidBecomeKey→invalidate、每个输入事件主动 [invisibleCursor set]。保留两个钩子：CONCORD_CURSOR_TRACE=1（逐次 SetCursor，标 [not mirrored]）、CONCORD_CURSOR_SELFTEST=1（周期性合成 mouseMoved，无人值守驱动完整输入链路）。"
   },
   {
    "id": "ON-4-04",
