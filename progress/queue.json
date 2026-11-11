@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 100,
- "updated": "2026-11-11T20:37:23+08:00",
+ "version": 102,
+ "updated": "2026-11-11T20:59:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -183,7 +183,10 @@
   "icns_exists_is_not_enough": "判断图标是否生效，不能看 .icns 是否存在、也不能只跑 iconutil，必须向 IconServices 取渲染结果并与「无图标空壳 bundle」的空白占位图比对。macOS 图标要求 1024 画布/824 内容/半径185/透明边距；源图无 alpha 的方块图会被静默丢弃。",
   "fullscreen_needs_primary_and_real_click": "全屏能力有两位：collectionBehavior=NSWindowCollectionBehaviorFullScreenPrimary（决定绿灯是「展开箭头」还是「+」）+ 窗口可缩放。自测必须点真绿灯（standardWindowButton:NSWindowZoomButton 的 performClick）而不是直接 toggleFullScreen:，且退回要从主循环栈发起——在 windowDidEnterFullScreen 通知栈里再调 toggleFullScreen 会被 AppKit 静默丢掉。",
   "view_coords_are_not_surface_coords": "鼠标坐标必须先按「表面尺寸/view 尺寸」反算回呈现表面空间再交给游戏。view 坐标只在 view==表面时等于客户区坐标；全屏或拉伸窗口之后直接用 view 坐标会让点击整体偏移到打空（而且不报任何错）。",
-  "fullscreen_criteria_no_hash": "全屏自测的判据不能用「前后帧 hash 不变」：全屏期间界面本来就在动（光标闪烁、动画），hash 必变。判据应是 contents 未丢 + CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧。"
+  "fullscreen_criteria_no_hash": "全屏自测的判据不能用「前后帧 hash 不变」：全屏期间界面本来就在动（光标闪烁、动画），hash 必变。判据应是 contents 未丢 + CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧。",
+  "nscursor_set_is_global": "-[NSCursor set] 设的是**全局**当前游标，不会因为指针离开窗口自动撤销：只要有一条路径 set 了空图，指针在别的应用/桌面上也会看不见。区域限定的隐藏必须自己做往返（进入设、离开撤销），或真接 [NSApp sendEvent:] 让 cursor rect 生效。",
+  "cursor_rect_needs_send_event": "本项目只 nextEventMatchingMask 出队、不调 [NSApp sendEvent:]，实测这种循环里 cursor rect（addCursorRect/resetCursorRects）完全不生效，NSApp.isActive 与 window.isKeyWindow 也恒为 0。任何依赖「窗口级 cursor 状态」的代码在本项目里都是死代码，除非先接 sendEvent（见 EVO-15）。",
+  "cursor_state_needs_truth_not_flag": "判断「光标现在是不是被我们藏了」要读 +[NSCursor currentSystemCursor]（系统此刻真正在显示什么），不要用自己的标志位：AppKit 会在激活变化时把游标改回箭头，标志位一旦脱节就再也收敛不回来。"
  },
  "tasks": [
   {
@@ -2169,6 +2172,32 @@
    "note": "没能做像素级验证：本机 Accessibility 未授权（System Events 查 AX 属性 -10004 权限违例，合成点击也进不去），进程内读绿灯 AX 子角色返回 nil（AX 元素懒创建）。判据因此换成两层：形态（FullScreenPrimary+可缩放）+ 行为（点绿灯真进全屏），后者比图标更硬。另：全屏是把 800x600 表面 Nearest 放大到整屏，不是按显示器分辨率重绘（EVO-14）。"
   },
   {
+   "id": "U-10",
+   "title": "系统指针：移出窗口就看不见了（[NSCursor set] 是全局设置，被当成了区域设置）",
+   "status": "done",
+   "phase": "U 可玩性收尾",
+   "detail": "用户报「鼠标在 app 框内隐藏了系统图标，移出去就看不到了」。根因是 U-05 为修「窗口激活后冒出第二个箭头」而加的保险：每个输入事件都无条件 [hiddenCursor set]。而 -[NSCursor set] 是全局的当前游标，不会因指针离开窗口自动撤销，于是指针移出游戏窗口后系统继续画那张 1×1 空图。顺带用探针（/tmp/keyprobe.m）查清一件更基础的事：本项目从不调 [NSApp sendEvent:]，只 nextEventMatchingMask 出队，实测这种循环里 NSApp.isActive=0、window.isKeyWindow=0，而且 cursor rect 根本不生效（同一窗口同一 addCursorRect，只出队时系统游标仍是 28x40 箭头，改成出队后 sendEvent 立刻变 1x1）——也就是说 U-04/U-05 注释里「cursor rect 区域限定」的前提在本项目从未成立，真正在隐藏指针的一直是那句全局 set。修法：删掉逐事件 set，改由 syncGlobalCursorForPointer 维护往返——判据用 WindowServer 事实 +[NSWindow windowNumberAtPoint:belowWindowWithWindowNumber:]（指针在窗口框内且该点最上层就是我们的窗口才隐藏），状态用 +[NSCursor currentSystemCursor] 判断系统此刻真正在显示什么（不用自己的标志位），在 pumpEvents 开头与 present 末尾各收敛一次。",
+   "verify": "CONCORD_CURSOR_SELFTEST=1 自检两条断言。修复前：inside cursor=1x1 ok=1 / outside cursor=1x1 hidden=1 ok=0（复现用户现象）/ failures=1。修复后：inside overUs=1 top=2942 ours=2942 cursor=1x1 sync=25 want=1 ok=1 / outside cursor=28x40 ok=1 / failures=0。用 LaunchServices（open）走真实启动路径复跑同样 failures=0（该路径 appActive=1 windowKey=1）。全量回归 PASS=5 KNOWN-RED=6 RED-NEW=0，与改前逐条一致。dist 20:55 重打包，包内二进制即修复版。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "result": "指针移出窗口立刻恢复系统箭头，窗口内仍隐藏；不再有全局残留。顺带确认 cursor rect 在本项目是死代码（未接 sendEvent），已把这条写进报告与 rule。",
+   "note": "自检输出双写 stderr + /tmp/concord-cursor-selftest.log：用 open 启动的进程 stderr 直接进 /dev/null，而「窗口是不是 key」只有在真实启动路径下才有意义。用户提的第二个建议（游戏 focus 时把指针捕获住、组合键释放）另立 U-11 评估。"
+  },
+  {
+   "id": "U-11",
+   "title": "指针捕获（VMware 式）：游戏内指针不出窗口 + 组合键释放 —— 待定方案",
+   "status": "pending",
+   "phase": "U 可玩性收尾",
+   "detail": "用户建议：游戏 focus 时指针不能移出屏幕、系统指针也限制住；组合键释放指针、游戏 unfocus、游戏内光标不动。技术现实：macOS 没有给第三方应用「把光标限制在某个窗口内」的 API，能做「限制」的只有相对模式——CGAssociateMouseAndMouseCursorPosition(false) 让光标**完全不动**，由游戏用 NSEvent.deltaX/deltaY 自己推进自绘光标，再用 CGWarpMouseCursorPosition 把硬件指针钉在窗口中心。也就是说「限制在窗口内」= 「硬件指针停住、游戏接管」。释放热键候选 ⌃⌘（游戏本身不用 Command 修饰键，⌃ 单独用于强制攻击）。全屏模式不需要捕获：窗口就是屏幕，指针本来出不去，边缘滚动天然可用。窗口模式是否默认捕获是唯一的真正分歧：默认捕获（VMware 老行为）体验连贯但会「抓住」用户的鼠标；默认不捕获（macOS 惯例）不抓人但指针一出界游戏就收不到移动事件。",
+   "verify": "待做（决定后）：捕获态下 CGWarpMouseCursorPosition 移动指针应无效（指针位置读数不变），释放后立刻可移动；⌃⌘ 释放后游戏光标停在原处、系统箭头出现；退出/崩溃路径必须恢复 CGAssociateMouseAndMouseCursorPosition(true)（漏了会让整机鼠标失效）。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm",
+    "compat/win32/src/RuntimeWin32CompatInput.cpp"
+   ],
+   "note": "风险等级高于 U-10：CGAssociateMouseAndMouseCursorPosition 是**进程级/全局**开关，任何一条退出路径漏了恢复，用户的鼠标就废了（只能强杀）。必须做成「无论如何都恢复」的 RAII + atexit + 失焦回调三重兜底，并且只在窗口模式下按用户选择开启。"
+  },
+  {
    "id": "EVO-13",
    "title": "尤里的复仇战役未接入战役数据库（只有基础版 ra2 的战役可选）",
    "status": "pending",
@@ -2192,6 +2221,18 @@
     "src/ui"
    ],
    "note": "与 ON-2-03 的取舍关系：ON-2-03 选的是「任意拉伸铺满、不做整数倍 letterbox」，那是当时的正确取舍（宁可填满不要黑边）。EVO-14 不是推翻它，而是把「填满」的代价（放大）换成「重绘」。"
+  },
+  {
+   "id": "EVO-15",
+   "title": "事件分发接 sendEvent：让 cursor rect / 激活态 / 菜单键等价物回到 AppKit 正规路径",
+   "status": "pending",
+   "phase": "EVO 进化",
+   "detail": "U-10 的探针证明：本项目只 nextEventMatchingMask 出队、不调 [NSApp sendEvent:]，代价是 NSApp.isActive 与 window.isKeyWindow 恒 0、cursor rect 全部失效（addCursorRect 是死代码）、AppKit 的 tracking area（mouseEntered/mouseExited）也不会回调。现在这些能力都被手写替代品顶掉了（指针隐藏靠 poll 收敛、菜单键等价物靠 performKeyEquivalent 手动派发）。把事件真正交给 sendEvent 能让这些回到系统正规语义，但要重新验证：输入链路（U-07 的键状态）、全屏状态机（U-09）、关窗路径（ON-2-04）、自绘指针与系统指针的关系（U-05/U-06）。",
+   "verify": "待做：切换后 U-07/U-09 的自检与 11 条回归逐条不变；cursor rect 生效（可删掉 poll 收敛器）；NSApp.isActive 在真实启动时为 1；tracking area 回调可达。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "note": "风险集中在「既有结论是靠绕过 AppKit 得来的」：ON-2-04 的全屏结论、U-05 的双指针结论、U-07 的键状态表都可能因为 AppKit 接管而变。要按里程碑单独做，不和别的改动混一轮。"
   }
  ],
  "decisions": {

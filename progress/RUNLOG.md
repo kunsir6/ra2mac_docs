@@ -6734,3 +6734,68 @@ EVO-14（pending）：全屏/拉伸下按显示器分辨率重绘，而不是把
 ON-2-03 选的「任意拉伸铺满、不做整数倍 letterbox」不推翻，只是把「填满」的代价从放大换成重绘。
 
 产出 `reports/U-09-全屏能力.md`；队列 v99 → v100。
+
+## 2026-11-11 20:59 · U-10 系统指针移出窗口就看不见了
+
+用户：
+
+> 当鼠标在 app 框内的时候，隐藏了系统图标。鼠标移出去就看不到了。
+
+### 根因：全局设置被当成区域设置
+
+U-05 为修「窗口激活后冒出第二个箭头」，在每个输入事件上无条件
+`[hiddenCursor set]`。而 `-[NSCursor set]` 是**全局**的「当前游标」，不会因为
+指针离开窗口自动撤销——指针一移出游戏窗口，系统继续把那张 1×1 空图画在别的
+应用/桌面上，于是「鼠标出去了但看不见」。
+
+### 顺带查清：cursor rect 在本项目从来没生效过
+
+探针 `/tmp/keyprobe.m`：同一窗口、同一 `addCursorRect`，只改事件处理深度。
+
+| 事件处理 | isActive | isKeyWindow | 窗口内系统游标 |
+|---|---|---|---|
+| 只出队（本项目现状） | 0 | 0 | 28×40 箭头（没生效） |
+| 出队 + `[NSApp sendEvent:]` | 1 | 1 | 1×1 空图（生效） |
+
+所以 U-04/U-05 注释里「cursor rect 是区域限定的」这条前提在本项目**从未成立**，
+`resetCursorRects` 一直是死代码，真正在隐藏指针的就是那句全局 set。
+（接入 sendEvent 是另一件事，记 EVO-15。）
+
+### 修法
+
+删掉逐事件 set，改由 `syncGlobalCursorForPointer()` 维护往返：
+
+- 判据用 WindowServer 的事实 `[NSWindow windowNumberAtPoint:belowWindowWithWindowNumber:]`
+  ——指针在窗口框内、且那个点最上层就是我们的窗口，才隐藏；
+- 状态用 `+[NSCursor currentSystemCursor]`（系统此刻真正在显示什么），不用标志位；
+- `pumpEvents()` 开头 + `present()` 末尾各收敛一次。
+
+### 验证
+
+```
+修复前：inside cursor=1x1 ok=1 / outside cursor=1x1 hidden=1 ok=0   ← 用户现象
+修复后：inside overUs=1 top=2942 ours=2942 cursor=1x1 sync=25 want=1 ok=1
+        outside cursor=28x40 hidden=0 ok=1
+        done: failures=0 skips=0
+```
+
+`open` 走真实启动路径复跑同样 `failures=0`（该路径 `appActive=1 windowKey=1`）。
+回归 `PASS=5 KNOWN-RED=6 RED-NEW=0`，与改前逐条一致。dist 20:55 重打包。
+
+### 新 rule
+
+- `nscursor_set_is_global`：`set` 设的是全局当前游标，离开窗口不会自动撤销。
+- `cursor_rect_needs_send_event`：不接 `sendEvent` 的循环里 cursor rect 全失效，
+  `isActive`/`isKeyWindow` 恒 0。
+- `cursor_state_needs_truth_not_flag`：判断「光标是不是被藏了」读 `currentSystemCursor`，
+  别用自己的标志位。
+
+### 新立项
+
+- **U-11**（pending）：用户同时提的「VMware 式指针捕获 + 组合键释放」。macOS 没有
+  光标裁剪 API，能做「限制」的只有相对模式（`CGAssociateMouseAndMouseCursorPosition(false)`
+  = 指针完全不动、游戏用 delta 推进自绘光标）；全屏本身就不需要捕获。窗口模式是否
+  默认捕获留待用户决定，风险等级高于本轮（漏恢复会让整机鼠标失效）。
+- **EVO-15**（pending）：事件分发接 `sendEvent`，让 cursor rect / 激活态回到 AppKit 正规路径。
+
+产出 `reports/U-10-系统指针移出恢复.md`；队列 v100 → v102。
