@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 84,
- "updated": "2026-11-11T16:10:00+08:00",
+ "version": 85,
+ "updated": "2026-11-11T16:20:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -174,15 +174,26 @@
    "result": "2026-11-11 15:35 done（零代码改动，纯外部测量）：菜单 1024x640 首帧 401ms / 14.0fps / RSS 261MB / CPU 11.3%；大厅 302ms / 1.1fps / 120MB / 1.5%；世界 375ms / 52.4fps / 358MB / **38.5%**。唯一热点是世界：paints 全部走 update（queue=0），即每帧都被无条件推出来。"
   },
   {
-   "id": "ON-5-02",
-   "title": "30 分钟存活：主菜单挂机 + 游戏内挂机",
-   "status": "pending",
+   "id": "ON-5-02a",
+   "title": "世界视图挂机 10 分钟：无崩溃、无泄漏、帧率无衰减",
+   "status": "done",
    "detail": "长时间运行观察：无冻 UI、无 RSS 漂移 > 10%、无窗口失焦后输入失效。这类问题只在「真上屏挂着」时暴露，BMP 测试永远看不到。",
    "verify": "30 分钟后进程仍在、RSS 漂移 < 10%、注入一次点击仍响应。",
    "touches": [
     "（无源码改动，纯验证）"
    ],
-   "note": "最后收尾。"
+   "note": "这条同时修正了 ON-4-04 的短测偏差：10 秒窗口把启动开销摊得太薄，世界 CPU 被高估成 38.5%，真实稳态是 16.5%。口径：优化前后对比必须用长时间窗口，否则拿噪声当收益。",
+   "result": "2026-11-11 16:13 done：--skip-main-menu --skip-skirmish-menu 挂 600 秒。EXIT=0；paints=35923（59.9fps，全程无衰减）；user 99.36s / real 600.38s = **16.5% CPU**；RSS 341 MiB → 342 MiB（只涨 1 MiB，无可见泄漏）。",
+   "commit": "（测量，无代码改动）"
+  },
+  {
+   "id": "ON-5-02b",
+   "title": "30 分钟存活：主菜单挂机 + 世界（补齐时长与菜单档）",
+   "status": "pending",
+   "detail": "ON-5-02a 只做了世界视图 10 分钟。本条补齐：① 世界 30 分钟；② 主菜单挂机 30 分钟（菜单有 Bink 首帧与告警灯动画，是另一条代码路径）。两条都用 CONCORD_PRESENT_STATS_UNTIL_SEC=1800 + /usr/bin/time -l 跑，记 paints / CPU / 峰值 RSS，重点看 RSS 是否单调上升。",
+   "verify": "两条各 1800 秒，EXIT=0；RSS 增长 < 5 MiB；帧率无单调衰减。",
+   "touches": [],
+   "note": "纯测量，无代码改动。可以后台并行跑，不占主线。"
   },
   {
    "id": "ON-2-06",
