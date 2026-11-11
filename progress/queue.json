@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 80,
- "updated": "2026-11-11T15:00:00+08:00",
+ "version": 81,
+ "updated": "2026-11-11T15:10:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -154,7 +154,9 @@
   "system_fullscreen_needs_nsapp_run": "系统全屏（进入独立 Space）在「不跑 [NSApp run]」的架构下不可用，已实测确认：willEnter 触发、didEnter 永不到；放宽 pumpEvents 的 run loop 时间无效。因此窗口设为 NSWindowCollectionBehaviorFullScreenNone **显式禁用**——实测 Default 挡不住，全屏照样开始（willEnter 仍触发）而后卡死，比没有该功能更糟。约束：任何\"需要 AppKit 生命周期推进\"的能力（全屏、Space 切换、系统对话框）都要先假设不可用，并用自测确认，不要按\"应该能行\"直接依赖。",
   "selftest_must_wait_for_sink": "2026-11-11 实证：present 里注入的自测必须等 gInputSink 就绪。setInputSink 是在 present **返回之后**才调用的（它要用刚呈现的窗口做 context），所以第一次 present 时 sink 为空，delegate 会走\"没人接就放行\"的分支。症状极具欺骗性：日志里 close self-test 已经打出来了，窗口也确实关了，但进程继续跑到第 30 帧——看着像\"注入成功但链路不通\"，实际是自测根本没进被测分支。口径：自测打日志 ≠ 走到被测分支；注入前先断言前置条件（sink/window/attest）。",
   "contents_scale_must_follow_backing": "gView.layer.contentsScale 不能只在建窗口时从 backingScaleFactor 抓一次。2026-11-11 实测：同一进程里 layer=2.0 而 window.backingScaleFactor=1.0，ON-2-03 的 scale-test 因此报 fail。改为每帧同步（变化时才提交 CATransaction，disableActions）。注意 pass 只说明「layer 跟随 backing」，不说明「Retina 正确」——无人值守运行时 backing 可能为 1.0（见 rules.retina_scale_measurement_trap），Retina 最终验收仍需人工双击 .app。",
-  "ground_rubble_excluded_from_scene_z": "scene-Z depth replay 的参与者在 RuntimeStructureSpriteGeometry.inl:361 就把 runtimeObjectIsGroundRubble 的对象筛掉（`|| runtimeObjectIsGroundRubble(object, context)` → continue）。这是**正确行为**：地面残骸没有立体遮挡体，让它参与 replay 会凭空产生遮挡，挡住本该被看见的像素。所以任何\"rubble 也应参与 depth/遮挡\"的断言都是错的，要先核对这条筛选。2026-11-11 ON-4-05 就是因为一条断言同时覆盖 rubble=false/true 两种状态而误红。"
+  "ground_rubble_excluded_from_scene_z": "scene-Z depth replay 的参与者在 RuntimeStructureSpriteGeometry.inl:361 就把 runtimeObjectIsGroundRubble 的对象筛掉（`|| runtimeObjectIsGroundRubble(object, context)` → continue）。这是**正确行为**：地面残骸没有立体遮挡体，让它参与 replay 会凭空产生遮挡，挡住本该被看见的像素。所以任何\"rubble 也应参与 depth/遮挡\"的断言都是错的，要先核对这条筛选。2026-11-11 ON-4-05 就是因为一条断言同时覆盖 rubble=false/true 两种状态而误红。",
+  "playable_today": "2026-11-11 实测：产品**已经可以手动玩**，两条路径都已验证到画面：① `--skip-main-menu` → 遭遇战大厅（1024x640，玩家列表/国家/颜色/队伍/速度/资金/部队数/地图预览全部渲染正确，中文标签正常），attest idx=1 match=yes；② `--skip-main-menu --skip-skirmish-menu` → 加载页（盟军/苏联/尤里标志 + 載入中… 进度条）→ 800x600 世界视图，10s 524 次 present（52fps），三帧 attest 全 match=yes。也就是说「大厅→加载→世界」这条链在代码里是完整的，--skip-skirmish-menu 等价于\"替用户点了载入\"。未验证的只剩一步：在**真窗口**里手动点大厅的「載入」是否同样进入加载页（自建窗口的 smoke 已证明该点击能发起 closing 并交回结果，见 ON-4-02c）。",
+  "world_paint_10s_reference": "世界视图的帧率基线（2026-11-11 arm64 实测）：10 秒 524 次 present，paints 全部走 update（UpdateWindow 同步旁路，queue=0），52fps。这是\"画面在动\"的证据，但 ON-2-06 指出其中大量是空转重绘（每 tick 无条件 Invalidate+UpdateWindow），真正的脏区驱动还没做。判断\"卡不卡\"要用这个数字对比，不要凭感觉。"
  },
  "tasks": [
   {
