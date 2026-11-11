@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 104,
-  "updated": "2026-11-12T01:24:50+08:00",
+  "version": 105,
+  "updated": "2026-11-12T01:31:25+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2300,6 +2300,114 @@
         "src/runtime/host/RuntimeShell.cpp"
       ],
       "note": "commit 8e6b6e5；断言 commit 2df22e3。"
+    },
+    {
+      "id": "U-17",
+      "title": "FPS 叠加层默认常显（原版无此面板）",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "正式版没有任何帧率面板，当前实现每次提交帧后无条件调用 drawRuntimeFpsDisplay（RuntimeShell.cpp L29275/L29347/L29358 三条提交路径），窗口左下固定 96x22、底色 RGB(19,29,39)、白字，真实窗口截图可见 FPS: 60。改为默认关闭，新增 --show-fps 与 [Options] ShowFps 开关，仅显式开启时绘制；drawRuntimeFpsDisplay 保持原样供 smoke 使用。注意 RuntimeMainFrameContract 里有『FPS panel exists』断言与 runtimeFpsDisplayRect 非空校验，需同步改成按开关分支断言，否则契约会红。",
+      "verify": "ninja concord_runtime 过；不带 --show-fps 启动后抓窗口，左下无 FPS 文字且像素与改动前同区域不同；带 --show-fps 启动仍有 FPS: NN；主帧契约 smoke 通过；11 条回归 PASS=5 KNOWN-RED=6 RED-NEW=0。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/runtime/performance/RuntimeFpsDisplay.inl",
+        "src/runtime/performance/diagnostics/RuntimeMainFrameContract.inl",
+        "src/runtime/config/RuntimeConfig.h"
+      ],
+      "note": "这是本次对账里唯一可以直接动手改的视觉硬伤，成本 10 分钟级。"
+    },
+    {
+      "id": "U-18",
+      "title": "打通『真实遭遇战开局并出图』的取证通道",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "--skip-main-menu --skip-skirmish-menu 目前落到 DefaultMap=multimd/2peaks.map，该图是战役地图：[Basic] 里 NextScenario=GDI2A.map、Official=yes，运行期 Triggers=7 / Structures=10（全 Neutral）/ Units=0 / Infantry=0 / Players=1，没有 MCV 也没有己方建造厂；--skirmish-build-smoke-test 同时报 modeRules=no alliesAllowed=no mustAlly=no ownerFactory=no unholy=no megawealth=no（缺 mode rules path）。后果是所有『游戏内 HUD』截图都拍不到建造栏、雷达、电力、选中框、血条，UI 对账在游戏内这一层永远没有对照物。需要一条能从命令行走到『遭遇战 bootstrap 完成、己方有建造厂、侧边栏有 cameo』的路径，并能在该状态下抓一帧到 bmp。与既有 EVO-03（diagnostics 驱动入口）同源，可合并实现，不要另起一套钩子。",
+      "verify": "一条命令跑到真实开局并输出 bmp；日志含 skirmish bootstrap 成功、economy 有己方 ConstructionYard、sidebar cameo 数 >0、units>0；同一命令连续两次出图除动画相位外像素一致；不改变正常菜单流程（回归 skirmish/loading 仍 PASS）。",
+      "touches": [
+        "src/runtime/host/RuntimeMain.cpp",
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/runtime/menu/RuntimeSkirmishController.cpp",
+        "local_data/runtime_config.ini"
+      ],
+      "depends_on": [
+        "EVO-03"
+      ],
+      "note": "这条不产出玩家可见改动，但它是 U-19/U-22/U-23 的前置；不先解决就会继续用裸地图截图得出错误结论（本次差点把『建造格全空』当成缺陷）。"
+    },
+    {
+      "id": "U-19",
+      "title": "游戏内 HUD 逐项对账（雷达/电力/资金/页签/建造图标/血条/选择框/小地图）",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "拿到真实开局图后，以原版素材坐标为基准逐项比：radar.shp 168x110（含离线帧）、top.shp 168x32、tab00..tab03 28x27、sidebttn 125x25、repair/sell 64x31、power.shp 27x30；确认①雷达区高度与内屏尺寸、②电力条是竖直填充还是数字、③资金字体与位置、④四个页签图标是否有内容、⑤建造按钮 cameo 与就绪闪烁、⑥选中单位只出血条无外框（U-15 已改，需在真实开局复验）、⑦小地图内容与雷达建筑依赖、⑧侧栏底部按钮图标。逐项标注 一致/偏差像素量/缺失。",
+      "verify": "产出一张 800x600 真实开局图 + 一张与原版素材叠合的差异图；每一项给出『一致/差 N px/缺失』结论；发现的偏差各自形成可执行修补项（不要在本任务里顺手大改）。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/ui/sidebar/",
+        "src/ui/radar/"
+      ],
+      "depends_on": [
+        "U-18"
+      ],
+      "note": "原版侧栏总宽 168 px 已实测一致，本任务只看栏内元素，不再讨论宽度。"
+    },
+    {
+      "id": "U-20",
+      "title": "载入画面右下地图预览是否为空（真实窗口取证）",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "离屏 skirmish_loading.bmp 里 500,380-716,546 的框全黑，但 drawRuntimeCountryLoading 在 if (!loading.runtime) return; 之后才画 preview，离屏路径根本不执行那段，所以黑框不能作为缺陷证据。代码侧 decodeMapPreviewImage 走 summarizePackedSection(ini,'PreviewPack','lzo1x')，2peaks.map 的 [Preview] Size=0,0,150,90 + [PreviewPack] 解 base64 得 17030 字节、首 chunk 头 compressed=0x0b2d/uncompressed=0x2000（8192），按 5 个 chunk 解压正好 40500 = 150*90*3，格式自洽。需要用真实窗口抓载入第 6 阶段，确认预览与起始点标记是否画出来。",
+      "verify": "真实窗口在第 6 阶段抓图，右下框内出现地形缩略图且含起始点方块标记；若仍为空，贴出 decodeMapPreviewImage 的 errorMessage 与 warning 原文再定性。",
+      "touches": [
+        "src/ui/loading/RuntimeCountryLoadingRender.inl",
+        "src/data/maps/MapDatabase.cpp"
+      ],
+      "note": "不要用离屏 bmp 判这条。"
+    },
+    {
+      "id": "U-21",
+      "title": "主菜单右侧小屏与背景素材取证",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "menu.bmp 里右侧面板顶部小屏显示黄/红条纹块，与周围金属面板风格割裂；左侧背景是暗红地形噪点。需确认：小屏在原版该位是 YR logo 动画帧、载入图缩略还是地图预览；背景 632x568（<1024x768 分支）是否原版该用的素材，还是应该走 bkgdlgy 856x736。用 mix_exports 里可用素材逐一比色/比结构，给出『素材正确，只是缺动画』或『素材用错』的结论。",
+      "verify": "指出小屏当前 imageId 与原版应使用的 imageId；给出两张素材并排图；结论二选一（缺动画 / 素材错），不含推测。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp",
+        "src/ui/main_menu/"
+      ],
+      "note": ""
+    },
+    {
+      "id": "U-22",
+      "title": "遭遇战 8 种游戏模式的规则语义对账",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "地图选择界面可选作战/自由交战/邪恶联盟/巨富/抢地盘/生死斗/海战/小队联盟 8 种，但 --skirmish-build-smoke-test 报 modeRules/alliesAllowed/mustAlly/ownerFactory/unholy/megawealth 全 no。该 smoke 未走菜单、没有 mode rules path，no 可能是夹具而非产品缺陷，所以先定性再改：走真实菜单选中每个模式后开局，检查对应规则（初始资金、盟友关系、是否禁高科技、起始部队池）是否生效。",
+      "verify": "8 个模式各出一份『模式→实际规则值』表；每个模式给 生效/未生效/不适用；未生效的写明是数据缺（mpmodesmd.ini 无该段）还是代码未接线。",
+      "touches": [
+        "src/runtime/menu/RuntimeSkirmishController.cpp",
+        "src/runtime/session/RuntimeSessionProduction.cpp"
+      ],
+      "depends_on": [
+        "U-18"
+      ],
+      "note": "不要直接改 smoke 让它变绿——先分清夹具与缺陷。"
+    },
+    {
+      "id": "U-23",
+      "title": "shroud 边缘羽化宽度对比正式版",
+      "status": "pending",
+      "phase": "UI 对账",
+      "detail": "真实窗口截图里可见区边缘有约 30-40 逻辑像素的云状渐变带，比记忆中正式版更宽。--vision-smoke-test 报 Shroud blur exactCases=42 native2256x1504=yes twoPass=exact cropAndPadding=preserved resize=exact，说明模糊参数是照着某个参考实现写的。需要同一张地图、同一相机位置的原版画面做并排，量出正式版羽化宽度（像素）再决定是否收窄。",
+      "verify": "给出原版与当前的边缘剖面（逐像素亮度曲线）与羽化宽度数值；若差异 <4 px 判为一致并关闭。",
+      "touches": [
+        "src/render/",
+        "src/runtime/host/RuntimeShell.cpp"
+      ],
+      "depends_on": [
+        "U-18"
+      ],
+      "note": "没有原版同场景截图就不要动模糊半径。"
     }
   ],
   "decisions": {
