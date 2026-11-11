@@ -13,9 +13,9 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 07:08（第 7 轮开工。基线回归 `PASS=7 KNOWN-RED=4 RED-NEW=0`，
-> 与第 6 轮收口一致；剩余 4 条 known-red：interaction(M-12) / render(S-06) / command(C-02) / result(M-17)。
-> 本轮起手：先并行计量 S-06 与 M-17 两条「只红一句、元凶未定」的条目，再动 M-12）
+> 最近更新：2026-11-12 08:05（第 7 轮收口：**`result` 转 PASS**——M-17 定性为「两个时钟纪元相减」，
+> 产品零改动；S-06 拆出 `structureCand=2/structureEmpty=2`，把 `render` 从「口径可疑」钉成
+> **建筑零投影的产品缺陷**并单独立项 M-18。回归 7/4/0 → **8/3/0**，零新回归）
 
 ---
 
@@ -28,9 +28,9 @@
 | S-03 | 选中单位不显示编队编号 | Ctrl+数字编队已生效（U-07），但选中后画面上看不到属于第几队 | 只有编队写入，没有绘制路径；`RuntimeWindowState` 也没有对应计数器 | 中高：编队可用性的最后一公里 | 1 绘制函数 + overlay 调用点 | **S** | 简单 | 已完成（本批） | 同上 |
 | S-04 | interaction 夹具缺己方建筑 | repair cursor 断言永远拿不到 owner 匹配的建筑，`interaction` 常驻 KNOWN-RED | 冒烟夹具只放 Neutral 建筑，断言（RuntimeShell.cpp 要求 `owner==economy.owner`）永远不成立 | 中：清掉 1 条 known-red，恢复该条回归的信号价值 | 夹具注入 1 栋己方建筑 | **A** | 简单 | 已完成（第 2 轮 e1dede3；后续阻塞点后移到 M-10） | `reports/FIX-03-回归门禁口径三连.md` |
 | S-05 | campaign gate 按现定义永不绿 | 40 任务里 13 个 `Map=` 为空 + Bink 视频缺失，断言要求全量覆盖 | 断言口径错：把「资产缺口」当成「产品缺陷」判红 | 中：清掉 1 条 known-red（该条已判 env-gap） | 改白名单 + 保留缺口计数打印 | **A** | 简单 | 已完成（第 2 轮 cd2e841，**该条转 PASS**） | `reports/FIX-03-回归门禁口径三连.md` |
-| S-06 | render 阴影只读计量 | `structuresShadowsDrawn=0`，但 SHP 解析正常（shp=5），分不清是相机可见性还是阴影帧解析 | 未区分「不在视口」与「解析失败」 | 中：为 S-07 定性提供唯一判据 | 加 3 个只读计数 | **B** | 简单 | 待修复 | 同上 |
-| S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 待修复 | 同上 |
-| S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复 | `reports/ON-2-前排任务现状对账.md` |
+| S-06 | render 阴影只读计量 | `structuresShadowsDrawn=0`，但 SHP 解析正常（shp=5），分不清是相机可见性还是阴影帧解析 | 未区分「不在视口」与「解析失败」 | 中：为 S-07 定性提供唯一判据 | 加 3 个只读计数 | **B** | 简单 | 已完成（`06c8ea2`，计量已出结论，**修复拆到 M-18**） | `reports/FIX-08-时钟纪元与建筑零投影.md` §2 |
+| S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 已废弃（并入 M-17；缓存命中假设已被证伪，真因是时钟纪元） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
+| S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复（与 M-03 同源，落地时合并） | `reports/ON-2-前排任务现状对账.md` |
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 
 ## 二、待修复 —— 中等
@@ -53,7 +53,8 @@
 | M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
 | M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
 | M-16 | `build` 低电探针被自己的前置挡死 | `sidebar low-power integration probe state is not low power`，探针一进门就要求 `runtimeEconomyLowPower`，而零售图没有耗电建筑（powerUsed 恒 0），净电永远为正 | **已定性：前置无人保证**。`runtimeEconomyLowPower` 判 `produced - used < 0`，探针走不到断言本体，属夹具职责缺位而非产品缺陷 | 高：它是 `build` 转 PASS 的最后一道门 | 冒烟侧临时抬高 powerUsed 再还原（3 行） | **S** | 简单 | 已完成（`c90ec0e`；**build 整条转 PASS**） | `reports/FIX-07-build冒烟转绿.md` §2 |
-| M-17 | `result` 记分动画两次 paint 出同一张画面 | `original score animation stalled behind paused-frame cache`；计量 `changed=0 tick=300/300 frames=6/6 saved=yes`，三个子条件正常，只有画面没变 | 已排除「没重绘」：`reuseCachedFrame` 里已有 `&& !runtimeResultScoreIsAnimated(*state)` 且此处置为真。待查方向：记分帧的时间源是 `runtimeUiClockNow`（`uiClock->nowMs()`），冒烟只改 `campaignScore.presentationStartedAtMs`，若 uiClock 在冒烟里冻结则 elapsed 不变 | 中：结算页动画是用户可见的一段 | 先验「uiClock 能否推进」，再定「探针推进时钟」还是「记分页按 elapsed 取帧」 | **B** | 中等 | 待修复（第 6 轮计量） | `reports/FIX-07-build冒烟转绿.md` §3 |
+| M-17 | `result` 记分动画两次 paint 出同一张画面 | `original score animation stalled behind paused-frame cache`；计量 `changed=0 tick=300/300 frames=6/6 saved=yes`，三个子条件正常，只有画面没变 | **已定性：两个时钟纪元相减**。记分页取 `runtimeUiClockNow()`（macOS = `CLOCK_MONOTONIC`），而探针用 `GetTickCount64()` 写起点；两个纪元在 macOS 上不同 → `now - start` 恒为巨大值 → `runtimeUiScoreElapsed` 两次都钳到末帧 → 两张图逐像素相同。已排除缓存（门里带 `!runtimeResultScoreIsAnimated`） | 中：结算页动画是用户可见的一段 | 探针改用 `runtimeUiClockNow` 作基准（产品零改动） | **B** | 简单 | 已完成（`4cdc891`，**该条转 PASS**） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
+| M-18 | 建筑完全不投影（`render` 的真红） | 自然地图阴影 `candidates=7 drawn=5 shp=5` 但 `structures=0`；补只读拆分后 `structureCand=2 structureEmpty=2`——两栋可见建筑都进了地面阴影通道、授权掩码都「解析成功」，却一个像素都没压暗 | **已定性为产品缺陷（掩码空）**：`drawRuntimeShpShadowFrame` 返回真但一个 span 都没落。`shpMask` 为假时会退到软阴影兜底必然压暗，所以只剩「掩码本身是空的」一种可能。下一层待拆：`shadowImage` 宽高/非零像素数/span 数，以及结构阴影中心与 viewport 的关系 | 高：建筑没有影子是画面硬伤（对建筑群整体真实感影响最直接） | 中：先补掩码侧计量，再决定是解析问题（SHP 阴影帧取错帧）还是 span 生成问题；改动集中在 `drawRuntimeShpShadowFrame` / `drawRuntimeVoxelShadowMask` | **A** | 中等 | 待修复（第 7 轮计量定性，`06c8ea2`） | `reports/FIX-08-时钟纪元与建筑零投影.md` §2 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -80,7 +81,32 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 6 轮）打包清单
+## 五、本轮（2026-11-12 第 7 轮）打包清单
+
+主题：**把 `code-red:needs-metering` 清零口径**。剩下两条标着「疑为产品缺陷、先加只读计量」的
+条目（`result` / `render`）都只红一句话，本轮把两句话都拆开：一条证明是夹具的时钟纪元错，
+一条证明是真的产品缺陷。
+
+- **M-17 → 已完成（`4cdc891`，`result` 转 PASS）**：记分页读 `runtimeUiClockNow()`（CLOCK_MONOTONIC），
+  探针却用 `GetTickCount64()` 写「650ms/1600ms 之前」。两个纪元相减恒为巨大值，
+  `runtimeUiScoreElapsed` 两次都钳到末帧 → 两张图逐像素相同 → `changed=0` 被读成「缓存冻帧」。
+  探针改按渲染所读的时钟构造起点，产品零改动；实测 `changed=23872/24486/34795`。
+- **S-06 → 已完成计量（`06c8ea2`），修复拆为 M-18**：`drawn=5` 而四个 kind 全 0 本身是不可能读数
+  （地形树木的软阴影也记进 `shadowsDrawn`，却没有 kind 接住）。补 `structureCand` / `structureEmpty`
+  后得到 `2/2`：建筑进了通道、掩码「解析成功」、压暗 0 像素 → **建筑零投影**，产品缺陷。
+- **移出本批**：M-18（掩码空，需在 `drawRuntimeShpShadowFrame` / span 生成层再拆一层）、
+  M-12（右键命中的可见性门）——两者都要先量后改，不在同一轮里连着动产品逻辑。
+  本轮未启动任何中等问题，把时间全用在「让两条假红各归其位」上。
+
+回归：`PASS=7 KNOWN-RED=4` → **`PASS=8 KNOWN-RED=3`**，`RED-NEW=0`。
+`known-red.tsv` 删 `result` 行，`render` 行按新定性改写（`code-red`，不再是 `needs-metering`）。
+
+报告：`reports/FIX-08-时钟纪元与建筑零投影.md`。
+
+下一轮起手：**M-18（建筑零投影，先拆掩码侧四元组：`shadowImage` 宽高/非零像素数/span 数/阴影中心与 viewport）**，
+其次 **M-12**（命中像素上所有 spans 命中对象的 depthVis 清单）。
+
+## 六、第 6 轮（2026-11-12）打包清单（存档）
 
 主题：**把连红五轮的 `build` 清到底**。两条都是「夹具缺了自己该有的东西」，产品逻辑零改动。
 
@@ -106,7 +132,7 @@
 
 下一轮起手：**M-17（先验 uiClock 在 result 冒烟里能否推进）**，其次 **M-12**（命中像素的 depthVis 清单）。
 
-## 六、第 5 轮（2026-11-12）打包清单（存档）
+## 七、第 5 轮（2026-11-12）打包清单（存档）
 
 主题：**多谓词断言必须逐项计量**。M-14（`build` 移动帧选择框）与 M-12（`interaction` footprint 命中）
 两条已知红都只有一句「aligned=no / hit mismatch」出口，把 5~6 条谓词压成一句话，导致问题描述本身
@@ -136,7 +162,7 @@
 
 基线回归（开工前）：`PASS=6 KNOWN-RED=5 RED-NEW=0`，与第 4 轮收口一致。
 
-## 七、第 4 轮（2026-11-12）打包清单（存档）
+## 八、第 4 轮（2026-11-12）打包清单（存档）
 
 主题：**夹具缺口 + 观感硬伤，两条都不动模拟层**。M-11 给 build 冒烟补一个可悬停单位（fixture-gap），
 S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共用一次构建与一次回归。
@@ -156,7 +182,7 @@ S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共�
 下一轮起手：**M-14（build 第 4 个阻塞，先加三个谓词的只读计数）** 与 **M-12（interaction footprint 命中框）**，
 两者同属「选择框/命中框几何口径」，可各写一段计量后一并定性。
 
-## 八、第 3 轮（2026-11-12）打包清单（存档）
+## 九、第 3 轮（2026-11-12）打包清单（存档）
 
 主题：**两条判红的根因都在断言口径，不在产品**。两条都先量几何再动手，产品路径零改动，
 共用一次构建与一次回归。报告 `reports/FIX-04-两条断言的几何口径.md`。
@@ -177,7 +203,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 九、第 2 轮（2026-11-12）打包清单（存档）
+## 十、第 2 轮（2026-11-12）打包清单（存档）
 
 主题：**回归门禁的「资产缺口 vs 产品缺陷」口径**。三条同一性质，只改探针/夹具口径，不动产品行为，
 共用一次构建与一次回归。报告 `reports/FIX-03-回归门禁口径三连.md`。
@@ -199,7 +225,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 十、第 1 轮（2026-11-12）打包清单（存档）
+## 十一、第 1 轮（2026-11-12）打包清单（存档）
 
 承接上一轮被截断的 WIP（`progress/.active` 记 `auto-acquire-policy+team-number`）：
 
