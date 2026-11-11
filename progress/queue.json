@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 71,
- "updated": "2026-11-11T10:25:00+08:00",
+ "version": 72,
+ "updated": "2026-11-11T10:45:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -28,7 +28,7 @@
   "target_split": "2026-11-10 教训：『某个 TU 是否报错』取决于你建的是哪个 target。tests/multiplayer/RuntimeMultiplayerTwoProcessSmoke.cpp 有 36 条错误，但它属独立 target concord_multiplayer_two_process_smoke，ninja concord_runtime 永远不报它。每轮收尾必须同时跑 ① ninja -C build-product-mac -k 0 concord_runtime ② scripts/verify-win32-compat.sh --census，两个失败集都记录。另外 --census 的 TU 总数会随构建图变化（本轮 31，上一轮 37），所以只能比**具名 TU**，不能比通过率。",
   "lock": "轮次锁改用 progress/.active 心跳文件（原 mkdir progress/.lock 的做法在沙箱里无法释放——rm/rmdir 被拒，下一轮会误判『检测到并发实例』而死锁）。约定：开始前读 .active，若 state=held 且 mtime 距今 <90min 则转 diagnose-only；否则写入 state=held + pid + 起始时间并继续。收尾写 state=released。仓库里那个空的 progress/.lock/ 目录是旧约定的遗留物，忽略即可。",
   "link_is_the_authority": "2026-11-10：链接是唯一权威的\"还差什么\"清单。编译干净≠能跑，编译只证明头层对上了；ld 才告诉你实现还差多少。280 这个数字比\"5 个失败 TU\"有用得多——因为它可分区、可排期、可对账。以后每轮收尾除 ninja 与 --census，还要看链接缺口数是否单调下降。",
-  "arch_note": "构建目标架构是 **x86_64**（CMake 探测 CPU ISA=x86_64，ld 也报 architecture x86_64）。若目标机是 Apple Silicon，这个产物只能靠 Rosetta 运行；是否要出 arm64 需单独决定（在 cmake 配置时指定 CMAKE_OSX_ARCHITECTURES，或确保 cmake 在原生 shell 里重跑）。本层代码没有架构相关假设，但这个**构建产物**的架构必须显式记录，不能默认。",
+  "arch_note": "【2026-11-11 更新】当前判定环境是 **arm64 原生**：build-core-arm / build-product-arm，工具链来自 venv /Users/zhenglk/AiProjects/ra2mac/.toolchain（cmake 4.4.4 + ninja 1.13.2，brew 被沙箱拦故改用 pip wheel），调用时把该 bin 前置到 PATH。旧的 build-core-mac / build-product-mac 是 x86_64 且 CMakeCache 写死已不存在的 /Users/zhenglk/ai-project/... 路径，只能作历史证据，不可增量构建。要出 x86_64 产物必须显式给 CMAKE_OSX_ARCHITECTURES=x86_64，不再默认。实测：arm64 上内核 170/170 + 10/10、金标准哈希 1585785091039784157 与 x86 逐位相同（零代码改动）。",
   "gdi_partition": "2026-11-10 实测：undefined-symbols.txt 里「GDI 绘制 / DC 状态 (67)」这一段混了三个族，正确归属是 S3 42 / S7 14 / S4 11（脚本校验无遗漏无重叠）。S3 内部再分 A 段 DC 状态与查询 25、B 段区域裁剪 5、C 段图元光栅 12。排期以 A→B→C 为序，因为 C 段的光栅器在 A 段完成前没有观测点。",
   "dc_query_load_bearing": "2026-11-10 发现：项目有三条 raster 快路径（RuntimeSelectedPathRaster::supported、RuntimeSelectionFrameRaster 构造函数、beginTrustedRestoredDcStateBatch）先精确校验 DC 状态再直接写 DIB 像素。它们要求 GetArcDirection==AD_COUNTERCLOCKWISE(2)、GetClipBox 返回 SIMPLEREGION(2)/NULLREGION(1)、GetGraphicsMode==GM_COMPATIBLE(1)、GetROP2==R2_COPYPEN(13)、GetLayout==0、Get*/SetViewportOrgEx 为 (0,0)，并且 GetObject(dc, sizeof(DIBSECTION))==sizeof(DIBSECTION) 且 bmBits==像素指针。所以「查询函数随手 return 0」是错的：它会静默关闭快路径，让所有 raster 契约退化成只跑 reference 路径，看起来还在跑其实什么都没验证。查询必须如实返回。",
   "selfconsistency_ceiling": "2026-11-10：现有 raster 契约都是 optimized-vs-reference 自洽比较（两边共用同一套 GDI），只能证明快慢路径一致，不能证明与 Windows GDI 一致——LineTo 差一像素、FillRect 边界画成闭区间，这些契约照样全绿。S3/S4 的 done 判据必须补一层「硬编码期望像素」的文档语义断言，且 B-01 的 Windows 基线只覆盖 core，没有产品级像素金标准可对拍。",
@@ -146,7 +146,9 @@
   "takeover_rule_blocked_the_owner": "2026-11-11 ON-2-02a 实测：maybePresentClientFrame 的抢位规则只有\"严格更大者接管\"，而当前呈现主人与自己面积相等 → area>gPresentedArea 恒假 → 主人自己的**每一次**后续重绘都被丢弃。表现是屏幕永久停在第 1 帧，而 DIB 正确、attest(默认 LIMIT=1) match=yes、进程不崩、CPU 还在动。判据：CONCORD_PRESENT_STATS=1 时 takeover{self} 必须为 0；任何\"只允许更大者接管\"的门都得给主人自己开绿灯。",
   "world_paint_path_is_updatewindow": "呈现路径按场景不同：主菜单 200/200 次 WM_PAINT 来自队列合成（popMessage），世界 887/888 来自 UpdateWindow 同步旁路、队列合成为 0。任何\"每帧一次 present\"或\"每个 EndPaint 都贴\"的推断都必须按场景分开量，不能用一个场景代表全部。",
   "present_layer_dedup_is_not_the_cost_centre": "ON-2-02a：菜单 submits=200 且 redundant=0（present 层无重复可合并）；世界 redundant=881/888 但每帧 CGImage 建造成本只有 1.3µs（ON-2-01 已测），真正的浪费是**空转重绘**（44 次/秒画同一画面），应在帧循环解决（ON-2-06/ON-4-03），不要在 present 层加去重门——那需要全帧 hash（>1ms/帧）才安全，比它省下的还贵。",
-  "commit_must_be_verified": "每次提交后必须跑 git fsck --no-progress 与 git status --short，不能只看 git log。2026-11-11 实证：179c84e 的 commit 对象与 message 都在、git log 读起来正常，只有 compat/ 子树对象没落盘，git status/diff 全部 fatal；而下一轮自动化第一件事就是 git add/diff，不校验就会以\"莫名其妙的 fatal\"炸开且无法归因到上一轮。"
+  "commit_must_be_verified": "每次提交后必须跑 git fsck --no-progress 与 git status --short，不能只看 git log。2026-11-11 实证：179c84e 的 commit 对象与 message 都在、git log 读起来正常，只有 compat/ 子树对象没落盘，git status/diff 全部 fatal；而下一轮自动化第一件事就是 git add/diff，不校验就会以\"莫名其妙的 fatal\"炸开且无法归因到上一轮。",
+  "product_full_build_is_broken": "产品级 `cmake --build build-product-arm`（1823 目标）在 [182/1823] 失败于 concord_mod_history_noop_smoke：RuntimeModExtensionsHistoryNoopSmoke.cpp 调用 advanceRuntimeModExtensions(宿主自造类型)，而唯一声明是 src/runtime/session/detail/RuntimeProductionOperations.h:9631 的 advanceRuntimeModExtensions(RuntimeGameSessionState&)，测试既没 include 该头、类型也不匹配。与架构无关，历史上一直存在——过去所有验证都只编 concord_runtime 主目标，从没触发。因此：判据命令沿用 `cmake --build <dir> --target concord_runtime`；要恢复全量构建见 ARM-02。",
+  "lighting_simd_off_on_arm64": "src/render/lighting/RuntimeLightingLookupRaster.h 用 __SSE2__ 选路，arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，故金标准哈希不受影响；但该文件的系数是「只在能逐项精确复现 rounded 查找表时才被接受」，若将来把光照纳入像素级判据，必须单独验证标量与 SSE2 逐像素一致。性能影响待 ON-4-04 量化。"
  },
  "tasks": [
   {
@@ -1662,6 +1664,27 @@
    "note": "根因不是包围盒/裁剪/当前位置：firstDifference 给出 ref=0x9269e6be optimized=0x0069e6be，RGB 相同只有高 8 位不同。32bpp BI_RGB 下 GDI 经 applyRop2 只写 RGB 24 位、保留目标高 8 位，而 CPU stamp 来自清零 scratch DIB、整 32 位赋值把目标 alpha 抹掉。详见 reports/S14b-BI-RGB高字节语义修复.md。",
    "commit": "8ca47eb",
    "substep": "2026-11-11 06:55 done：两处 CPU stamp 落点改为 (dst & 0xFF000000) | (color & 0x00FFFFFF)，契约 reset() 补注释说明背景高 8 位非零是刻意保留的观测判据。"
+  },
+  {
+   "id": "ARM-01",
+   "title": "arm64 迁移验证：内核逐位等价、产品真实上屏（零代码改动）",
+   "status": "done",
+   "detail": "换机后重建环境并在 arm64 上复跑全部判据：venv 工具链（cmake 4.4.4/ninja 1.13.2）→ build-core-arm（170/170、10/10、哈希一致）→ build-product-arm 主目标（183/183，43 MB arm64）→ 离屏菜单 smoke 像素计数与 x86 逐项相同 → 真实窗口 attest 三帧互异 hash 全 match=yes、scale=2.0。",
+   "verify": "ctest --test-dir build-core-arm → 100% tests passed out of 10；capture-core-baseline.sh + compare-core-baseline.py → 仅 git_commit 与 secure_bytes(77→0) 两处预期差异；--onscreen-attest-smoke → records=3 failures=0 且三帧 hash 互异。",
+   "touches": [],
+   "note": "详见 reports/ARM-01-arm64迁移验证.md。代码改动 0 行；只新增 build-*-arm 与 .toolchain（均不入库）。",
+   "result": "2026-11-11 10:45 done：四类判据全部通过，适配层在换架构时零改动成立。"
+  },
+  {
+   "id": "ARM-02",
+   "title": "修产品全量构建断裂：concord_mod_history_noop_smoke 引用未声明函数",
+   "status": "pending",
+   "detail": "tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp:94/98 调用 advanceRuntimeModExtensions(自造宿主)。该符号唯一声明在 src/runtime/session/detail/RuntimeProductionOperations.h:9631，参数是 RuntimeGameSessionState&。两种修法：① 让测试 include 该头并使用真实会话类型（前提是能只编这一层、不带入 RuntimeShell）；② 若测试本意是复用 simulation/mod_extensions/diagnostics/RuntimeModExtensionsSmoke.inl 的宿主，则把声明补到该 .inl 可见处。先诊断再动，不要凭猜改签名。",
+   "verify": "cmake --build build-product-arm → 1823/1823 无 FAILED；ctest -R runtime_mod_history_noop_test 通过；且 concord_runtime 主目标仍 EXIT=0（菜单 smoke 像素基线不变）。",
+   "touches": [
+    "tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp"
+   ],
+   "note": "与架构无关（arm/x86 同样失败），属历史遗留。修复前「全量构建」不得作为验收项。"
   }
  ],
  "decisions": {

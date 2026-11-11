@@ -5337,3 +5337,106 @@ $ git diff --stat 6dc93e8     → 1 file changed, 52 insertions(+), 1 deletion(-
 
 ON-2-03 的验收证据（`CONTENTS_SCALE`、1.7 倍拉伸四项断言）全部来自 x86_64 环境，
 **arm64 上未复验**。本轮只修仓库，未动产品代码。
+
+## 2026-11-11 10:45 · ARM-01 · done（arm64 迁移：内核逐位等价、产品真实上屏，零代码改动）
+
+人接手轮。设备是 Apple M5 Pro（arm64），而此前全部适配在一台 Intel Mac 上做，
+路径也从 `/Users/zhenglk/ai-project/ra2mac` 变成 `/Users/zhenglk/AiProjects/ra2mac`。
+
+### 先确认障碍在哪
+
+不是代码，是**环境**：`cmake` 原在 `/Users/zhenglk/opt/cmake/bin`、`ninja` 原在
+`/usr/local/bin`（Intel Homebrew 前缀），两个路径在本机都不存在；两个 `build-*` 目录的
+`CMakeCache` 写死旧绝对路径、产物是 `Mach-O x86_64`，只能整体重配不能增量。
+
+`brew install cmake ninja` 在工具沙箱内被拦（`sandbox-exec: sandbox_apply: Operation not permitted`），
+改用 venv 装官方 wheel：
+
+```
+python3 -m venv /Users/zhenglk/AiProjects/ra2mac/.toolchain
+.toolchain/bin/pip install cmake ninja    # cmake 4.4.4 / ninja 1.13.2
+```
+
+cmake 版本与 Intel 机器上的 4.4.4 恰好一致，编译契约的可比性不受版本差异干扰。
+
+### 四类判据的实测输出
+
+**① 内核 configure + 编译**（`build-core-arm`）：
+
+```
+-- Concord compiler contract: OS=Darwin; compiler=AppleClang 21.0.0.21000401;
+   frontend=GNU; Microsoft ABI=OFF; CPU ISA=arm64
+[170/170] BUILD 31s
+```
+
+`CPU ISA=arm64` 由 `CompilerContract.cmake:44` 的既有分支自动识别，**未改一行 cmake**。
+
+**② 内核测试与金标准哈希**：
+
+```
+ctest --test-dir build-core-arm → 100% tests passed out of 10   (3.08s)
+hash = 1585785091039784157   ← 与 x86_64 基线逐位相同
+```
+
+`compare-core-baseline.py` 只报两处差异，均为预期：
+`git_commit`（32ab245→38286db，无关）、
+`exit.concord_secure_bytes_contract`（77→0，正是 P2-01 的成果，参考基线采于 P2-01 之前）。
+入库 `baseline/core-macos-arm64.json`。
+
+**③ 产品主目标**：
+
+```
+cmake --build build-product-arm --target concord_runtime
+[183/183] Linking CXX executable concord_runtime   (2m45s)
+file → Mach-O 64-bit executable arm64，43 MB（x86 版 49.6 MB）
+```
+
+**④ 上屏**——离屏与真实窗口两条路都走：
+
+离屏菜单 smoke 的像素计数与 ON-2-02a 记录的 x86 基线**逐项相同**：
+
+```
+sideTopFrames=2 warningFrames=91 slotFrames=17
+lightGoldRamp=255,190,97/245,172,68/97,59,4  rampPixels=1056,781,1428
+```
+
+真实窗口 attest（`--onscreen-attest-smoke`）三帧：
+
+```
+idx=1 layerHash=0x24af0758 dibHash=0x24af0758 providerHash=0x24af0758 match=yes scale=2.0
+idx=2 layerHash=0x8a00d66c dibHash=0x8a00d66c providerHash=0x8a00d66c match=yes scale=2.0
+idx=3 layerHash=0x83b9bd68 dibHash=0x83b9bd68 providerHash=0x83b9bd68 match=yes scale=2.0
+[attest] done: records=3 failures=0 limit=3
+```
+
+三个**互不相同**的 hash + 逐帧 match=yes = 屏幕真的连换三帧；`scale=2.0` 说明 Retina 的
+`contentsScale` 在 arm 上直接成立（ON-2-03 的一条判据免费拿到）。
+
+**结论：适配层代码 0 行改动。** 兼容层 + 平台目录并列的架构选择，在换 CPU 架构时兑现了收益。
+
+### 两个新事实（已进 rules）
+
+1. `product_full_build_is_broken`：产品**全量**构建（1823 目标）在 `[182/1823]` 失败于
+   `concord_mod_history_noop_smoke`——测试调用 `advanceRuntimeModExtensions(自造宿主)`，
+   而唯一声明在 `RuntimeProductionOperations.h:9631` 且参数是 `RuntimeGameSessionState&`。
+   与架构无关，历史一直在，只是过去所有验证都只编 `concord_runtime` 主目标，从没触发。
+   → 判据命令继续用 `--target concord_runtime`；修复留 **ARM-02**（已入队尾，不抢优先级）。
+2. `lighting_simd_off_on_arm64`：`RuntimeLightingLookupRaster.h` 按 `__SSE2__` 选路，
+   arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，
+   故金标准哈希不受影响；但该文件系数是「只在能逐项精确复现 rounded 查找表时才接受」，
+   将来若把光照纳入像素级判据，必须单独验标量与 SSE2 的一致性。
+
+### 队列变更（v71 → v72）
+
+- `rules.arch_note` 重写：判定环境改为 arm64 原生（`build-core-arm` / `build-product-arm` +
+  `.toolchain` venv），旧 x86 目录降级为历史证据；出 x86 产物需显式 `CMAKE_OSX_ARCHITECTURES`。
+- 新增 `ARM-01`（done）、`ARM-02`（pending，队尾）。
+- 新增 2 条 rules（见上）。
+
+### 未验证
+
+音频在 arm 上只编未跑（`AudioQueue` 实际出声未测）；遭遇战/加载/游戏内三界面上屏依赖 ON-3-01b；
+性能数字依赖 ON-4-04。弱内存序在 arm 上才是真压测场（`RuntimeWin32CompatAtomic.cpp` 自己的注释
+就写着「x86 强模型测不出来，换 ARM 就是稳定复现的错」），单次全绿不算证明，ON-5-02 建议优先在 arm 上做。
+
+产出：`reports/ARM-01-arm64迁移验证.md`。源码仓库无改动（`git status` 干净，`build-*/` 已在 `.gitignore`）。
