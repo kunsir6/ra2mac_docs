@@ -5790,3 +5790,46 @@ maps=161 allPreviews=161（既有断言全部保持）
 `ON-4-02b` done；新增 `ON-4-02c`（pending）：大厅内走队列完成 选图→返回→Start→加载页→游戏内首帧。
 已把「Start 会进游戏主循环，断言完首帧必须 `_Exit`」写进 detail，避免下一轮踩挂死。
 当前：done 68 / pending 9 / superseded 7 / blocked 3（共 87）。
+
+## 2026-11-11 15:00 · ON-4-02c · done（选图往返 + 点 Start 发起开局，两片提交）
+
+按用户要求「合理颗粒度、完成即提交」，本条拆两片，各自编译验证后单独提交。
+
+### 切片 1（`300250c`）：Lobby → MapSelection → 选图 → 回 Lobby
+
+新入口 `CONCORD_SKIRMISH_FLOW_OUTPUT`，全程 `PostMessageW` 入队 + 真实消息泵派发。
+
+```
+Skirmish flow: checks=5 failures=0 pages=Lobby->MapSelection->Lobby rows=9 mapBefore=0 mapChosen=1
+```
+
+三处编译期对照（都踩了）：
+
+- `HitRegion::rect` 是 `RuntimeInputPixelRect`（int32 四边），**不是** Win32 `RECT`；
+- `selectedMap` 在 controller 上（`state.selectedMap`），**不在** `state.selection` 里；
+- 列表类命中区必须**按序号取**（`nthHitOfKind`）：用 `find_if` 拿第一个，
+  "换一张图"会永远点在同一行上，断言要么恒真要么恒假。
+
+### 切片 2（`3e6b591`）：点 Start 发起开局
+
+先诊断再写断言，避免按「应该会进加载页」猜：
+
+```
+[diag] after Start: closing=1 page=0 statusEmpty=0 childAlive=0 map=1
+```
+
+即 Start 的语义是「**关闭大厅窗口并把结果交回上层**」，不在这里进加载页。
+所以断言只有三条：closing 置位、`selectedMap` 未被清掉、窗口真的销毁
+（只 closing 而窗口还在，就是"点了没反应"的另一种形态）。
+
+```
+Skirmish flow: checks=6 failures=0 pages=Lobby->MapSelection->Lobby->Start
+  rows=9 mapBefore=0 mapChosen=1 closing=1 windowGone=1
+EXIT=0
+```
+
+### 队列（v79 → v80）
+
+`ON-4-02c` done；新增 `ON-4-02d`（pending）：开局后到游戏内首帧（加载页 + 世界视图上屏，跨 TU）。
+detail 里写明：世界主循环不经过 `pumpEvents`，红叉/Cmd+Q 在那条路上都不生效，只能 `_Exit`。
+当前：done 69 / pending 9 / superseded 7 / blocked 3（共 88）。

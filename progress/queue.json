@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 79,
- "updated": "2026-11-11T14:25:00+08:00",
+ "version": 80,
+ "updated": "2026-11-11T15:00:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -367,15 +367,29 @@
   },
   {
    "id": "ON-4-02c",
-   "title": "大厅内走队列完成选图→开局：从 Lobby 到游戏内首帧",
-   "status": "pending",
+   "title": "大厅内走队列完成选图与开局发起（Lobby→MapSelection→Start）",
+   "status": "done",
    "detail": "前置 ON-4-02b 已证明队列路径在大厅窗口工作，本条把整条链路走完：① 点 ChooseMap 进入 MapSelection（161 张列表，用 hits 里的 Map 区域而不是硬编码行号）；② 选一张确定的地图（优先用当前选中项或按 hits 顺序取第一项，避免依赖滚动位置）；③ 返回 Lobby 点 Start；④ 等到加载页出现、再到游戏内首帧（尺寸从 800x600 变到世界视图）。每一步都用 waitForQueue 等状态变化，不要等固定时长。注意 Start 会进入游戏主循环：断言完首帧后要主动结束进程（参考 ON-3-01 的 _Exit 纪律），否则 smoke 会挂在世界里一直跑。",
    "verify": "游戏内首帧出现（尺寸切换 + surface 像素非空 + 与加载页不同），dump 3 张 bmp（map selection / loading / first world frame），EXIT=0。若再暴露下一条，同样另立任务。",
    "touches": [
     "src/ui/skirmish/diagnostics/",
     "src/runtime/host/RuntimeMain.cpp"
    ],
-   "note": "前置：ON-4-02b（已 done）、ON-3-01（上屏自证，已 done）。"
+   "note": "诊断口径：点 Start 后 closing=1 / childAlive=0 / map=1 —— Start 的语义是「关闭大厅窗口并交回结果」，不在本 TU 进加载页。踩过的两处：HitRegion::rect 是 RuntimeInputPixelRect 不是 RECT；selectedMap 在 controller 上（state.selectedMap）不在 state.selection。列表命中区必须按序号取，find_if 拿第一个会让\"换图\"永远点同一行。",
+   "result": "2026-11-11 14:55 done（两片提交）：切片1 Lobby→MapSelection→选图→UseMap 回 Lobby（300250c，checks=5，rows=9 mapBefore=0 mapChosen=1）；切片2 点 Start 发起开局（3e6b591，checks=6，closing=1 windowGone=1 且 map 保持）。全程 PostMessageW 入队 + 真实消息泵派发。",
+   "commit": "300250c, 3e6b591"
+  },
+  {
+   "id": "ON-4-02d",
+   "title": "开局后到游戏内首帧：加载页出现 + 世界视图上屏（跨 TU）",
+   "status": "pending",
+   "detail": "ON-4-02c 已证明大厅能把结果交回（closing + 窗口销毁 + 参数保持）。本条接上层：RuntimeMain 收到 skirmish 结果后启动加载页与游戏世界，断言\"加载页出现 → 世界视图首帧上屏\"。做法参考 ON-4-02a 的切法：在 RuntimeMain 侧用真实启动路径 + 环境变量注入，不要试图在 skirmish TU 里继续往下走（那是跨窗口、跨模块）。必须用 ON-3-01 的 attest 通道（layerHash==dibHash）做上屏证据，并在拿到首帧后 _Exit（世界主循环没有可靠退出路径）。",
+   "verify": "加载页 BMP 导出成功且非空；随后世界视图首帧出现（surface 尺寸变化 + attest 一条 match=yes），EXIT=0。",
+   "touches": [
+    "src/runtime/host/RuntimeMain.cpp",
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "note": "前置：ON-4-02c（done）、ON-3-01（attest，done）。注意世界主循环不经过 pumpEvents，红叉/Cmd+Q 在那条路径上都不生效，只能 _Exit。"
   },
   {
    "id": "ON-4-03",
