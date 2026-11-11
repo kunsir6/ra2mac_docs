@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
   "version": 109,
-  "updated": "2026-11-12T05:55:00+08:00",
+  "updated": "2026-11-12T05:58:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2440,7 +2440,7 @@
   "title": "多谓词断言逐项计量：M-14 完成（潜航选择框），M-12 收窄到可见性门",
   "status": "done",
   "phase": "问题修复",
-  "detail": "两条 known-red 都只有一句 aligned=no / hit mismatch 出口，把 5~6 条谓词压成一句话，问题描述本身就是错的。①M-14：validateUnitSelectionBounds 拆 6 谓词逐项打印后，DLPH/SQD 只有 cy 失败——断言把潜航的垂直偏移写成 tileHeight/2（15px），而 drawLevelForObject 的实际下沉是 1/3 层级（5px）；常量提为头文件 inline runtimeSubmergedVisualDepthLevels() 供绘制与断言共享，六类对象全 aligned=yes。②M-12：几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）全部通过，唯一失败谓词是 rightClickMatches 且目标为 nullptr；命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后整条对象 continue，该像素无人顶替——「画得出、点不到」的空洞。两种定性（真被遮挡 vs 可见性门错杀）改法相反，故只落计量不改 pick，避免重演 M-10 的误改。",
+  "detail": "两条 known-red 都只有一句 aligned=no / hit mismatch 出口，把 5~6 条谓词压成一句话，问题描述本身就是错的。①M-14：validateUnitSelectionBounds 拆 6 谓词逐项打印后，DLPH/SQD 只有 cy 失败——断言把潜航的垂直偏移写成 tileHeight/2（15px），而 drawLevelForObject 的实际下沉是 1/3 层级（5px）；常量提为头文件 inline runtimeSubmergedVisualDepthLevels() 供绘制与断言共享，六类对象全 aligned=yes。②M-12：几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）全部通过，唯一失败谓词是 rightClickMatches 且目标为 nullptr；命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后整条对象 continue，该像素无人顶替——「画得出、点不到」的空洞。两种定性（真被遮挡 vs 可见性门错杀）改法相反，故只落计量不改 pick，避免重演 M-10 的误改。③M-15：build 的 no unit/infantry catalog item 补计量后判明是夹具缺口——catalog total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，每条 reason 都是 missing InfantryType/UnitType，即 runtimeOwnerHasCompatibleFactory 失败（2peaks 的 Structures:10 全 Neutral，没有己方生产基地），不是可用性缺陷。",
   "verify": "build 冒烟 Unit selection bounds 六类全 aligned=yes；bash ra2mac_docs/scripts/regress.sh → PASS=6 KNOWN-RED=5 RED-NEW=0（基线同，零新回归）；build 阻塞点后移到 no unit/infantry catalog item（新登记 M-15），interaction 阻塞点收窄到右键可见性门。",
   "touches": [
    "src/render/core/RuntimeMapRenderer.h",
@@ -2448,6 +2448,19 @@
    "src/runtime/host/RuntimeShell.cpp"
   ],
   "note": "commit 61858b3 / d2f36b3 / 799c9b6；报告 reports/FIX-06-选择框与命中框的两条口径.md。下一轮起手：M-12 补一档计量（该像素上所有 spans 命中对象的 depthVis 清单），其次 M-15。"
+ },
+
+ {
+  "id": "M-15",
+  "title": "build 冒烟夹具补己方生产基地（兵营 + 战车工厂）",
+  "status": "pending",
+  "phase": "问题修复",
+  "detail": "已定性为 fixture-gap：build 冒烟在「队列一个单位」这步找不到任何 canQueue 的 Unit/Infantry，原因是 2peaks 世界里 Structures:10 全为 Neutral，没有任何 Factory=InfantryType/UnitType 的己方建筑，runtimeOwnerHasCompatibleFactory 恒 false。修法：用 addRuntimeObjectInstance 注入 1 栋己方兵营（GAPILE）与 1 栋己方战车工厂（GAWEAP），落点避开既有建筑地基，注入后调refreshRuntimeObjectOccupancyAfterLocalChange。与 M-11 注入 MTNK 同一条产品创建路径，不要手搓结构体。",
+  "verify": "bash regress.sh 中 build 条不再报 no unit/infantry catalog item；若队列/取消/集结点断言又暴露新阻塞点，按 M-11/M-14 的做法登记新条目而不在本批硬啃。",
+  "touches": [
+   "src/runtime/host/RuntimeShell.cpp"
+  ],
+  "note": "计量出处 64f2c95；报告 reports/FIX-06-选择框与命中框的两条口径.md §3。"
  }
   ],
   "decisions": {
