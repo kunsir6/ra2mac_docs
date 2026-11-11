@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 73,
- "updated": "2026-11-11T11:35:00+08:00",
+ "version": 74,
+ "updated": "2026-11-11T11:45:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -149,7 +149,7 @@
   "commit_must_be_verified": "每次提交后必须跑 git fsck --no-progress 与 git status --short，不能只看 git log。2026-11-11 实证：179c84e 的 commit 对象与 message 都在、git log 读起来正常，只有 compat/ 子树对象没落盘，git status/diff 全部 fatal；而下一轮自动化第一件事就是 git add/diff，不校验就会以\"莫名其妙的 fatal\"炸开且无法归因到上一轮。",
   "product_full_build_is_broken": "产品级 `cmake --build build-product-arm`（1823 目标）在 [182/1823] 失败于 concord_mod_history_noop_smoke：RuntimeModExtensionsHistoryNoopSmoke.cpp 调用 advanceRuntimeModExtensions(宿主自造类型)，而唯一声明是 src/runtime/session/detail/RuntimeProductionOperations.h:9631 的 advanceRuntimeModExtensions(RuntimeGameSessionState&)，测试既没 include 该头、类型也不匹配。与架构无关，历史上一直存在——过去所有验证都只编 concord_runtime 主目标，从没触发。因此：判据命令沿用 `cmake --build <dir> --target concord_runtime`；要恢复全量构建见 ARM-02。",
   "lighting_simd_off_on_arm64": "src/render/lighting/RuntimeLightingLookupRaster.h 用 __SSE2__ 选路，arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，故金标准哈希不受影响；但该文件的系数是「只在能逐项精确复现 rounded 查找表时才被接受」，若将来把光照纳入像素级判据，必须单独验证标量与 SSE2 逐像素一致。性能影响待 ON-4-04 量化。",
-  "delivery_two_thin_binaries": "交付形态 = 两份 thin 产物，不做 universal（用户 2026-11-11 决策）。arm64: cmake --build build-product-arm --target concord_app → build-product-arm/app/ConcordRTS.app；x86_64: cmake -DCMAKE_OSX_ARCHITECTURES=x86_64 -B build-product-x86 → 同上 --target concord_app。出口目录 /Users/zhenglk/AiProjects/ra2mac/dist/，命名 ConcordRTS-<version>-<arch>.app，不入库。注意 .app 内的 Contents/Resources/data-root 是**文本指针**（指向 ConcordRTS-GameData 绝对路径），不是数据副本；把 app 发给别人必须同时给数据树或改这个指针。",
+  "delivery_two_thin_binaries": "交付形态 = 两份 thin 产物，不做 universal（用户 2026-11-11 决策）。arm64: cmake -B build-product-arm -DCONCORD_MACOS_APP_NAME=ConcordRTS-0.1.0-arm64 -DCONCORD_MACOS_BUNDLE_ID=org.concord.rts.arm64 → --target concord_app；x86_64: 同上再加 -DCMAKE_OSX_ARCHITECTURES=x86_64，APP_NAME/BUNDLE_ID 换 x86_64。出口目录 /Users/zhenglk/AiProjects/ra2mac/dist/，文件名=APP_NAME。不入库。【标识必须一起区分】CFBundleName / DisplayName / Identifier / IconFile 四项都随 APP_NAME 走；只改文件名不改 bundle id，会让 LaunchServices 把两个产物当同一个应用。CFBundleIconFile 已由 packaging/Info.plist.in 的 @CONCORD_APP_NAME@ 驱动（原写死 ConcordRTS，改名即丢图标，2026-11-11 已修，源码 3d7267e）。可执行文件名保持 concord_runtime 不变——开发形态路径被十几套 smoke 引用，改它只会打断验证。注意 .app 内的 Contents/Resources/data-root 是**文本指针**（指向 ConcordRTS-GameData 绝对路径），不是数据副本；把 app 发给别人必须同时给数据树或改这个指针。",
   "retina_scale_measurement_trap": "2026-11-11 实测陷阱：attest 里的 scale 只在**裸二进制**（不在 .app 内）直接执行时可信——arm 裸二进制得到 scale=2.0，而 arm/x86 的 .app 内二进制直接 exec 都得到 scale=1.0。原因是高分辨率由 LaunchServices 启动时决定，直接 exec bundle 内二进制会退回 legacy 1x。故「x86 切片在 Rosetta 下 scale=1.0」不能证明产物有 Retina 缺陷，也不能证明没有——Retina 判据必须在真 Intel 机器上以裸二进制方式复验。"
  },
  "tasks": [

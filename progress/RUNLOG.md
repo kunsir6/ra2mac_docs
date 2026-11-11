@@ -5505,3 +5505,43 @@ arm 的 `.app` 内二进制同样 1.0 → 差异只来自**启动方式**。高�
 - 新增 `PKG-01`（done）。
 
 产出 `reports/PKG-01-双产物交付.md`。源码仓库仍无改动；`dist/` 在仓库外，不入库。
+
+## 2026-11-11 11:45 · PKG-01b · done（产物标识全面区分：名字/bundle id/图标名）
+
+用户追加要求：「文件名也区分开」。查下来只改文件名不够——两个 bundle 若共用
+`CFBundleName` 与 `CFBundleIdentifier`，Dock 里长得一样，LaunchServices 还会把它们当同一个应用。
+于是四项一起改：
+
+| 字段 | arm64 | x86_64 |
+|---|---|---|
+| 文件名 | `ConcordRTS-0.1.0-arm64.app` | `ConcordRTS-0.1.0-x86_64.app` |
+| `CFBundleName` / `DisplayName` | `ConcordRTS-0.1.0-arm64` | `ConcordRTS-0.1.0-x86_64` |
+| `CFBundleIdentifier` | `org.concord.rts.arm64` | `org.concord.rts.x86_64` |
+| `CFBundleIconFile` | 与 icns 同名 | 与 icns 同名 |
+| 可执行文件 | `concord_runtime`（不动） | `concord_runtime`（不动） |
+
+可执行文件名刻意不动：`build-product-*/concord_runtime` 这个开发形态路径被十几套 smoke 与脚本引用，
+改它只会打断既有验证。
+
+### 顺带修掉一个「改名就丢图标」的 bug
+
+`packaging/Info.plist.in` 的 `CFBundleIconFile` 原本写死 `ConcordRTS`，而打包脚本生成的 icns 名
+跟随 `--app-name`。**只要改 app 名，Dock 里立刻变白纸**——之前从未暴露，因为名字从来没改过。
+改为 `@CONCORD_APP_NAME@` 占位符驱动后，两者永远同步。
+源码提交 `3d7267e`（1 文件 +1/−1）。
+
+### 验证
+
+```
+CFBundleName       ConcordRTS-0.1.0-arm64   / ConcordRTS-0.1.0-x86_64
+CFBundleIdentifier org.concord.rts.arm64    / org.concord.rts.x86_64
+icns               1024 px，与 CFBundleIconFile 同名
+arch               arm64 / x86_64        sign: ok（--deep --strict）
+菜单 smoke         两份 rampPixels 均 1056,781,1428
+BMP SHA-256        7f3708c822cdac09e9025e8a2357028db1a1c36e（两份完全相同）
+```
+
+改名后重新冒烟，两份产物输出仍逐字节相同，说明名字/标识的改动没有触碰任何渲染路径。
+
+队列 v73 → v74：`rules.delivery_two_thin_binaries` 补入命名与四项标识约定，
+以及 `CFBundleIconFile` 的 bug 与修复提交号。
