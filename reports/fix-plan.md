@@ -13,7 +13,8 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 03:18（第 3 轮收口：M-09 / M-10 完成——两条根因都在断言口径，产品零改动；新登记 M-11 / M-12）
+> 最近更新：2026-11-12 04:20（第 4 轮开工：把 UI-01 报告里「可确证差异」中未进台账的 FPS 叠加层（U-17）与取证通道（U-18）
+> 正式登记为 S-09 / M-13；核对其余条目状态无误）
 
 ---
 
@@ -29,6 +30,7 @@
 | S-06 | render 阴影只读计量 | `structuresShadowsDrawn=0`，但 SHP 解析正常（shp=5），分不清是相机可见性还是阴影帧解析 | 未区分「不在视口」与「解析失败」 | 中：为 S-07 定性提供唯一判据 | 加 3 个只读计数 | **B** | 简单 | 待修复 | 同上 |
 | S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 待修复 | 同上 |
 | S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复 | `reports/ON-2-前排任务现状对账.md` |
+| S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.1 |
 
 ## 二、待修复 —— 中等
 
@@ -46,6 +48,7 @@
 | M-10 | interaction 南向相机极值裸露 | 8 个钳制极值里只有 `S` 一项 `tile=398/625..458/655:no`：最南一行在视口底(640)以下被切 15px；`corners` 同时判红；void 全 0 | **已定性：实现是对的**。物理地图边缘的 reveal 预留被有意做成 −halfTile（相机提前半格停，把锯齿黑边留在客户区外）；错的是「极值 cell 必须完整可见」这条断言，与 `physicalMapEdgeCovered` 直接矛盾。钳到 0 后 void 立刻 0.012/856px，反证策略必要性 | 中：清掉 interaction 第 2 个阻塞点 | 允许溢出量 = 该方向负预留 | **A** | 中等 | 已完成（`469cfa8`；interaction 停在 M-12） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | 疑夹具缺口（fixture-gap）：该 smoke 的世界构造只放了建筑；上游 Windows 版此断言绿，说明是 macOS 夹具没有生成单位 | 中：清掉 `build` 第 3 个阻塞点 | 夹具注入 1 个己方单位 + 断言沿用 | **A** | 简单 | 待修复（第 3 轮由 M-09 之后暴露） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-12 | interaction 建筑 footprint 命中框不一致 | 相机断言全绿后停在新阻塞 `structure footprint hit mismatch` | 未明。需先量 `lastStructureSelectionHitBounds` 与 `lastStructureSelectionFootprintBounds` 的两侧差值，判断是命中框按动画包围盒（含炮管/旗）还是按地基算 | 中：清掉 interaction 第 3 个阻塞点 | 先加只读计量再定性 | **A** | 中等 | 待修复（第 3 轮由 M-10 之后暴露） | `reports/FIX-04-两条断言的几何口径.md` |
+| M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -72,7 +75,16 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 3 轮）打包清单
+## 五、本轮（2026-11-12 第 4 轮）打包清单
+
+主题：**夹具缺口 + 观感硬伤，两条都不动模拟层**。M-11 给 build 冒烟补一个可悬停单位（fixture-gap），
+S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共用一次构建与一次回归。
+
+- **M-11**：`build` 停在 `no unit available for hover health bar`；默认图只有建筑与地形。
+  按 `aquaticSelectionProbe` 的既有写法注入 1 台己方 MTNK，探针结束后再摘掉，后续阶段看到的图与原图一致。
+- **S-09**：`drawRuntimeFpsDisplay` 三个调用点加偏好位门控（默认关，`--show-fps` / `[Options] ShowFps` 打开）。
+
+## 六、第 3 轮（2026-11-12）打包清单（存档）
 
 主题：**两条判红的根因都在断言口径，不在产品**。两条都先量几何再动手，产品路径零改动，
 共用一次构建与一次回归。报告 `reports/FIX-04-两条断言的几何口径.md`。
@@ -93,7 +105,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 六、第 2 轮（2026-11-12）打包清单（存档）
+## 七、第 2 轮（2026-11-12）打包清单（存档）
 
 主题：**回归门禁的「资产缺口 vs 产品缺陷」口径**。三条同一性质，只改探针/夹具口径，不动产品行为，
 共用一次构建与一次回归。报告 `reports/FIX-03-回归门禁口径三连.md`。
@@ -115,7 +127,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 七、第 1 轮（2026-11-12）打包清单（存档）
+## 八、第 1 轮（2026-11-12）打包清单（存档）
 
 承接上一轮被截断的 WIP（`progress/.active` 记 `auto-acquire-policy+team-number`）：
 
