@@ -6888,3 +6888,16 @@ economy/base/army/defense/waves=6/orders=50 全 yes，说明开着 AI 的遭遇�
 ninja 过；回归 PASS=5 KNOWN-RED=6 RED-NEW=0；controller 契约 77 检查 0 失败；
 pack-dist.sh 重出 dist/尤里红警.app（app smoke rc=0，icon diff 96.2/255）。
 队列 v103 → v104（EVO-16、EVO-17 done）。
+
+### 2026-11-12 第 3 轮（FIX-04）
+
+M-09 / M-10 两条判红都定性为**断言口径**问题，产品路径零改动：
+血条包围盒高度改用「冠顶斜边跨度 + 间隙」（旧公式按水平条，恒定少算 2px）；
+相机极值的负预留是物理边缘策略（提前半格停、避免锯齿黑边），断言改为允许等量溢出。
+
+### 验证
+
+ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报 edge=61x33 selection-edge=yes，
+interaction 报 edgeCells=4/4 corners=4/4 physicalEdge=half-tile-covered。
+两条仍 KNOWN-RED 但阻塞点后移：build→M-11（夹具无单位）、interaction→M-12（footprint 命中框）。
+队列 v106 → v107（FIX-04 done）。

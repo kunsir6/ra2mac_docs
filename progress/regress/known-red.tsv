@@ -4,8 +4,8 @@
 #              / code-red:needs-metering（疑为产品缺陷，先加只读计量再定性）
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-interaction	修理光标夹具已修（S-04/e1dede3，己方建筑已注入）；现停在 8 个钳制相机极值中南向 tile 未覆盖（tile=398/625..458/655:no，见 fix-plan M-10）	code-red:needs-metering
+interaction	相机极值断言已修（M-10/469cfa8，负预留是物理边缘策略，断言允许半格溢出）；现停在 structure footprint 命中框与地基 bounds 不一致（见 fix-plan M-12）	code-red:needs-metering
 render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
-build	MCI 探针已修（M-08/933d70c，mci=skipped(no MCI backend)）；现停在 structure health bar 高度口径 actual=61x33 vs expected=61x31（见 fix-plan M-09）	code-red:needs-metering
+build	血条高度断言已修（M-09/0e99bc1，斜边跨度+冠顶间隙=33）；现停在夹具世界里没有可悬停的单位（见 fix-plan M-11）	fixture-gap
 result	暂停态第二次 WM_PAINT 走 reuseCachedFrame，记分动画不前进；断言源自 2026-10-10 上游（Windows 侧历史绿）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

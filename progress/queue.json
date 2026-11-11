@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 106,
-  "updated": "2026-11-12T02:40:00+08:00",
+  "version": 107,
+  "updated": "2026-11-12T03:20:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2422,7 +2422,19 @@
       ],
       "note": "commit cd2e841 / 933d70c / e1dede3；报告 reports/FIX-03-回归门禁口径三连.md。后续阻塞点 M-09（健康条 61x33 vs 61x31）、M-10（南向极值 tile 未覆盖）已登记 fix-plan。"
     }
-  ],
+,
+    {
+     "id": "FIX-04",
+     "title": "两条断言的几何口径：M-09 血条高度 / M-10 相机极值（产品零改动）",
+     "status": "done",
+     "phase": "问题修复",
+     "detail": "两条判红的根因都不在产品。①M-09：建筑血条贴冠顶斜边排布，包围盒高度=斜边竖直跨度(30)+冠顶间隙(3)=33，旧断言用水平条口径 +1 恒定少算 2px；间隙提为 kStructureHealthBarClearance 供绘制与断言共享。②M-10：物理地图边缘的 reveal 预留是有意的 −halfTile（相机提前半格停，把渲染锯齿黑边留在客户区外），先按直觉钳到 0 被 physicalMapEdgeCovered 断言打回、void 由 0.000 变 0.012/856px，遂改为断言侧允许溢出量=该方向负预留（其余方向仍 0），void 保证不放宽。",
+     "verify": "ninja -C build-product-arm concord_runtime 全绿；bash ra2mac_docs/scripts/regress.sh → PASS=6 KNOWN-RED=5 RED-NEW=0；build 报 Structure hover health edge=61x33 selection-edge=yes；interaction 报 edgeCells=4/4 corners=4/4 physicalEdge=half-tile-covered。",
+     "touches": [
+      "src/runtime/host/RuntimeShell.cpp"
+     ],
+     "note": "commit 0e99bc1 / 469cfa8；报告 reports/FIX-04-两条断言的几何口径.md。两条仍 KNOWN-RED 但阻塞点后移：build→M-11（夹具无单位）、interaction→M-12（footprint 命中框），已登记 fix-plan。"
+    }  ],
   "decisions": {
     "date": "2026-11-11",
     "source": "用户四点决策回复",
