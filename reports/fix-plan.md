@@ -13,8 +13,8 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 04:20（第 4 轮开工：把 UI-01 报告里「可确证差异」中未进台账的 FPS 叠加层（U-17）与取证通道（U-18）
-> 正式登记为 S-09 / M-13；核对其余条目状态无误）
+> 最近更新：2026-11-12 04:35（第 4 轮收口：M-11 / S-09 完成——夹具缺口 + 观感硬伤，模拟层零改动；
+> `build` 阻塞点后移到新登记的 M-14）
 
 ---
 
@@ -30,7 +30,7 @@
 | S-06 | render 阴影只读计量 | `structuresShadowsDrawn=0`，但 SHP 解析正常（shp=5），分不清是相机可见性还是阴影帧解析 | 未区分「不在视口」与「解析失败」 | 中：为 S-07 定性提供唯一判据 | 加 3 个只读计数 | **B** | 简单 | 待修复 | 同上 |
 | S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 待修复 | 同上 |
 | S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复 | `reports/ON-2-前排任务现状对账.md` |
-| S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.1 |
+| S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 
 ## 二、待修复 —— 中等
 
@@ -46,9 +46,10 @@
 | M-08 | `build` 的 MCI 音乐探针口径 | CP1252 修好后 `build` 停在新阻塞 `mci=error-306`，整条条红 | macOS 无 MCI 后端；探针把「平台缺口」当「产品缺陷」判红（同 campaign 的 Bink） | 中：清掉 `build` 的剩余红，恢复该条信号价值 | 探针改 skip + 打印 `skipped(no MCI backend)` | **A** | 简单 | 已完成（第 2 轮 933d70c；后续阻塞点后移到 M-09） | `reports/FIX-03-回归门禁口径三连.md` |
 | M-09 | `build` 建筑健康条比选择框高 2px | 健康条 `actual=61x33`，断言 `expected=61x31`（宽一致、分段 14/14 正常、无限血已正确隐藏） | **已定性：公式旧**。断言按「水平条」算高度（`+1`），实际血条贴冠顶**斜边**排布，包围盒 = 斜边竖直跨度(30) + 冠顶间隙(3) = 33 | 中：清掉 build 第 2 个阻塞点 | 1 处公式 + 常量共享 | **A** | 中等 | 已完成（`0e99bc1`；build 停在 M-11） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-10 | interaction 南向相机极值裸露 | 8 个钳制极值里只有 `S` 一项 `tile=398/625..458/655:no`：最南一行在视口底(640)以下被切 15px；`corners` 同时判红；void 全 0 | **已定性：实现是对的**。物理地图边缘的 reveal 预留被有意做成 −halfTile（相机提前半格停，把锯齿黑边留在客户区外）；错的是「极值 cell 必须完整可见」这条断言，与 `physicalMapEdgeCovered` 直接矛盾。钳到 0 后 void 立刻 0.012/856px，反证策略必要性 | 中：清掉 interaction 第 2 个阻塞点 | 允许溢出量 = 该方向负预留 | **A** | 中等 | 已完成（`469cfa8`；interaction 停在 M-12） | `reports/FIX-04-两条断言的几何口径.md` |
-| M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | 疑夹具缺口（fixture-gap）：该 smoke 的世界构造只放了建筑；上游 Windows 版此断言绿，说明是 macOS 夹具没有生成单位 | 中：清掉 `build` 第 3 个阻塞点 | 夹具注入 1 个己方单位 + 断言沿用 | **A** | 简单 | 待修复（第 3 轮由 M-09 之后暴露） | `reports/FIX-04-两条断言的几何口径.md` |
+| M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | **已定性：夹具缺口**。默认图 `Units=0`；且必须用 `addRuntimeObjectInstance` 生成（手搓结构体会绕过 pose/`hasRenderPosition`，像素画得出来但命中回不到自己），落点还要保证「自身包围盒中心命中回自己」 | 中：清掉 `build` 第 3 个阻塞点 | 注入 1 台己方 MTNK + 环型找落点 + 探针后按 id 摘掉 | **A** | 简单 | 已完成（`0ce035a`；build 停在 M-14） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 | M-12 | interaction 建筑 footprint 命中框不一致 | 相机断言全绿后停在新阻塞 `structure footprint hit mismatch` | 未明。需先量 `lastStructureSelectionHitBounds` 与 `lastStructureSelectionFootprintBounds` 的两侧差值，判断是命中框按动画包围盒（含炮管/旗）还是按地基算 | 中：清掉 interaction 第 3 个阻塞点 | 先加只读计量再定性 | **A** | 中等 | 待修复（第 3 轮由 M-10 之后暴露） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
+| M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 待修复（第 4 轮由 M-11 之后暴露） | `reports/FIX-05-夹具缺口与FPS叠加层.md` §3 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -79,10 +80,21 @@
 
 主题：**夹具缺口 + 观感硬伤，两条都不动模拟层**。M-11 给 build 冒烟补一个可悬停单位（fixture-gap），
 S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共用一次构建与一次回归。
+报告：`reports/FIX-05-夹具缺口与FPS叠加层.md`。
 
 - **M-11**：`build` 停在 `no unit available for hover health bar`；默认图只有建筑与地形。
-  按 `aquaticSelectionProbe` 的既有写法注入 1 台己方 MTNK，探针结束后再摘掉，后续阶段看到的图与原图一致。
-- **S-09**：`drawRuntimeFpsDisplay` 三个调用点加偏好位门控（默认关，`--show-fps` / `[Options] ShowFps` 打开）。
+  用 `addRuntimeObjectInstance` 注入 1 台己方 MTNK（不用手搓结构体），并沿半径 2..10 找一个
+  「自身包围盒中心命中回自己」的格子，探针结束后按 id 摘掉。→ `0ce035a`（该断言转绿）
+- **S-09**：`drawRuntimeFpsDisplay` 三个调用点加偏好位门控（默认关，`--show-fps` / `[Options] ShowFps` 打开）。→ `c1ccfe6`
+
+回归结果：`PASS=6 KNOWN-RED=5 RED-NEW=0`（与基线一致，零新回归）。
+`build` 仍红但**阻塞点后移**：悬停单位已绿，现停在 M-14（移动帧选择框覆盖）。
+
+移出本批：无。本轮没有硬啃中等问题（M-12 需先量 footprint 两侧差值，时间不够则不启动，
+避免重演 M-10 那次按直觉改产品被反证指标打回）。
+
+下一轮起手：**M-14（build 第 4 个阻塞，先加三个谓词的只读计数）** 与 **M-12（interaction footprint 命中框）**，
+两者同属「选择框/命中框几何口径」，可各写一段计量后一并定性。
 
 ## 六、第 3 轮（2026-11-12）打包清单（存档）
 
