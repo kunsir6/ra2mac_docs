@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 102,
- "updated": "2026-11-11T20:59:00+08:00",
+ "version": 103,
+ "updated": "2026-11-11T21:06:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -186,7 +186,9 @@
   "fullscreen_criteria_no_hash": "全屏自测的判据不能用「前后帧 hash 不变」：全屏期间界面本来就在动（光标闪烁、动画），hash 必变。判据应是 contents 未丢 + CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧。",
   "nscursor_set_is_global": "-[NSCursor set] 设的是**全局**当前游标，不会因为指针离开窗口自动撤销：只要有一条路径 set 了空图，指针在别的应用/桌面上也会看不见。区域限定的隐藏必须自己做往返（进入设、离开撤销），或真接 [NSApp sendEvent:] 让 cursor rect 生效。",
   "cursor_rect_needs_send_event": "本项目只 nextEventMatchingMask 出队、不调 [NSApp sendEvent:]，实测这种循环里 cursor rect（addCursorRect/resetCursorRects）完全不生效，NSApp.isActive 与 window.isKeyWindow 也恒为 0。任何依赖「窗口级 cursor 状态」的代码在本项目里都是死代码，除非先接 sendEvent（见 EVO-15）。",
-  "cursor_state_needs_truth_not_flag": "判断「光标现在是不是被我们藏了」要读 +[NSCursor currentSystemCursor]（系统此刻真正在显示什么），不要用自己的标志位：AppKit 会在激活变化时把游标改回箭头，标志位一旦脱节就再也收敛不回来。"
+  "cursor_state_needs_truth_not_flag": "判断「光标现在是不是被我们藏了」要读 +[NSCursor currentSystemCursor]（系统此刻真正在显示什么），不要用自己的标志位：AppKit 会在激活变化时把游标改回箭头，标志位一旦脱节就再也收敛不回来。",
+  "pointer_capture_is_association_off": "macOS 没有把光标裁剪在窗口内的 API。所谓「抓住鼠标」= CGAssociateMouseAndMouseCursorPosition(false)：硬件指针完全不动，游戏用 NSEvent.deltaX/deltaY 推虚拟指针（y 要翻转、要夹在表面内）。这是进程级开关，任何退出路径漏恢复都会让整机鼠标动不了，必须有 shutdown + atexit + _Exit 路径三重兜底；失焦要自动释放。",
+  "warp_bypasses_capture": "CGWarpMouseCursorPosition 是显式定位，会绕过 CGAssociateMouseAndMouseCursorPosition(false)——所以「捕获期间指针不动」不能用 warp 来自动验证（推得动才是正常的）。这条只能人工确认。"
  },
  "tasks": [
   {
@@ -2186,16 +2188,16 @@
   },
   {
    "id": "U-11",
-   "title": "指针捕获（VMware 式）：游戏内指针不出窗口 + 组合键释放 —— 待定方案",
-   "status": "pending",
+   "title": "指针捕获（VMware 式，按需捕获）：⌃⌘G 抓住 / ⌃⌘ 放开 / 点回自动再抓",
+   "status": "done",
    "phase": "U 可玩性收尾",
-   "detail": "用户建议：游戏 focus 时指针不能移出屏幕、系统指针也限制住；组合键释放指针、游戏 unfocus、游戏内光标不动。技术现实：macOS 没有给第三方应用「把光标限制在某个窗口内」的 API，能做「限制」的只有相对模式——CGAssociateMouseAndMouseCursorPosition(false) 让光标**完全不动**，由游戏用 NSEvent.deltaX/deltaY 自己推进自绘光标，再用 CGWarpMouseCursorPosition 把硬件指针钉在窗口中心。也就是说「限制在窗口内」= 「硬件指针停住、游戏接管」。释放热键候选 ⌃⌘（游戏本身不用 Command 修饰键，⌃ 单独用于强制攻击）。全屏模式不需要捕获：窗口就是屏幕，指针本来出不去，边缘滚动天然可用。窗口模式是否默认捕获是唯一的真正分歧：默认捕获（VMware 老行为）体验连贯但会「抓住」用户的鼠标；默认不捕获（macOS 惯例）不抓人但指针一出界游戏就收不到移动事件。",
-   "verify": "待做（决定后）：捕获态下 CGWarpMouseCursorPosition 移动指针应无效（指针位置读数不变），释放后立刻可移动；⌃⌘ 释放后游戏光标停在原处、系统箭头出现；退出/崩溃路径必须恢复 CGAssociateMouseAndMouseCursorPosition(true)（漏了会让整机鼠标失效）。",
+   "detail": "用户建议「游戏 focus 时指针不能移出屏幕、系统指针也限制住，组合键释放」。macOS 没有把光标裁剪在窗口内的 API，能做「限制」的只有相对模式 CGAssociateMouseAndMouseCursorPosition(false)——硬件指针完全不动，游戏用 NSEvent.deltaX/deltaY 推自绘光标；落地形式是「指针停住 + 游戏接管」而不是「撞边框被挡住」。全屏本来就不需要捕获（窗口=屏幕）。用户选定**按需捕获**。实现三态：Free（默认，指针自由、窗口内隐藏箭头）/ Captured（⌃⌘G，硬件指针钉窗口中心并冻结，虚拟指针吃 delta、翻 y、夹在表面内）/ Released（⌃⌘，恢复关联并把硬件指针接回游戏光标处，系统箭头可见）。⌃⌘ 组合在 emit() 最前面拦掉（先于 syncModifierState，否则 Ctrl 会被当成强制攻击喂给游戏），其余 ⌃⌘ 组合吞掉；Released 态下鼠标按下自动再抓且虚拟指针落到点击位置。三重兜底：正常释放 + shutdown + atexit（_Exit 路径手动恢复），失焦即释放。",
+   "verify": "CONCORD_CAPTURE_SELFTEST=1：captured → 投合成 mouseMoved(delta=37,-21) → 'delta virtual=549,341 expect=549,341 ok=1'（表面中心 512,320 + (37,+21)，y 翻转正确）→ 释放 → 'release landed=1 want=780,527 now=780,527 state=2 ok=1'（硬件指针落在游戏光标对应屏幕点，偏差 0px）→ failures=0。CONCORD_CURSOR_SELFTEST=1 仍 ok=1/ok=1/failures=0。全量回归 PASS=5 KNOWN-RED=6 RED-NEW=0。dist 21:05 重打包。",
    "touches": [
-    "compat/win32/src/RuntimeAppleWindowSurface.mm",
-    "compat/win32/src/RuntimeWin32CompatInput.cpp"
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
-   "note": "风险等级高于 U-10：CGAssociateMouseAndMouseCursorPosition 是**进程级/全局**开关，任何一条退出路径漏了恢复，用户的鼠标就废了（只能强杀）。必须做成「无论如何都恢复」的 RAII + atexit + 失焦回调三重兜底，并且只在窗口模式下按用户选择开启。"
+   "note": "「捕获期间指针真的不动」无法在进程内自动断言：CGWarpMouseCursorPosition 是显式定位，绕过关联开关（实测推得动）。只能自动验证 delta 处理与释放落点，指针冻结需人工确认（⌃⌘G 后移动鼠标：游戏光标动、箭头不动）。",
+   "result": "按需捕获可用：⌃⌘G 抓住、⌃⌘ 放开、点回自动再抓；释放后硬件指针精确落在游戏光标处。默认不抓，不影响窗口化多任务。"
   },
   {
    "id": "EVO-13",

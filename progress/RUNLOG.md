@@ -6799,3 +6799,59 @@ U-05 为修「窗口激活后冒出第二个箭头」，在每个输入事件上
 - **EVO-15**（pending）：事件分发接 `sendEvent`，让 cursor rect / 激活态回到 AppKit 正规路径。
 
 产出 `reports/U-10-系统指针移出恢复.md`；队列 v100 → v102。
+
+## 2026-11-11 21:06 · U-11 指针捕获（按需捕获）
+
+用户同一条消息里的第二段（设计建议）：
+
+> 游戏 focus 状态的时候，游戏指针不能移出屏幕，系统指针也可以限制不能移出去。
+> 使用组合快捷键释放指针，让游戏 unfocus……系统指针释放，可以往外移动。
+
+### 先说清楚 macOS 做不到什么
+
+没有「把光标裁剪在窗口内」的 API，指针不会"撞到边框被挡住"。能做「限制」的只有
+相对模式：`CGAssociateMouseAndMouseCursorPosition(false)` 之后硬件指针**完全不动**，
+物理鼠标只产生 delta，由我们自己累加成虚拟指针喂给游戏。所以落地形式是
+**「指针停住 + 游戏接管」**。另外全屏本来就不需要捕获——窗口就是屏幕。
+
+分歧只有一条：窗口模式是否**默认**抓。默认抓（VMware 老行为）连贯但抓人；
+用户选了**按需捕获**。
+
+### 实现
+
+三态 Free / Captured / Released：
+
+- `⌃⌘G` 抓（硬件指针钉到窗口中心后冻结，虚拟指针吃 delta，翻 y、夹在表面内）；
+- `⌃⌘` 放（先恢复关联再 warp 到游戏光标处，顺序反了位置不生效）；
+- 释放后点回窗口自动再抓，虚拟指针落到点击位置。
+
+`⌃⌘` 组合在 `emit()` 最前面拦掉、先于 `syncModifierState`——否则 Ctrl 会被当成
+强制攻击喂给游戏。选它是因为本游戏不用 Command，Ctrl 单独是强制攻击，两者组合不冲突。
+
+**三重兜底**（本轮最大风险：这个开关是进程级的，漏恢复=整机鼠标不能动）：
+正常释放 + `shutdown()` + `std::atexit`，自测的 `std::_Exit` 路径手动恢复；
+`windowDidResignKey` 里若还在捕获态就直接放人。
+
+### 验证
+
+```
+[capture] captured
+[capture] delta virtual=549,341 expect=549,341 ok=1        ← 合成 delta(37,-21)，中心 512,320 → 549,341
+[capture] released pointer=780,527
+[capture] release landed=1 want=780,527 now=780,527 state=2 ok=1
+[capture] done: failures=0
+```
+
+U-10 的光标自检同时仍 `ok=1 / ok=1 / failures=0`；回归 `PASS=5 KNOWN-RED=6 RED-NEW=0`。
+
+**没能自动验**：「捕获期间指针真的不动」。`CGWarpMouseCursorPosition` 是显式定位，
+会绕过关联开关（实测推得动），所以这条只能人工确认：
+窗口模式进游戏 → `⌃⌘G` → 移动鼠标，游戏光标动、箭头不动 → `⌃⌘` → 箭头出现且能移出窗口。
+
+### 新 rule
+
+- `pointer_capture_is_association_off`：捕获 = 关联关闭 + 自己累加 delta；进程级开关，
+  三重兜底必须齐。
+- `warp_bypasses_capture`：warp 绕过关联，不能用来验证"指针不动"。
+
+产出 `reports/U-11-指针捕获.md`；队列 v102 → v103。
