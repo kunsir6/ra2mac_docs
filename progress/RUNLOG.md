@@ -5746,3 +5746,47 @@ dump: flow_01_home.bmp / flow_02_single_player.bmp
 
 `ON-4-02` → **`ON-4-02a` done**；新增 `ON-4-02b`（pending，大厅内部交互：选图→设参→开局）。
 当前：done 67 / pending 9 / superseded 7 / blocked 3（共 86）。
+
+## 2026-11-11 14:25 · ON-4-02b · done（大厅窗口的队列路径：SendMessageW 不算数）
+
+接着做 02b。读 `RuntimeSkirmishCursorSmoke.inl` 第 1 行注释写着
+"Exercise the real shell window messages"——但**通篇是 `SendMessageW`**。
+它直接调窗口过程，绕开 `GetMessageW/DispatchMessageW`。菜单侧（Q-07）早证明队列路径能工作，
+大厅侧却从来没有，而两者的窗口过程不是同一份代码。
+
+所以 02b 的真正内容不是"补交互"，是"**把同一动作换成队列投递再验一遍**"。
+
+### 做法
+
+在既有滑块拖动之后加一段一一对应的队列版本：`PostMessageW` 只入队，
+由真实消息泵（`PeekMessage` + `DispatchMessageW` + `MsgWaitForMultipleObjectsEx`）取出派发。
+
+三条断言：posted down → `draggingSlider == CreditsSlider`；posted drag → `startingCredits` 改变；
+posted up → `draggingSlider == None`。
+
+### 一个照名字硬找会踩的坑
+
+第一版想点 `CreditsPlus`，失败：`credits plus was not found`。打印实际 hits 才看清：
+
+```
+page=0 kinds=[6 8 9 10 5 6 8 9 10 20 18 19 21 22 23 24 25 26 27 44 28 45]
+```
+
+Lobby 页**根本没有** `CreditsPlus/Minus`（12/13），只有三个滑块（18/19/20）和各 Toggle（21–27）。
+枚举里定义了不代表界面上存在。这条已写进提交正文和队列 note。
+
+### 验证
+
+```
+--skirmish-ui-smoke-test → EXIT=0
+maps=161 allPreviews=161（既有断言全部保持）
+队列路径三条断言全过
+```
+
+改动 1 文件 **+57**，源码 `1b4f34c`。
+
+### 队列（v78 → v79）
+
+`ON-4-02b` done；新增 `ON-4-02c`（pending）：大厅内走队列完成 选图→返回→Start→加载页→游戏内首帧。
+已把「Start 会进游戏主循环，断言完首帧必须 `_Exit`」写进 detail，避免下一轮踩挂死。
+当前：done 68 / pending 9 / superseded 7 / blocked 3（共 87）。

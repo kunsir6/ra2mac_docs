@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 78,
- "updated": "2026-11-11T13:50:00+08:00",
+ "version": 79,
+ "updated": "2026-11-11T14:25:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -353,15 +353,29 @@
   },
   {
    "id": "ON-4-02b",
-   "title": "遭遇战大厅内部交互：选图→设参→开局（跨出 main menu TU）",
-   "status": "pending",
+   "title": "大厅窗口的队列路径：PostMessageW 拖动滑块生效（SendMessageW 不算数）",
+   "status": "done",
    "detail": "ON-4-02a 到「转场被发起」为止，本条接着走：点完 Skirmish 之后由上层启动遭遇战窗口，需要在该窗口里继续投合成鼠标事件——选地图（161 张预览列表）、确认设置、点开始，直到进入加载页/游戏内首帧。实现要点：① 入口要能拿到遭遇战窗口句柄（不能靠 page 变量，那是菜单的）；② 161 张地图的列表选择需要知道行高与滚动条位置，取当前选中项而非\"第 N 行\"；③ 每步都要 waitUntil 状态变化，不要等固定时长。可参考 --skirmish-ui-smoke-test 已有的离屏断言（它已能验证 161 地图预览与设置项），本条要做的是把那些断言换成\"由真实点击驱动\"。",
    "verify": "按 --skirmish-ui-smoke-test 相同的观察口径，但输入全部走 PostMessageW；断言：进入加载页且出现游戏内首帧（尺寸切换 + 像素非空），dump 3 张 bmp，EXIT=0。若再暴露下一条问题，同样另立任务。",
    "touches": [
     "src/ui/skirmish/",
     "src/runtime/host/RuntimeMain.cpp"
    ],
-   "note": "前置：ON-4-02a（已 done）。本条跨 TU，失败归因比 02a 难，故单独拆。"
+   "note": "诊断留档：Lobby 页 hits 里没有 CreditsPlus/Minus，只有三个滑块 + 各 Toggle，kinds=[6 8 9 10 5 6 8 9 10 20 18 19 21 22 23 24 25 26 27 44 28 45]。所以\"点加号改数值\"这条路不存在，别照按钮名硬找。本条只证明\"队列路径在大厅窗口工作\"，未覆盖选图→设参→开局（见 ON-4-02c）。",
+   "result": "2026-11-11 14:20 done：大厅侧此前所有交互都用 SendMessageW（直接调窗口过程，绕开队列）。新增与既有拖动一一对应的队列版本：PostMessageW 入队 + 真实消息泵取出派发，三条断言全过（posted down→draggingSlider==CreditsSlider、posted drag→startingCredits 改变、posted up→draggingSlider==None）。--skirmish-ui-smoke-test EXIT=0，maps=161 allPreviews=161 不变。",
+   "commit": "1b4f34c"
+  },
+  {
+   "id": "ON-4-02c",
+   "title": "大厅内走队列完成选图→开局：从 Lobby 到游戏内首帧",
+   "status": "pending",
+   "detail": "前置 ON-4-02b 已证明队列路径在大厅窗口工作，本条把整条链路走完：① 点 ChooseMap 进入 MapSelection（161 张列表，用 hits 里的 Map 区域而不是硬编码行号）；② 选一张确定的地图（优先用当前选中项或按 hits 顺序取第一项，避免依赖滚动位置）；③ 返回 Lobby 点 Start；④ 等到加载页出现、再到游戏内首帧（尺寸从 800x600 变到世界视图）。每一步都用 waitForQueue 等状态变化，不要等固定时长。注意 Start 会进入游戏主循环：断言完首帧后要主动结束进程（参考 ON-3-01 的 _Exit 纪律），否则 smoke 会挂在世界里一直跑。",
+   "verify": "游戏内首帧出现（尺寸切换 + surface 像素非空 + 与加载页不同），dump 3 张 bmp（map selection / loading / first world frame），EXIT=0。若再暴露下一条，同样另立任务。",
+   "touches": [
+    "src/ui/skirmish/diagnostics/",
+    "src/runtime/host/RuntimeMain.cpp"
+   ],
+   "note": "前置：ON-4-02b（已 done）、ON-3-01（上屏自证，已 done）。"
   },
   {
    "id": "ON-4-03",
