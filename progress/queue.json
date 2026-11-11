@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 91,
- "updated": "2026-11-11T16:35:00+08:00",
+ "version": 92,
+ "updated": "2026-11-11T16:40:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -168,7 +168,8 @@
   "input_target_must_follow_presented_window": "compat 的输入目标（setInputSink 的 context）必须跟随**当前呈现窗口**，不能只绑第一次。U-03 实测：主菜单→大厅→加载→世界每跳都换 HWND，只绑第一次会让 present 正常（画面对）而输入全部 PostMessageW 到已退场窗口被丢弃——不报错、日志无异常，表现为\"画面在动但点哪儿都没反应\"。现在每次 present 比对 toHwnd(w)，变化即重绑并打 [cocoa] input target -> %p。",
   "hwnd_direct_smoke_cannot_cover_input_binding": "直接用 PostMessageW / SendMessageW 投到自己手里 HWND 的 smoke（交互 smoke、大厅 flow smoke）证明不了\"AppKit 事件有没有送对窗口\"——它们绕过了输入绑定这一层，所以 U-03 那三类问题在它们全绿的情况下依然存在。要覆盖输入链路必须走 AppKit → 翻译 → gInputSink → 队列 → 窗口过程 的完整路径，或至少断言 [cocoa] input target 与当前呈现窗口一致。",
   "macos_game_window_input_defaults": "macOS 上有三个默认行为会让游戏\"点不动/点不准\"，建窗口时必须显式处理：① NSView.acceptsFirstMouse 默认 NO → 激活窗口的那一次点击被系统吃掉（\"第二下才行\"）；② window.acceptsMouseMovedEvents 默认 NO → 平时没有 mouseMoved，产品的 WM_MOUSEMOVE 永远不来，命中判定用旧坐标（\"每一下都错位\"）；③ 输入目标要随呈现窗口重绑（见上条）。症状都像\"输入没接通\"，但实际是三个不同层次。",
-  "stale_app_bundle_trap": "2026-11-11 实测踩坑：用户复测\"又彩虹圈\"，采样发现它跑的是 build-product-arm/app/ConcordRTS.app（11:29）——加架构后缀之前残留的旧包，与新包（dist 16:32）哈希不同。这不是修复失效，是根本没跑到修复后的二进制。一次排查因此绕了一整轮。处置：把 build-product-{arm,x86,mac}/app/ConcordRTS.app 全部改名为 *.app.stale；构建目录现在只会产出带架构后缀的 ConcordRTS-<ver>-<arch>.app。判定\"用户跑的是哪个包\"最快的方法：sample 头部的 Path 字段；其次是比对 Contents/MacOS/concord_runtime 的 mtime 与哈希。以后让用户复测时，必须给出**唯一绝对路径**，不要只说\"双击 .app\"。"
+  "stale_app_bundle_trap": "2026-11-11 实测踩坑：用户复测\"又彩虹圈\"，采样发现它跑的是 build-product-arm/app/ConcordRTS.app（11:29）——加架构后缀之前残留的旧包，与新包（dist 16:32）哈希不同。这不是修复失效，是根本没跑到修复后的二进制。一次排查因此绕了一整轮。处置：把 build-product-{arm,x86,mac}/app/ConcordRTS.app 全部改名为 *.app.stale；构建目录现在只会产出带架构后缀的 ConcordRTS-<ver>-<arch>.app。判定\"用户跑的是哪个包\"最快的方法：sample 头部的 Path 字段；其次是比对 Contents/MacOS/concord_runtime 的 mtime 与哈希。以后让用户复测时，必须给出**唯一绝对路径**，不要只说\"双击 .app\"。",
+  "system_cursor_hidden_by_cursor_rect": "macOS 上游戏自绘指针时，必须把**系统指针**在窗口区域内藏掉，否则两者重叠。做法：view 的 resetCursorRects 里 addCursorRect(self.bounds, 不可见光标)，默认开启，CONCORD_HIDE_SYSTEM_CURSOR=0 可关。不要用 [NSCursor hide]：那是全局计数，漏一次 unhide（失焦/Cmd+Tab/异常退出）指针就永久消失。cursor rect 是区域限定的，出窗口自动恢复。注意本 SDK 里 +[NSCursor invisibleCursor] 不可用（no known class method），要用 1×1 空图 + initWithImage:hotSpot: 自建并缓存。建窗口后需主动 invalidateCursorRectsForView，否则要等鼠标移动才生效。"
  },
  "tasks": [
   {
@@ -208,6 +209,19 @@
    ],
    "commit": "4b91741, da1f8fa",
    "note": "仍未复验：真人鼠标（本机无辅助功能授权）。排查工具：CONCORD_INPUT_TRACE=1 逐事件打 [input] kind/x/y。教训：直接 PostMessageW 到自持 HWND 的 smoke 覆盖不了\"输入绑定\"，它们全绿而真实点击全落空。"
+  },
+  {
+   "id": "U-04",
+   "title": "菜单里系统指针与游戏指针重叠：窗口区域改用不可见光标",
+   "status": "done",
+   "detail": "用户报：菜单页面系统箭头与游戏自绘指针叠在一起；Windows 上只有游戏指针。原因：Windows 上游戏关掉硬件指针自绘，macOS 侧我们从未动系统指针。修法：ConcordGameView 重写 resetCursorRects，在 view 整个 bounds 挂不可见光标的 cursor rect（默认开启）。",
+   "verify": "默认 hidden=1、CONCORD_HIDE_SYSTEM_CURSOR=0 时 hidden=0；菜单 smoke rampPixels=1056,781,1428 不变；skirmish EXIT=0 且 maps=161 allPreviews=161；真机上屏自证 2 帧 match=yes。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm",
+    "compat/win32/src/RuntimeAppleWindowSurface.h"
+   ],
+   "commit": "267cce3",
+   "note": "用 cursor rect 而不是 [NSCursor hide]：区域限定、出窗口自动恢复，不用配对 unhide。本 SDK 无 +[NSCursor invisibleCursor]（编译报 no known class method），改用 1×1 空图自建并缓存。建窗口时主动 invalidateCursorRectsForView 一次，否则要等鼠标移动才生效。未复验：加载页若不自绘指针，会暂时看不到光标——需要时用环境变量关掉。"
   },
   {
    "id": "ON-4-04",

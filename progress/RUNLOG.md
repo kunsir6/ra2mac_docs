@@ -6279,3 +6279,35 @@ dist 产物（16:32 重建）端到端：三次 input target 切换 → loading 
 世界 5 秒 150 帧，EXIT=0。
 
 队列 v90 → v91。
+
+## 2026-11-11 · U-04 菜单里两个指针叠着（系统箭头 + 游戏指针）
+
+用户已能正常玩，报了个体验问题：菜单页面上系统箭头和游戏自绘指针重叠。
+Windows 上只有游戏指针——因为那边游戏关掉硬件指针、自己画。
+
+### 修法
+
+`ConcordGameView` 重写 `resetCursorRects`，在 view 整个 bounds 挂**不可见光标**的
+cursor rect，默认开启。
+
+选 cursor rect 而不是 `[NSCursor hide]`：cursor rect 是**区域限定**的，鼠标移出窗口
+自动恢复系统箭头，不需要配对 unhide。而 `hide` 是全局计数，只要有一条路径漏了
+unhide（失焦、Cmd+Tab、异常退出），指针就永久消失，用户只能强杀应用。
+
+两个坑：
+- 本 SDK 里 `+[NSCursor invisibleCursor]` 编译报 "no known class method for selector
+  'invisibleCursor'"。改用 1×1 空图 + `initWithImage:hotSpot:`，并静态缓存
+  （resetCursorRects 会被激活/改尺寸/invalidate 反复调用）。
+- 建窗口后要主动 `[window invalidateCursorRectsForView:]` 一次，否则要等用户
+  移动鼠标才生效。
+
+开关：`CONCORD_HIDE_SYSTEM_CURSOR=0` 恢复系统箭头（留给"某界面没有自绘指针"，
+例如加载页万一不画光标，否则会看不到鼠标）。
+
+### 验证
+
+`[cocoa] system cursor hidden=1`；设 0 时 hidden=0。
+菜单 smoke rampPixels=1056,781,1428 不变、skirmish EXIT=0 / 161 预览、
+真机上屏自证 2 帧 match=yes。两份产物重建（16:35）。
+
+队列 v91 → v92。
