@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 103,
- "updated": "2026-11-11T21:06:00+08:00",
+ "version": 104,
+ "updated": "2026-11-11T23:58:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -2235,6 +2235,35 @@
     "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
    "note": "风险集中在「既有结论是靠绕过 AppKit 得来的」：ON-2-04 的全屏结论、U-05 的双指针结论、U-07 的键状态表都可能因为 AppKit 接管而变。要按里程碑单独做，不和别的改动混一轮。"
+  },
+  {
+   "id": "EVO-16",
+   "title": "遭遇战 AI 默认开启且勾选持久化",
+   "status": "done",
+   "phase": "EVO 进化",
+   "detail": "用户报告遭遇战敌军不动/不建造/不还手。根因不是 AI 逻辑断线（advanceRuntimeComputerAi→生产/攻击波/防御全接线），而是总开关 config.computerAiEnabled 默认 false 且遭遇战菜单的「AI」勾选从不写回 runtime_config.ini：单机每次进局 AI 都是关的，且 runtimeComputerAiPausedForOwner 把电脑 slot 从被动 guard/还手通道一并排除，三条症状一次解释。修复：默认值改 true（对齐原版遭遇战与 CampaignProgress 的默认 yes）；新增 saveRuntimeSkirmishAiPreference 写 [Skirmish] ComputerAI，接线进 RuntimeSkirmishServices（saveAiPreference）并在 completeMenu 与 Crates/NoCooldown 同位置保存。AI 冒烟自身断言 attack=no（lastTargetObjectId 未记录）与 triggerTeamIsolation=no 为预先存在的旧问题，HEAD 复现逐字节一致。",
+   "verify": "ninja concord_runtime 过；11 条回归 PASS=5 KNOWN-RED=6 RED-NEW=0 与基线一致；--computer-ai-smoke-test economy/base/army/defense/waves=6/orders=50 全 yes；concord_skirmish_controller_contract 77 检查 0 失败；本机 runtime_config.ini 无 ComputerAI 键，新默认直接生效。",
+   "touches": [
+    "src/runtime/config/RuntimeConfig.h",
+    "src/ui/settings/RuntimeSettings.cpp",
+    "src/runtime/menu/RuntimeSkirmishController.h",
+    "src/runtime/menu/RuntimeSkirmishController.cpp",
+    "src/ui/skirmish/RuntimeSkirmishMenu.cpp",
+    "tests/infrastructure/RuntimeSkirmishControllerContract.cpp"
+   ],
+   "note": "AI 冒烟的 attack=no / triggerTeamIsolation=no 待另立案：攻击波确实发动（waves=6）但 lastTargetObjectId 未记录、遭遇战仍建 trigger team，与 smoke 预期不符，属 AI 侧遗留。"
+  },
+  {
+   "id": "EVO-17",
+   "title": "建造完成后侧边栏页签与按钮闪烁",
+   "status": "done",
+   "phase": "EVO 进化",
+   "detail": "对齐原版：建造完成（lane.ready 置位，requiresPlacement）后——(a) 对应页签闪烁：新增 runtimeBuildReadySidebarTabShouldFlash（遍历 Structures/Armory lane 的 ready，经 catalog 映射到 Building/Defense 页签，页签打开时让位给按钮闪烁），相位复用 runtimeSuperWeaponFlashHighlightPhase（tick/四分之一秒取模），与既有超武 Defense 页签闪烁用 OR 组合；(b) 页签打开后按钮红白交替：placementReady 边框色由静态青改为 runtimeUiReadyBlinkOn（500ms 墙钟相位）驱动的红(240,24,16)/白交替，保留原「就绪」文字闪烁。重绘泵 advanceRuntimeUiPresentation 已存在，无需改动。",
+   "verify": "ninja 过；回归 PASS=5 KNOWN-RED=6 RED-NEW=0；徽章像素级对比 smoke（RuntimeSidebarCancelSmoke 在 regress 套件内）未红。人眼验收：造一个建筑等完成→建筑/防御页签闪烁；点开页签→按钮红白交替+「就绪」闪字。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "note": "闪烁相位：页签用 sim tick（暂停时冻结），按钮用墙钟（暂停仍动）——与超武页签/就绪文字的既有语义一致。"
   }
  ],
  "decisions": {

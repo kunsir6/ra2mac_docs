@@ -6855,3 +6855,36 @@ U-10 的光标自检同时仍 `ok=1 / ok=1 / failures=0`；回归 `PASS=5 KNOWN-
 - `warp_bypasses_capture`：warp 绕过关联，不能用来验证"指针不动"。
 
 产出 `reports/U-11-指针捕获.md`；队列 v102 → v103。
+
+## 2026-11-11 23:58 · EVO-16 遭遇战 AI 默认开启 + EVO-17 建造完成闪烁
+
+用户同一条消息里的两个游戏规则问题：
+
+> 遭遇战，敌军都不会动，没有建造，打也不还手
+> 建筑物，防御建造完了以后，对应栏应该闪烁。打开栏，对应建造完成部分也应该闪烁
+
+### EVO-16：AI 三条症状一个根因
+
+排查结论：AI 逻辑本身接线完整（生产/攻击波/防御全在 advanceRuntimeComputerAi 里），
+坏在总开关——`computerAiEnabled` 默认 false 且遭遇战菜单的「AI」勾选从不写回 ini。
+单机每次进局 AI 都是关的，而且 `runtimeComputerAiPausedForOwner` 把电脑 slot
+从被动还手通道（guard/combat canAct/行为入队三处）一并掐断，症状一次解释。
+战役不受影响（一直强制 true）。修复：默认 true + `saveRuntimeSkirmishAiPreference`
+写 `[Skirmish] ComputerAI` + services 接口 `saveAiPreference` 接进 completeMenu。
+
+**遗留**：`--computer-ai-smoke-test` 自身失败（attack=no、triggerTeamIsolation=no）。
+用 stash 验证 HEAD 同样失败、输出逐字节一致——预先存在，另立案。AI 冒烟里
+economy/base/army/defense/waves=6/orders=50 全 yes，说明开着 AI 的遭遇战
+建造与攻击波都真的在动。
+
+### EVO-17：闪烁零数据改动
+
+`lane.ready` 已有全部信息，改动全在 RuntimeShell.cpp：页签闪烁
+（runtimeBuildReadySidebarTabShouldFlash + 超武相位）与按钮红白交替
+（placementReady 边框 500ms 墙钟相位红↔白，保留「就绪」闪字）。
+
+### 验证
+
+ninja 过；回归 PASS=5 KNOWN-RED=6 RED-NEW=0；controller 契约 77 检查 0 失败；
+pack-dist.sh 重出 dist/尤里红警.app（app smoke rc=0，icon diff 96.2/255）。
+队列 v103 → v104（EVO-16、EVO-17 done）。
