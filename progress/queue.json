@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 86,
- "updated": "2026-11-11T16:35:00+08:00",
+ "version": 87,
+ "updated": "2026-11-11T14:05:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -158,7 +158,11 @@
   "playable_today": "2026-11-11 实测：产品**已经可以手动玩**，两条路径都已验证到画面：① `--skip-main-menu` → 遭遇战大厅（1024x640，玩家列表/国家/颜色/队伍/速度/资金/部队数/地图预览全部渲染正确，中文标签正常），attest idx=1 match=yes；② `--skip-main-menu --skip-skirmish-menu` → 加载页（盟军/苏联/尤里标志 + 載入中… 进度条）→ 800x600 世界视图，10s 524 次 present（52fps），三帧 attest 全 match=yes。也就是说「大厅→加载→世界」这条链在代码里是完整的，--skip-skirmish-menu 等价于\"替用户点了载入\"。未验证的只剩一步：在**真窗口**里手动点大厅的「載入」是否同样进入加载页（自建窗口的 smoke 已证明该点击能发起 closing 并交回结果，见 ON-4-02c）。",
   "world_paint_10s_reference": "世界视图的帧率基线（2026-11-11 arm64 实测）：10 秒 524 次 present，paints 全部走 update（UpdateWindow 同步旁路，queue=0），52fps。这是\"画面在动\"的证据，但 ON-2-06 指出其中大量是空转重绘（每 tick 无条件 Invalidate+UpdateWindow），真正的脏区驱动还没做。判断\"卡不卡\"要用这个数字对比，不要凭感觉。",
   "priority_2026_11_11": "2026-11-11 按「影响效果 ÷ 修改难度」重排（用户要求先高性价比）。判断依据：① 不改代码就能拿到信息的排最前（ON-4-04 性能基线、ON-5-02 长时存活）；② 直接影响\"玩起来爽不爽\"的其次（ON-2-06 世界空转重绘，当前 52fps 全量重绘 800x600×4 = 1.9MB/帧）；③ 一条断言就能清的顺手清（ON-4-06 tooltip）；④ 工程健康类（ARM-02 全量构建）在中段；⑤ 跨 TU、依赖未验证前置、或需要架构级改动的全部靠后（ON-4-02d、ON-3-01b、ON-2-02b、ON-2-04b）。blocked 一律排末尾，不参与优先级。口径：性价比 = 对\"能玩/好玩\"的贡献 ÷ 改动风险；不要因为\"看起来该做\"就提前。",
-  "priority_2026_11_11_revised": "2026-11-11 晚间修正：ON-2-06（空转重绘）从第 3 位下调到 ON-5-01 之前。原因是实测后确认它「不做也不影响玩」——已 59.9fps、CPU 16.5%，修法却要动模拟层 changed 语义（共享代码、影响 Windows、本机无法回归）。教训：性价比排序必须**在摸清修法之后**再定，而不是只看现象严重程度。现象（52fps 全量重绘）看起来最像大头，实际它是\"能玩\"之后的优化项。"
+  "priority_2026_11_11_revised": "2026-11-11 晚间修正：ON-2-06（空转重绘）从第 3 位下调到 ON-5-01 之前。原因是实测后确认它「不做也不影响玩」——已 59.9fps、CPU 16.5%，修法却要动模拟层 changed 语义（共享代码、影响 Windows、本机无法回归）。教训：性价比排序必须**在摸清修法之后**再定，而不是只看现象严重程度。现象（52fps 全量重绘）看起来最像大头，实际它是\"能玩\"之后的优化项。",
+  "full_build_is_green_now": "2026-11-11 起：`cmake --build build-product-arm`（全量）是绿的，可以重新作为验收项。旧规则「产品全量构建从来没绿过」作废。注意仍要用 `-- -k 0` 才能一次看到全部失败点，默认在第一个 FAILED 就停。",
+  "nested_cmake_runs_before_platformapple": "DevelopmentTargets.cmake（CMakeLists 第 30 行）早于 CompilerAndPlatform.cmake（第 32 行），所以 tests/infrastructure/*/CMakeLists.txt 这类 add_subdirectory 里不能调用 concord_apple_add_win32_compat_sources，也读不到 CONCORD_APPLE_FSEVENTS_FRAMEWORK_DIR —— 函数与变量那时都还不存在，if(COMMAND)/if(DEFINED) 会静默跳过，症状是「某些自测链接报一堆 FSEvent 未定义」。两条出路：① 在 CompilerAndPlatform.cmake 的 APPLE 分支里补挂（既有先例：concord_multiplayer_two_process_smoke、concord_window_parent_win32_contract）；② 嵌套目录里写成自包含（xcrun --show-sdk-path + 目标级 -F），不依赖 include 顺序。另：set_source_files_properties 是目录作用域，父目录设了不管用。",
+  "ctest_fixture_must_be_idempotent": "契约若拒绝已存在的 fixture 根（如菜单资源契约的 Use a new fixture directory），add_test 必须自带清理，否则同一 build 目录第二次跑必然 0.00s 失败而第一次是绿的——极具欺骗性（看着像「刚改坏了」）。做法：FIXTURES_SETUP 挂 `${CMAKE_COMMAND} -E rm -rf <dir>`，被依赖测试加 FIXTURES_REQUIRED；ctest -R 会自动带上 setup。",
+  "win32_requires_directory_for_change_notification": "Win32 的 FindFirstChangeNotification 要求入参是目录，传普通文件返回 INVALID_HANDLE_VALUE。compat 层早期只查存在性，FSEvents 会照单全收一个文件并「正常」watch，调用方于是得到「这棵树是新鲜的」这种错误认证（菜单资源契约恒红）。已在 RuntimeWin32CompatChangeNotify.cpp 用 stat + S_ISDIR 对齐；任何「照收下再说」的 compat 实现都要先核对 Win32 的参数前置条件。"
  },
  "tasks": [
   {
@@ -224,14 +228,28 @@
   },
   {
    "id": "ARM-02",
-   "title": "修产品全量构建断裂：concord_mod_history_noop_smoke 引用未声明函数",
-   "status": "pending",
+   "title": "全量构建恢复：1823 目标不再失败（四类断裂逐类定因）",
+   "status": "done",
    "detail": "tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp:94/98 调用 advanceRuntimeModExtensions(自造宿主)。该符号唯一声明在 src/runtime/session/detail/RuntimeProductionOperations.h:9631，参数是 RuntimeGameSessionState&。两种修法：① 让测试 include 该头并使用真实会话类型（前提是能只编这一层、不带入 RuntimeShell）；② 若测试本意是复用 simulation/mod_extensions/diagnostics/RuntimeModExtensionsSmoke.inl 的宿主，则把声明补到该 .inl 可见处。先诊断再动，不要凭猜改签名。",
-   "verify": "cmake --build build-product-arm → 1823/1823 无 FAILED；ctest -R runtime_mod_history_noop_test 通过；且 concord_runtime 主目标仍 EXIT=0（菜单 smoke 像素基线不变）。",
+   "verify": "mod_noop_stage 622 断言；menu_resource_watch 171 断言（此前 3 红）；window_parent 16 断言；菜单 smoke rampPixels=1056,781,1428 不变；skirmish smoke EXIT=0 / 161 预览；interaction smoke 推进点仍为已知 box selection（ON-4-07，未回退）。",
    "touches": [
     "tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp"
    ],
-   "note": "与架构无关（arm/x86 同样失败），属历史遗留。修复前「全量构建」不得作为验收项。"
+   "note": "处置原则：没有一处靠删测试装绿。mod history 可救的一半拆成 concord_mod_noop_stage_smoke（622 断言、ctest 更名 runtime_mod_noop_stage_test），需真实会话的一半保留为 ARM-03 规格书并在文件头写明「不参与构建」。顺带修 ctest 幂等：菜单资源契约故意拒绝已存在 fixture 根，入口却从不清目录，第二次跑必失败；用 FIXTURES_SETUP 挂 rm -rf 解决。另修两处真缺陷（4eb9a32）：absolutePath 残留尾斜杠、compat 变更通知不校验目录。",
+   "result": "2026-11-11 done：`cmake --build build-product-arm -- -k 0` 无 FAILED，再构建 no work to do。四类断裂：① concord_mod_history_noop_smoke 自 initial import 起不可能编译——测试按「宿主泛化 .inl」写、自造小宿主调 advanceRuntimeModExtensions，而真实实现绑死 RuntimeGameSessionState，RuntimeModExtensionsRuntime.inl 一直是 0 字节；② _dupenv_s（MSVC 专有）3 处；③ concord_menu_resource_watch_contract 在 macOS 从未编出来（缺 compat 头/实现/框架，且 add_subdirectory 早于 PlatformApple.cmake）；④ concord_window_parent_win32_contract 缺 compat 源清单。",
+   "commit": "9106a89"
+  },
+  {
+   "id": "ARM-03",
+   "title": "把 mod-history 等价证明搬进 interaction smoke（真实会话）",
+   "status": "pending",
+   "detail": "ARM-02 退役的 concord_mod_history_noop_smoke 第二半：断言「惰性历史（1 万个未初始化残骸对象）不改变 world hash、不改序列化 mod 状态，且 optimized 与 reference 两条 history-query 路由结果一致，同时 hidden/temporal/power 查询次数不随惰性历史增长」。它无法在小宿主上成立——advanceRuntimeModExtensions 绑死 RuntimeGameSessionState。正确归属是 --interaction-smoke-test：那里有真实会话、真实 stage、真实查询路由，且已有 RuntimeHistoryQueryReferenceScope 的成熟用法（runRuntimeProjectionHistoryContract）。做法：在 interaction smoke 里造 1 万个未初始化残骸对象，跑两次 compare（optimized 与 reference），比较 deterministicSimulationStateHash + runtimeSerializeModExtensions + 查询计数器。规格书与全部断言原文见 tests/infrastructure/RuntimeModExtensionsHistoryNoopSmoke.cpp（文件头有横幅）。",
+   "verify": "--interaction-smoke-test 输出新增一行证明（对象数 + 两条路由 hash 相同 + 查询计数比）；且既有五条契约（三条像素 + Projection history + Idle overlay + Gameplay tooltips）保持绿。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp",
+    "tests/infrastructure/"
+   ],
+   "note": "前置：ARM-02（done）。这是目前唯一因为架构变化而失去的覆盖，不补则惰性历史的性能证明为零。"
   },
   {
    "id": "ON-4-03",

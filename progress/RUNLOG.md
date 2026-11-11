@@ -6026,3 +6026,69 @@ RSS 341 MiB → 342 MiB（10 分钟只涨 1 MiB）
 `RuntimeProductionOperations.h` 拉进来会不会带一堆依赖。
 
 队列 v85 → v86（ON-2-06 降级、诊断入档）。
+
+## 2026-11-11 · ARM-02 done：全量构建第一次真的绿了，顺带挖出两个真缺陷
+
+上一轮只定位到"include 图不对"，这一轮用 `-- -k 0` 一次收全失败点（默认第一个 FAILED 就停，
+这正是此前只看到一处的原因），一共 5 处，分 4 类。
+
+### 五处，逐类定因
+
+| # | 目标 | 真因 | 处置 |
+|---|---|---|---|
+| ① | `concord_mod_history_noop_smoke` | 测试按"宿主泛化 .inl"写，`RuntimeModExtensionsRuntime.inl` 自 initial import 起就是 0 字节；真实 `advanceRuntimeModExtensions` 绑死 `RuntimeGameSessionState` | 可救的一半拆成 `concord_mod_noop_stage_smoke`（622 断言）；另一半留给 ARM-03 |
+| ② | 3 个多人 smoke | `_dupenv_s` 是 MSVC 专有 | 补 POSIX 分支，Windows 路径逐字节未动 |
+| ③ | `concord_menu_resource_watch_contract` | 嵌套 `add_subdirectory` 早于 `PlatformApple.cmake`，compat 函数与变量都不存在 | 写成自包含（xcrun 取 SDK + 目标级 -F + 框架） |
+| ④ | 同上（功能层） | 契约只写 `#ifdef _WIN32`，生产是 `_WIN32 \|\| __APPLE__` | 对齐后 macOS 第一次真跑 FSEvents：9 断言 → 171 断言 |
+| ⑤ | `concord_window_parent_win32_contract` | 链接缺 `_CreateWindowExW` | 按既有先例在平台文件 APPLE 分支挂 compat |
+
+**没有一处靠删测试装绿。** ①那半不能救的部分，原文件保留为 ARM-03 的规格书并加了
+"不参与构建"横幅，断言原文一条没丢。
+
+### 顺带挖出两个真缺陷（4eb9a32）
+
+契约一旦跑起来就当场红了 3 条，其中 2 条是产品缺陷、不是测试缺陷：
+
+1. **`absolutePath()` 残留尾斜杠**（共享代码，Windows 同样错）。
+   `lexically_normal("/a/b/nested/..")` 实测得到 `/a/b/`，而 `path` 比较逐元素、
+   尾空元素也算一个元素，于是 `/a/b/` != `/a/b`。后果是 `sameRoots()` 把同一个根判成
+   不同根 → 菜单复用永远不成立。修法：剥空末元素，但不动根。
+2. **`FindFirstChangeNotificationW` 不校验目录**（compat，Apple 专属）。
+   Win32 要求目录、传文件必失败；FSEvents 照单全收并"正常"watch 一个文件，
+   调用方拿到"这棵树是新鲜的"这种错误认证。补 `stat + S_ISDIR`。
+
+### 还有一处诚实性修正：ctest 幂等
+
+菜单资源契约**故意**拒绝已存在 fixture 根，入口却从不清目录 → 第一次绿、第二次
+0.00s 红。这个失败模式极易误判成"刚改坏了"。用 `FIXTURES_SETUP` 挂 `rm -rf` 修掉，
+连跑两次都绿。
+
+### 验证
+
+```
+cmake --build build-product-arm -- -k 0   → 零 FAILED
+cmake --build build-product-arm           → ninja: no work to do
+mod_noop_stage           622 断言 EXIT=0
+menu_resource_watch      171 断言 failures=0（连跑两次）
+window_parent_win32       16 断言 failures=0
+菜单 smoke                rampPixels=1056,781,1428 不变
+skirmish smoke            EXIT=0，maps=161 allPreviews=161
+interaction smoke         仍停在已知 box selection（ON-4-07），无回退
+```
+
+### 规则变化
+
+- `full_build_is_green_now`：「全量构建从来没绿过」作废，全量构建可以重新当验收项。
+- `nested_cmake_runs_before_platformapple`：嵌套目录里别指望 compat 辅助函数；
+  两条出路（平台文件补挂 / 自包含）都写进去了。
+- `ctest_fixture_must_be_idempotent`：拒绝已存在 fixture 根的契约必须自带清理。
+- `win32_requires_directory_for_change_notification`：compat「照收下再说」要先核对 Win32 参数前置条件。
+
+### 代价
+
+惰性历史（1 万对象 × 两条路由）的等价证明暂时为零，已立 **ARM-03**，
+归属 `--interaction-smoke-test`（那里才有真实会话与真实查询路由）。
+另：本次改了一处共享代码，Windows 侧待有机器时补一次菜单 smoke 回归。
+
+队列 v86 → v87（done 73 / pending 8 / superseded 7 / blocked 3，共 91）。
+产出 `reports/ARM-02-全量构建恢复.md`。
