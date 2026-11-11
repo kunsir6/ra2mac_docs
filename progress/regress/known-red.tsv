@@ -1,10 +1,12 @@
 ﻿# 已知红清单：id<TAB>原因<TAB>状态
-# 规则：只登记"确认与本轮改动无关"的红，每条必须带一句原因；status=triage-pending
-# 表示尚未判定是数据缺口还是代码缺陷，判定后改成 env-gap 或 code-red。
+# 规则：只登记"确认与本轮改动无关"的红，每条必须带一句原因。
+# status 取值：env-gap（资产缺口）/ fixture-gap（测试夹具缺口）/ code-red（产品缺陷）
+#              / code-red:needs-metering（疑为产品缺陷，先加只读计量再定性）
+# 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-interaction	no owned structure for repair cursor：夹具 10 个建筑全 Neutral（RUNLOG 2026-11-11 已记为下一缺口）	triage-pending
-render	natural-map shadow pipeline 覆盖不足 candidates=7 drawn=5 shp=5 structures=0（未定因）	triage-pending
-build	semantic audio probe evaTextEncoding=no，其余 30+ 项均 yes（未定因）	triage-pending
-campaign	retail coverage movies/sources/audio=FAIL：maps=40 但视频与素材未齐全（疑 Bink 授权资产缺失）	triage-pending
-result	original score animation stalled behind paused-frame cache（未定因）	triage-pending
-command	Command smoke failed: amphibious transport: shore unload left tanks aboard（未定因）	triage-pending
+interaction	地图 10 个建筑全 Neutral，断言要己方建筑做修理光标（RuntimeShell.cpp:38341 要求 owner==economy.owner）	fixture-gap
+render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
+build	compat 只实现 UTF-8，CP1252 请求返回 0，0x85 被逐字节 widen 成 U+0085（日志有 "only UTF-8 is supported here"）	code-red
+campaign	40 个任务 13 个 Map= 为空 + Bink 视频缺失；该 gate 按现定义在 macOS 永远不会绿，应改白名单	env-gap
+result	暂停态第二次 WM_PAINT 走 reuseCachedFrame，记分动画不前进；断言源自 2026-10-10 上游（Windows 侧历史绿）	code-red:needs-metering
+command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

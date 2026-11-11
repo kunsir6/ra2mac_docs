@@ -6450,3 +6450,52 @@ interaction 推进点不变（已知 ON-4-07 缺口）。两份产物 16:55 重�
 - `progress/regress/20261111-171321/{report.md,results.tsv,*.log}`（首跑基线）
 - `reports/EVO-进化路线图.md`（新）
 - 三条新 rule：regress_baseline_2026_11_11 / smoke_suite_is_mostly_red / dist_app_hash_is_not_comparable
+
+
+## 2026-11-11 17:25 · EVO-02 done（红基线分诊：6 条全定性，build 那条是净赚）
+
+只读分诊，**未改一行代码**。六条 KNOWN-RED 全部落定，known-red.tsv 不再有 triage-pending。
+
+| 用例 | 定性 | 根因 | 修它的层 | 玩家可见 |
+|---|---|---|---|---|
+| build | code-red | compat 只实现 UTF-8，CP1252 返回 0，0x85 被逐字节 widen 成 U+0085 | compat 编码层 | 是（标点变控制字符） |
+| command | code-red | 两栖船靠岸二次动作后船里还剩 4 辆坦克 | 共享模拟 | 是（卸不了车） |
+| render | code-red:needs-metering | 地图 10 个建筑但建筑阴影 0 个 | 待定 | 可能 |
+| result | code-red:needs-metering | 暂停态第二帧走 reuseCachedFrame，记分动画不动 | WM_PAINT 闸门 | 是 |
+| interaction | fixture-gap | 建筑全 Neutral，断言要己方建筑 | 夹具 | 否 |
+| campaign | env-gap | 13/40 无地图 + Bink 缺失 | 资产 | 否 |
+
+### build 那条的证据链（本轮最实的一条）
+
+零售 `eva.ini`：`Text=Establishing battlefield control\x85standby.`（0x85 = CP1252 省略号）。
+`widenRuntimeSubtitleText` 先用 UTF-8 严格解码 → 0x85 非法 → 回落到 1252 →
+`codePageSupported(1252)` 只认 UTF-8/ACP/OEMCP → `MultiByteToWideChar` 返回 0 →
+最后退化成逐字节 widen，0x85 变成 U+0085。日志里有一条直接证据：
+
+```
+[compat/win32] MultiByteToWideChar: only UTF-8 is supported here (CP_ACP/CP_OEMCP map to UTF-8 on this platform)
+```
+
+这不只是测试口径问题：**所有 CP1252 智能标点（… ' " –）在 macOS 上都会变成控制字符**，
+影响的正是玩家要读的字幕、提示、任务文本。修完这条，回归从 5 绿 6 红变 6 绿 5 红。
+
+### 三条纪律性结论
+
+1. **campaign 不该修**：13/40 没地图 + Bink 视频缺失，其中 Bink 是已接受的产品降级。这条 gate 按现定义
+   在 macOS 上永远不会绿，应改成「已知资产缺口白名单 + 只对新缺口报错」，否则它会永久污染基线。
+2. **command 不能单边改**：纯合成夹具、无资源依赖、两次同点失败，说明是共享模拟的真实缺陷；
+   但改它会同时影响 Windows，先要 Windows 基线。
+3. **render / result 不许猜**：ON-2-06 的教训（按现象猜根因，猜错方向）——这两条先加只读计量，
+   拿到 artId/shadow 帧命中 与 三个谓词/时间差，再谈修。
+
+### 新立案（队列 v95 → v96，108 条）
+
+| id | 层级 | 内容 |
+|---|---|---|
+| EVO-08 | T0 | compat 实现 CP1252（build 转绿 + 修乱码） |
+| EVO-10 | T0 | interaction 夹具注入己方建筑 |
+| EVO-09 | T1 | 两栖卸载（先 Windows 基线） |
+| EVO-11 | T1 | render 阴影只读计量 |
+| EVO-12 | T1 | result 记分动画只读计量 |
+
+产出 `reports/EVO-02-红基线分诊.md` + 更新 `progress/regress/known-red.tsv`。

@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 95,
- "updated": "2026-11-11T17:15:00+08:00",
+ "version": 96,
+ "updated": "2026-11-11T17:24:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -174,7 +174,8 @@
   "regress_baseline_2026_11_11": "2026-11-11 EVO-01：回归不再靠人记命令。`bash ra2mac_docs/scripts/regress.sh` 跑 11 条用例（core/menu/loading/skirmish/attest/render/interaction/command/build/campaign/result），约 20 秒，输出三态：PASS / KNOWN-RED（已登记在 progress/regress/known-red.tsv）/ RED-NEW（未登记，退出码=其条数）。首次基线：PASS=5 KNOWN-RED=6 RED-NEW=0。规矩：① 每轮收尾先跑它；② 出现 RED-NEW 先看日志确认是不是自己弄坏的，确认无关才可登记进 known-red.tsv（必须带一句原因）；③ 不许把红改判成绿来收口。报告在 progress/regress/<时间戳>/report.md。",
   "smoke_suite_is_mostly_red": "2026-11-11 首次全量实测：11 条 smoke 里只有 5 条绿（core/menu/loading/skirmish/attest），6 条红且其中 5 条从未被记录（render/interaction/command/build/campaign/result）。结论：过去「回归全绿」的说法只对少数几条成立，别把个别 smoke 的绿当成整体健康证明。这 6 条不是本轮引入，已登记 known-red.tsv 待 EVO-02 分诊。",
   "dist_app_hash_is_not_comparable": "2026-11-11 实测：不能拿 .app 里 concord_runtime 的 sha256 与 build 产物对账——ad-hoc 重签名会改写文件，哈希必然不同（两份 thin 产物分别签名）。判定 dist 是否为旧包要按 mtime：app 内二进制早于 build 产物 60s 以上即为旧包。repo 里残留的 build-product-*/app/*.app.stale 一律不要用（rules.stale_app_bundle_trap）。",
-  "priority_2026_11_11_evolution": "2026-11-11 傍晚用户定调：游戏已能运行，暂不方便做大量人工验证，后续按「无人值守可自证」排序。新顺序：EVO-01 回归编排器（done）→ EVO-02 红基线分诊 → EVO-03 diagnostics 驱动入口（解锁 ON-5-01/ON-3-01b/ON-4-02d）→ EVO-04 日志与崩溃现场 → EVO-05 存档读档往返 → EVO-06 世界重绘只读计量 → EVO-07 首次启动引导+dmg。判据变更：凡是「必须人眼看一眼」的任务一律降级，凡是能变成断言/计量的任务优先。ON-5-02b 仍是纯测量，可随时后台插跑。"
+  "priority_2026_11_11_evolution": "2026-11-11 傍晚用户定调：游戏已能运行，暂不方便做大量人工验证，后续按「无人值守可自证」排序。新顺序：EVO-01 回归编排器（done）→ EVO-02 红基线分诊 → EVO-03 diagnostics 驱动入口（解锁 ON-5-01/ON-3-01b/ON-4-02d）→ EVO-04 日志与崩溃现场 → EVO-05 存档读档往返 → EVO-06 世界重绘只读计量 → EVO-07 首次启动引导+dmg。判据变更：凡是「必须人眼看一眼」的任务一律降级，凡是能变成断言/计量的任务优先。ON-5-02b 仍是纯测量，可随时后台插跑。",
+  "triage_2026_11_11": "2026-11-11 EVO-02 分诊结论（6 条 KNOWN-RED 全部落定）：build=code-red（compat 未实现 CP1252，零售 Text= 里的 0x85 省略号被逐字节 widen 成 U+0085；日志有 'only UTF-8 is supported here' 为直接证据）；command=code-red（两栖船靠岸卸不下坦克，纯合成夹具、两次同点失败、与平台无关）；interaction=fixture-gap（建筑全 Neutral）；campaign=env-gap（13/40 无地图 + Bink 缺失，该 gate 在 macOS 按现定义永远不会绿，应改白名单而不是修）；render / result=code-red:needs-metering（未定因，先加只读计量）。教训：红基线必须先分诊再修，否则会把夹具缺口当产品缺陷修，或把上游绿过的断言当自己的锅。分诊表 reports/EVO-02-红基线分诊.md。"
  },
  "tasks": [
   {
@@ -1919,7 +1920,7 @@
   {
    "id": "EVO-02",
    "title": "红基线分诊：6 条 KNOWN-RED 逐条定性为 env-gap 还是 code-red",
-   "status": "pending",
+   "status": "done",
    "phase": "EVO 进化（能玩之后）",
    "tier": "T0",
    "detail": "EVO-01 首次全量跑暴露 6 条红，全部标 triage-pending：interaction（repair cursor，已知夹具全 Neutral）、render（shadow pipeline candidates=7 drawn=5 structures=0）、command（amphibious transport 岸上卸载没卸下坦克）、build（evaTextEncoding=no，其余 30+ 项 yes）、campaign（movies/sources/audio=FAIL）、result（score animation stalled behind paused-frame cache）。逐条只读日志判性质，产出结论表：根因一句话 + 判据 + 修它要动哪一层。campaign 疑为 Bink 授权资产缺失，若确认可直接结案为 env-gap；build 的编码项疑为码表问题；result 的 paused-frame cache 与 ON-2-01 的 CGImage 缓存疑同源。",
@@ -1931,7 +1932,9 @@
    "depends_on": [
     "EVO-01"
    ],
-   "note": "不先把红分完类，后面每次改动都会在「到底是不是我弄坏的」上浪费一轮。"
+   "note": "不先把红分完类，后面每次改动都会在「到底是不是我弄坏的」上浪费一轮。",
+   "result": "6 条红全部定性：build=code-red（compat 未实现 CP1252，0x85 被逐字节 widen 成 U+0085，日志有 'only UTF-8 is supported here' 直接证据）；command=code-red（共享模拟，两次同点失败）；interaction=fixture-gap（建筑全 Neutral）；campaign=env-gap（13/40 无地图 + Bink 缺失，gate 永远不会绿）；render / result=code-red:needs-metering（未定因，已立计量任务）。报告 reports/EVO-02-红基线分诊.md。",
+   "verification_ceiling": "只读分诊：未改一行代码；回归结果与 EVO-01 基线逐条相同（build/interaction/campaign 复跑仍 KNOWN-RED）。"
   },
   {
    "id": "EVO-03",
@@ -2016,6 +2019,87 @@
     "EVO-01"
    ],
    "note": "给别人用的前置条件；对本人玩没有收益，故排最后。"
+  },
+  {
+   "id": "EVO-08",
+   "title": "compat 实现 CP1252 解码：零售 Text= 的智能标点不再变控制字符",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T0",
+   "detail": "EVO-02 定性：codePageSupported 只认 UTF-8/CP_ACP/CP_OEMCP，CP1252 请求直接返回 0；零售 evamd.ini 的 Text=Establishing battlefield control\\x85standby. 里 0x85 是省略号，UTF-8 严格解码失败后请求 1252 又被拒，widenRuntimeSubtitleText 退化为逐字节 widen，0x85 变成 U+0085 控制字符。做法：compat 内实现 CP1252 单字节映射（0x80..0x9F 区间 27 个非 ASCII 码位，其余按 Latin-1），codePageSupported 接受 1252，MultiByteToWideChar / WideCharToMultiByte 按码页分支；补 selftest 断言 0x85→U+2026、0x92→U+2019、0x96→U+2013、0xE9→U+00E9。不要动共享层的 widenRuntimeSubtitleText（它已正确声明意图）。",
+   "verify": "build smoke 的 evaTextEncoding 由 no 变 yes 且整条由 KNOWN-RED 转 PASS（回归从 5 绿 6 红变 6 绿 5 红）；compat selftest 新增断言全过；menu rampPixels=1056,781,1428 与 skirmish 161 预览不变。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatProcess.cpp",
+    "compat/win32/selftest/"
+   ],
+   "depends_on": [
+    "EVO-02"
+   ],
+   "note": "本轮唯一既能让用例转绿、又修玩家可见乱码的一条；成本小、无共享层风险。"
+  },
+  {
+   "id": "EVO-09",
+   "title": "两栖卸载：船靠岸后卸不下坦克（共享模拟，需 Windows 基线）",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T1",
+   "detail": "command smoke 的 amphibious 段：LCRF@30Hz 移到 {23,16} 后 executeRuntimeSecondaryAction 返回成功，但 transportPassengerIds 仍为 4（RuntimeAmphibiousTransportSmoke.inl:114）。纯合成地形 + 规则，无资源/窗口依赖，两次运行同点失败。先只读诊断：打印岸上判定、出口格搜索范围、占用表与每辆坦克的落点尝试；确认是模拟缺陷还是夹具对水陆边界的假设错了。改共享代码前必须拿到 Windows 侧同一用例的结果。",
+   "verify": "先出诊断结论（不改行为）；若确认为模拟缺陷，修后 command smoke 的 amphibious 段通过，且 build / vision / crush-scatter / subcell 四条 gameplay smoke 不回退。",
+   "touches": [
+    "src/simulation/movement/naval/diagnostics/RuntimeAmphibiousTransportSmoke.inl"
+   ],
+   "depends_on": [
+    "EVO-02"
+   ],
+   "note": "共享代码，单边改会让 Windows 侧行为漂移；没有 Windows 基线就先只诊断。"
+  },
+  {
+   "id": "EVO-10",
+   "title": "interaction 夹具注入 1 个己方建筑（清掉 repair cursor 缺口）",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T0",
+   "detail": "interaction smoke 的修理光标段要求 kind==Structure && owner==economy.owner，而地图 10 个建筑全 Neutral，于是永远找不到对象。在夹具里加一个 Americans 的建筑（带可见 footprint 与出口），让该段继续往下推进。",
+   "verify": "interaction 前五条（三像素 + projection history + idle overlay + tooltip）保持绿；repair cursor 段通过并推进到下一个缺口；known-red.tsv 删掉 interaction 行。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "depends_on": [
+    "EVO-02"
+   ],
+   "note": "纯夹具，不影响产品；顺手把 ON-4-07 的推进点再往前挪一格。"
+  },
+  {
+   "id": "EVO-11",
+   "title": "render 阴影只读计量：structures=0 是相机问题还是阴影帧解析问题",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T1",
+   "detail": "2peaks 有 10 个建筑，但 structureShadowsDrawn=0（shp=5 正常、voxel=0）。只读打印 7 个 shadow 候选的 art id / kind / owner / 是否命中阴影帧 / 屏幕矩形，判断是建筑没进视口（夹具/相机）还是阴影帧解析失败（美术/剧场字母）。",
+   "verify": "输出每个候选一行（artId kind owner shadowFrame rect），据此把 known-red 的 render 行改成定因结论；本任务不改渲染行为。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "depends_on": [
+    "EVO-02"
+   ],
+   "note": "先计量后动手，避免像 ON-2-06 那样按现象猜根因。"
+  },
+  {
+   "id": "EVO-12",
+   "title": "result 记分动画只读计量：确认 reuseCachedFrame 与平台相关嫌疑",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T1",
+   "detail": "断言要求在无 tick、无 repaint 请求时连画两帧，记分区至少 1000 像素不同；实测两帧全同，走了 reuseCachedFrame。只读打印 runtimeResultScoreIsAnimated 的三个谓词（skirmishMatchFinished / campaignMode / bannerVisible）、reuseCachedFrame、presentationStartedAtMs 与 runtimeUiClockNow 的差值、两帧 changed 像素数。",
+   "verify": "每次 paint 打印上述六值；据此判定是状态没置位（夹具）还是闸门逻辑与动画时序不符（产品），并把 known-red 的 result 行改成定因结论。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "depends_on": [
+    "EVO-02"
+   ],
+   "note": "断言来自 2026-10-10 上游（Windows 侧历史绿），平台相关嫌疑大，先拿数据。"
   }
  ],
  "decisions": {
