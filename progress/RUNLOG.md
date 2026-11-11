@@ -6541,3 +6541,12 @@ interaction 仍停在既知的 `no owned structure for repair cursor`（EVO-10 �
 必须逐区域验证。以后新增原生页面/浮层，检查项就是"该区域内游标函数是否返回帧"。
 
 产出 `reports/U-06-世界侧栏指针消失.md`；队列 v96 → v97。
+
+
+### 附：仓库历史哈希变化（2026-11-11 18:30 观察）
+
+本轮开始时记的旧哈希（文档仓 e37e3b3 / 源码仓 6f78a36）现在都变成了新哈希
+（9ac2104 / bd38300），提交文案与时间戳保持一致，reflog 被截断。判断是两次会话之间
+有人对两个仓库统一改写了 author/committer 身份（哈希随元数据变），内容无缺失：
+queue v97、三份报告、known-red.tsv、regress.sh 均在位。按 rules.commit.never 不做任何历史操作，
+仅在此记录，供以后对账时不要按哈希找提交。
