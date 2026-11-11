@@ -13,8 +13,8 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 06:00（第 6 轮开工：M-15 夹具缺口按计划补己方兵营+战车工厂；
-> 基线回归 `PASS=6 KNOWN-RED=5 RED-NEW=0`）
+> 最近更新：2026-11-12 06:25（第 6 轮收口：**`build` 首次转 PASS**——M-15 补己方生产基地、
+> M-16 让低电探针自建前置；回归 6/5/0 → 7/4/0，零新回归）
 
 ---
 
@@ -50,7 +50,9 @@
 | M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄，`799c9b6`；**故意不动命中逻辑**） | `reports/FIX-06-选择框与命中框的两条口径.md` §2 |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
 | M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
-| M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 待修复（已定性，`64f2c95` 计量） | `reports/FIX-06-选择框与命中框的两条口径.md` §3 |
+| M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
+| M-16 | `build` 低电探针被自己的前置挡死 | `sidebar low-power integration probe state is not low power`，探针一进门就要求 `runtimeEconomyLowPower`，而零售图没有耗电建筑（powerUsed 恒 0），净电永远为正 | **已定性：前置无人保证**。`runtimeEconomyLowPower` 判 `produced - used < 0`，探针走不到断言本体，属夹具职责缺位而非产品缺陷 | 高：它是 `build` 转 PASS 的最后一道门 | 冒烟侧临时抬高 powerUsed 再还原（3 行） | **S** | 简单 | 已完成（`c90ec0e`；**build 整条转 PASS**） | `reports/FIX-07-build冒烟转绿.md` §2 |
+| M-17 | `result` 记分动画两次 paint 出同一张画面 | `original score animation stalled behind paused-frame cache`；计量 `changed=0 tick=300/300 frames=6/6 saved=yes`，三个子条件正常，只有画面没变 | 已排除「没重绘」：`reuseCachedFrame` 里已有 `&& !runtimeResultScoreIsAnimated(*state)` 且此处置为真。待查方向：记分帧的时间源是 `runtimeUiClockNow`（`uiClock->nowMs()`），冒烟只改 `campaignScore.presentationStartedAtMs`，若 uiClock 在冒烟里冻结则 elapsed 不变 | 中：结算页动画是用户可见的一段 | 先验「uiClock 能否推进」，再定「探针推进时钟」还是「记分页按 elapsed 取帧」 | **B** | 中等 | 待修复（第 6 轮计量） | `reports/FIX-07-build冒烟转绿.md` §3 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -77,7 +79,33 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 5 轮）打包清单
+## 五、本轮（2026-11-12 第 6 轮）打包清单
+
+主题：**把连红五轮的 `build` 清到底**。两条都是「夹具缺了自己该有的东西」，产品逻辑零改动。
+
+**M-15 → 已完成（`52bd380`）**：2peaks 世界 `Structures:10` 全 Neutral，没有
+`Factory=InfantryType/UnitType` 的己方建筑，catalog 里 15 个 Unit + 13 个 Infantry
+全部停在 `runtimeOwnerHasCompatibleFactory`。注入 GAPILE + GAWEAP（owner=己方），
+落点用环搜避开既有建筑地基（按 `object.x + width` 判占用，不是渲染中心），
+注入后 `refreshRuntimeObjectOccupancyAfterLocalChange`。
+
+**M-16 → 已完成（`c90ec0e`）**：低电探针一进门就要求 `runtimeEconomyLowPower`，
+但零售图没有耗电建筑、净电恒正，探针走不到断言本体。改为冒烟侧临时抬高 `powerUsed`
+再还原，探针本体不改。**`build` 由此整条转 PASS。**
+
+**M-17 → 已计量，未修**：`result` 的记分动画 `changed=0`，但 tick/frames/save 三项正常。
+已排除「没重绘」（缓存门里有 `!runtimeResultScoreIsAnimated`）；待验的是
+`uiClock->nowMs()` 在冒烟里是否冻结（记分帧按它取 elapsed，而冒烟只改 presentationStartedAtMs）。
+
+回归结果：`PASS=6 KNOWN-RED=5` → **`PASS=7 KNOWN-RED=4`，`RED-NEW=0`**。
+`known-red.tsv` 删掉 `build` 行，`result` 行按计量改写。
+
+移出本批：`result`（呈现层时间源，需先验时钟），按复杂度留在下一轮。
+报告：`reports/FIX-07-build冒烟转绿.md`。
+
+下一轮起手：**M-17（先验 uiClock 在 result 冒烟里能否推进）**，其次 **M-12**（命中像素的 depthVis 清单）。
+
+## 六、第 5 轮（2026-11-12）打包清单（存档）
 
 主题：**多谓词断言必须逐项计量**。M-14（`build` 移动帧选择框）与 M-12（`interaction` footprint 命中）
 两条已知红都只有一句「aligned=no / hit mismatch」出口，把 5~6 条谓词压成一句话，导致问题描述本身
@@ -107,7 +135,7 @@
 
 基线回归（开工前）：`PASS=6 KNOWN-RED=5 RED-NEW=0`，与第 4 轮收口一致。
 
-## 六、第 4 轮（2026-11-12）打包清单（存档）
+## 七、第 4 轮（2026-11-12）打包清单（存档）
 
 主题：**夹具缺口 + 观感硬伤，两条都不动模拟层**。M-11 给 build 冒烟补一个可悬停单位（fixture-gap），
 S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共用一次构建与一次回归。
@@ -127,7 +155,7 @@ S-09 把 FPS 面板做成默认关（UI-01 §3.1 唯一确证的硬伤）。共�
 下一轮起手：**M-14（build 第 4 个阻塞，先加三个谓词的只读计数）** 与 **M-12（interaction footprint 命中框）**，
 两者同属「选择框/命中框几何口径」，可各写一段计量后一并定性。
 
-## 七、第 3 轮（2026-11-12）打包清单（存档）
+## 八、第 3 轮（2026-11-12）打包清单（存档）
 
 主题：**两条判红的根因都在断言口径，不在产品**。两条都先量几何再动手，产品路径零改动，
 共用一次构建与一次回归。报告 `reports/FIX-04-两条断言的几何口径.md`。
@@ -148,7 +176,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 八、第 2 轮（2026-11-12）打包清单（存档）
+## 九、第 2 轮（2026-11-12）打包清单（存档）
 
 主题：**回归门禁的「资产缺口 vs 产品缺陷」口径**。三条同一性质，只改探针/夹具口径，不动产品行为，
 共用一次构建与一次回归。报告 `reports/FIX-03-回归门禁口径三连.md`。
@@ -170,7 +198,7 @@ M-11 便宜，清了 build 只剩一条即转 PASS；M-12 要先量两侧 bounds
 
 ---
 
-## 九、第 1 轮（2026-11-12）打包清单（存档）
+## 十、第 1 轮（2026-11-12）打包清单（存档）
 
 承接上一轮被截断的 WIP（`progress/.active` 记 `auto-acquire-policy+team-number`）：
 
