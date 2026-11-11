@@ -59,24 +59,40 @@ def csf_chars(path):
     return chars
 
 
-def rasterize(ch, font_path, size, width_bits, rows, top_offset=1):
+def rasterize(ch, font_path, size, width_bits, rows, threshold=190):
+    """按原字体规格栅格化单个字。
+
+    三个对齐约束（缺一个就会「字不一样大」）：
+      1. 基线对齐，不是顶端对齐：原字库所有汉字墨迹都落在第 1..rows-1 行，
+         即底边贴最后一行。按固定 top_offset 贴顶，矮字会整体上浮。
+      2. 竖向量规统一到 rows-1 行：同一字号下各字墨迹高度本来就不同（开 13 行、
+         始 15 行），不归一化就会出现「这个字比那个字小一号」。
+      3. 单色渲染直接取 1bpp 会把细笔画吃掉，所以用灰度渲染 + 阈值。
+    """
     font = ImageFont.truetype(font_path, size, index=0)
-    canvas = Image.new("1", (width_bits * 2, rows * 2), 0)
-    ImageDraw.Draw(canvas).text((4, 0), ch, font=font, fill=1)
-    # "1" 模式下墨迹为 255，getbbox() 直接给出墨迹包围盒
-    bbox = canvas.getbbox()
+    canvas = Image.new("L", (width_bits * 2, rows * 2), 0)
+    ImageDraw.Draw(canvas).text((0, 0), ch, font=font, fill=255)
+    bilevel = canvas.point(lambda value: 255 if value >= threshold else 0, "1")
+    bbox = bilevel.getbbox()
     if not bbox:
         return None
-    ink = canvas.crop(bbox)
-    if ink.size[0] > width_bits or ink.size[1] > rows - top_offset:
+    ink = bilevel.crop(bbox)
+    width, height = ink.size
+    if width > width_bits or height > rows - 1:
         return None
+    target_height = rows - 1
+    # 一 / 二 / 三 这类字天然只有几行墨迹，不能拉满；只把「差一点」的字补齐到满格。
+    stretch = target_height if height >= 11 else height
+    source = ink.load()
     bitmap = [[0] * width_bits for _ in range(rows)]
-    px = ink.load()
-    for y in range(ink.size[1]):
-        for x in range(ink.size[0]):
-            if px[x, y]:
-                bitmap[y + top_offset][x] = 1
-    return ink.size[0], bitmap
+    top = rows - stretch
+    for y in range(stretch):
+        # 取整而不是 floor：floor 会把首行（常常只有衬线头）复制一遍，留下悬浮杂点
+        sy = (y * (height - 1) + (stretch - 1) // 2) // (stretch - 1)
+        for x in range(width):
+            if source[x, sy]:
+                bitmap[top + y][x] = 1
+    return width, bitmap
 
 
 def pack(bitmap, stride, rows):
@@ -93,8 +109,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("fnt")
     ap.add_argument("csf")
-    ap.add_argument("--font", default="/System/Library/Fonts/Hiragino Sans GB.ttc")
-    ap.add_argument("--size", type=int, default=15)
+    ap.add_argument("--font", default="/System/Library/Fonts/Supplemental/Songti.ttc")
+    ap.add_argument("--size", type=int, default=16)
+    ap.add_argument("--threshold", type=int, default=190)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -124,12 +141,15 @@ def main() -> int:
     body = bytearray(fnt)
     added = 0
     failed = []
+    heights = defaultdict(int)
     for ch in targets:
-        result = rasterize(ch, args.font, args.size, width_bits, rows)
+        result = rasterize(ch, args.font, args.size, width_bits, rows, args.threshold)
         if result is None:
             failed.append(ch)
             continue
         ink_w, bitmap = result
+        rows_used = [y for y, row in enumerate(bitmap) if any(row)]
+        heights[rows_used[-1] - rows_used[0] + 1 if rows_used else 0] += 1
         advance = min(ink_w + 1, width_bits)
         record = bytes([advance]) + pack(bitmap, stride, rows)
         body += record
@@ -137,6 +157,7 @@ def main() -> int:
         struct.pack_into("<H", body, 0x1C + ord(ch) * 2, count + added)
     struct.pack_into("<I", body, 20, count + added)
     print(f"补入 {added} 个字形，失败 {len(failed)}: {''.join(failed) if failed else '-'}")
+    print(f"墨迹高度分布 {sorted(heights.items())}（原字库汉字统一为 {rows - 1} 行）")
     if args.dry_run:
         print("dry-run 不写文件")
         return 0
