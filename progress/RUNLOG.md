@@ -6092,3 +6092,67 @@ interaction smoke         仍停在已知 box selection（ON-4-07），无回退
 
 队列 v86 → v87（done 73 / pending 8 / superseded 7 / blocked 3，共 91）。
 产出 `reports/ARM-02-全量构建恢复.md`。
+
+## 2026-11-11 · U-01 大厅点「開始遊戲」变彩虹圈 —— 整段大厅没人在处理事件
+
+用户现场报障，进程还卡着，所以第一件事不是猜，是 attach 采样。
+
+### 取证
+
+```
+main thread 1198 samples
+  runRuntimeSkirmishMenu +1292
+    MsgWaitForMultipleObjectsEx        ← 1196/1198
+      sleep_for → nanosleep
+```
+
+不是死锁，也不是在加载：主线程几乎全在"等消息"里睡，另 2 个样本在 IsWindow。
+
+### 根因
+
+`pumpEvents()` 只挂在 `GetMessageW` 里（Q-06 留下的约定）。而大厅主循环是
+
+```cpp
+while (IsWindow(window)) {
+    if (!PeekMessageW(...)) { MsgWaitForMultipleObjectsEx(0,nullptr,5,...); continue; }
+    ...
+}
+```
+
+**从不经过 GetMessageW** → 整段大厅期间没有排空 AppKit。于是：画面停在
+`createShellSkirmishWindow + UpdateWindow` 画的第一帧（看着完全正常），鼠标点击
+全部躺在 AppKit 队列里，系统在用户点击时来查响应 → 彩虹圈。
+也就是说彩虹圈不是"点开始触发的"，是**早就不响应了，点下去才被点亮**。
+这也解释了主菜单阶段为什么正常：主菜单走 GetMessageW（会 pump）。
+
+### 修法
+
+把 `pumpEvents()` 放进 `MsgWaitForMultipleObjectsEx` 与 `WaitMessage` 的等待循环：
+语义上 Win32 本来就规定"等待期间处理消息"；文件是平台层（Windows 不编译），
+不必在共享菜单代码里加 `#ifdef __APPLE__`；一处修好所有调用点。
+
+顺带加 `CONCORD_SKIRMISH_AUTOSTART=<n>`：真实大厅第 n 次循环后自动点「開始遊戲」，
+走与真人点击完全相同的队列路径——否则这条链路无法无人值守回归。
+
+### 验证
+
+- 修复后同一位置采样：`MsgWait → pumpEvents → nextEventMatchingMask → NSRunLoop`，
+  892 样本中 314 在 pumpEvents（修复前 0）；
+- 端到端：`posting Start click at 829,282` → loading 1/6..6/6 → loading complete →
+  世界 8 秒 **282 帧**，EXIT=0；
+- 回归：菜单 rampPixels 基线不变、skirmish EXIT=0 / 161 预览、全量构建无 FAILED。
+
+### 顺带推进 ON-4-07 第一片（db5a47c）
+
+给交互 smoke 的夹具注入 4 个 HTNK（此前 units=0，框选永远无可选对象）：
+box selection 从"selection 0 / cleared"变成"selection 4 | HTNK #9000"，
+其后的命令链首次真正执行；下一缺口是「no owned structure for repair cursor」
+（10 个建筑全 Neutral）。
+
+### 遗留
+
+- 真人点击未复验（本机无辅助功能授权），需用户双击 `.app` 手工确认；
+- 大厅每轮 pump 最多占 2ms，会把 5ms 节流拉到 ~8ms，记一笔留给 ON-2-06；
+- **30 分钟挂机两次被我的 pkill 误杀**（跑回归时清的），ON-5-02b 仍待跑。
+
+队列 v87 → v88。产出 `reports/U-01-大厅不处理事件.md`。

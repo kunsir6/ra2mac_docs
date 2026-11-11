@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 87,
- "updated": "2026-11-11T14:05:00+08:00",
+ "version": 88,
+ "updated": "2026-11-11T15:05:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -162,9 +162,24 @@
   "full_build_is_green_now": "2026-11-11 起：`cmake --build build-product-arm`（全量）是绿的，可以重新作为验收项。旧规则「产品全量构建从来没绿过」作废。注意仍要用 `-- -k 0` 才能一次看到全部失败点，默认在第一个 FAILED 就停。",
   "nested_cmake_runs_before_platformapple": "DevelopmentTargets.cmake（CMakeLists 第 30 行）早于 CompilerAndPlatform.cmake（第 32 行），所以 tests/infrastructure/*/CMakeLists.txt 这类 add_subdirectory 里不能调用 concord_apple_add_win32_compat_sources，也读不到 CONCORD_APPLE_FSEVENTS_FRAMEWORK_DIR —— 函数与变量那时都还不存在，if(COMMAND)/if(DEFINED) 会静默跳过，症状是「某些自测链接报一堆 FSEvent 未定义」。两条出路：① 在 CompilerAndPlatform.cmake 的 APPLE 分支里补挂（既有先例：concord_multiplayer_two_process_smoke、concord_window_parent_win32_contract）；② 嵌套目录里写成自包含（xcrun --show-sdk-path + 目标级 -F），不依赖 include 顺序。另：set_source_files_properties 是目录作用域，父目录设了不管用。",
   "ctest_fixture_must_be_idempotent": "契约若拒绝已存在的 fixture 根（如菜单资源契约的 Use a new fixture directory），add_test 必须自带清理，否则同一 build 目录第二次跑必然 0.00s 失败而第一次是绿的——极具欺骗性（看着像「刚改坏了」）。做法：FIXTURES_SETUP 挂 `${CMAKE_COMMAND} -E rm -rf <dir>`，被依赖测试加 FIXTURES_REQUIRED；ctest -R 会自动带上 setup。",
-  "win32_requires_directory_for_change_notification": "Win32 的 FindFirstChangeNotification 要求入参是目录，传普通文件返回 INVALID_HANDLE_VALUE。compat 层早期只查存在性，FSEvents 会照单全收一个文件并「正常」watch，调用方于是得到「这棵树是新鲜的」这种错误认证（菜单资源契约恒红）。已在 RuntimeWin32CompatChangeNotify.cpp 用 stat + S_ISDIR 对齐；任何「照收下再说」的 compat 实现都要先核对 Win32 的参数前置条件。"
+  "win32_requires_directory_for_change_notification": "Win32 的 FindFirstChangeNotification 要求入参是目录，传普通文件返回 INVALID_HANDLE_VALUE。compat 层早期只查存在性，FSEvents 会照单全收一个文件并「正常」watch，调用方于是得到「这棵树是新鲜的」这种错误认证（菜单资源契约恒红）。已在 RuntimeWin32CompatChangeNotify.cpp 用 stat + S_ISDIR 对齐；任何「照收下再说」的 compat 实现都要先核对 Win32 的参数前置条件。",
+  "any_wait_loop_must_pump_appkit": "macOS 上任何「等消息」的循环都必须排空 AppKit：GetMessageW 已内置 pumpEvents，MsgWaitForMultipleObjectsEx / WaitMessage 自 U-01（a863d9e）起也内置。如果某处只用 PeekMessageW 空转、或自己 sleep 轮询而不用这两个原语，它同样拿不到鼠标键盘输入，且**画面会停在第一帧、看着完全正常**——症状是「窗口在但点不动、点一下就彩虹圈」。判定口径：见到彩虹圈先 sample 主线程，若停在 sleep_for/nanosleep 且栈里没有 pumpEvents，就是这一类，不要去查渲染或死锁。",
+  "autostart_regression_entry": "CONCORD_SKIRMISH_AUTOSTART=<n>：真实窗口的大厅第 n 次循环后自动点「開始遊戲」，PostMessageW 入队 + 本循环派发，与真人点击同路径。配合 CONCORD_PRESENT_STATS=1 UNTIL_SEC=8 可在无人值守下回归「大厅→加载→世界」：应看到 loading 1/6..6/6、loading complete、paints>0。注意：它会真的进世界，必须配 UNTIL_SEC 或 attest LIMIT 退出。"
  },
  "tasks": [
+  {
+   "id": "U-01",
+   "title": "大厅点「開始遊戲」变彩虹圈：MsgWait 等待期间从不排空 AppKit 事件",
+   "status": "done",
+   "detail": "用户报障：主菜单 → 遭遇战大厅 → 点「開始遊戲」→ 鼠标彩色转圈，画面不动。现场 attach 采样：主线程 1196/1198 样本停在 runRuntimeSkirmishMenu → MsgWaitForMultipleObjectsEx → sleep_for，不是死锁。根因：pumpEvents 只挂在 GetMessageW（Q-06 约定），而大厅主循环是 PeekMessageW + MsgWaitForMultipleObjectsEx(5ms)，从不经过 GetMessageW —— 整段大厅期间无人排空 AppKit：画面停在第一帧，点击全部躺在 AppKit 队列里。用户点开始时系统来查响应，于是给彩虹圈（不是点触发的，是早就无响应）。",
+   "verify": "修复后采样可见 MsgWait → pumpEvents → nextEventMatchingMask → NSRunLoop，892 样本中 314 在 pumpEvents（修复前为 0）；CONCORD_SKIRMISH_AUTOSTART=5 端到端：posting Start click at 829,282 → loading 1/6..6/6 → loading complete → 世界 8 秒 282 帧 EXIT=0。回归：菜单 smoke 像素基线不变、skirmish smoke EXIT=0 / 161 预览、全量构建无 FAILED。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatUser.cpp",
+    "src/ui/skirmish/RuntimeSkirmishMenu.cpp"
+   ],
+   "commit": "a863d9e",
+   "note": "修法放在 MsgWaitForMultipleObjectsEx / WaitMessage 里（平台层文件，Windows 不编译），不在共享菜单代码加 #ifdef __APPLE__（§5.2）。新增 CONCORD_SKIRMISH_AUTOSTART=<n> 作为「大厅→加载→世界」的无人值守回归入口。未复验：真人点击（本机无辅助功能授权）；用户双击 .app 手工确认即可闭环。详见 reports/U-01-大厅不处理事件.md。"
+  },
   {
    "id": "ON-4-04",
    "title": "性能基线：菜单/大厅/游戏内三档首帧时间、帧时间 P50/P95、峰值 RSS",
