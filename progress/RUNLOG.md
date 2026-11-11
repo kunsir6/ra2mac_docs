@@ -5286,3 +5286,54 @@ idx=3 layerHash=0x4e30f9e8 dibHash=0x4e30f9e8 providerHash=0x4e30f9e8 match=yes
 dibHash 全 match=yes，属"产品画面从冻在第一帧变为连续刷新"，不再按 partial 处理。
 `git diff` 复核：唯一被改写的既有行是 `if (!takeOver) return;`（改成带计数的分支），
 非 `if(WIN32)` 分支、非删除文件。未 push。
+
+## 2026-11-11 10:25 · 仓库修复 · done（HEAD 不可读 → 重做 ON-2-03 提交）
+
+**这是人接手后的一轮，起因是换机迁移后的环境复核，不是定时任务。**
+
+### 发现了什么
+
+`git status` / `diff` / `show` 全部 `fatal: unable to read tree (1a6ba99…)`。
+逐层定位：缺失的是最新提交 `179c84e`（ON-2-03）根树下的 **`compat/` 整个子树**；
+commit 对象与 message 完好，只有这一个子树没落盘——08:26 那次提交是在写 tree 阶段被中断的。
+另在 `.git/` 内发现 4 个 `.DS_Store`（Finder 扫过 `.git`），其中 `refs/.DS_Store`
+被 `git fsck` 报 `badRefName` / `badRefContent`。
+
+连带三处不同步：RUNLOG 停在 07:58、`queue.json` 里 ON-2-03 仍是 `pending`、
+`.active` 从 08:23 起卡在 `held` 未释放。即"提交写了、日志没写、锁没放"的半途态。
+
+### 怎么修的（不重做工作）
+
+1. `cp -a .git` 备份到**仓库外** `../.git-backup-concord-20261111`（22 MB）；
+2. 删 4 个 `.DS_Store`（含 `refs/` 与 `objects/` 下的）；
+3. `git update-ref refs/heads/main 6dc93e8 179c84e`（带 old 值校验）把分支指回最后一个可读提交；
+4. `git read-tree 6dc93e8` 重建 index（工作树不动）；
+5. `git add compat/win32/src/RuntimeAppleWindowSurface.mm` → 用 `179c84e` 的 message 逐字重提交。
+
+### 校验
+
+```
+$ git log --oneline -2
+38286db (HEAD -> main) ON-2-03 窗口可缩放：Resizable 上线，1.7 倍验收通过（scale 2.0 / 内容未重采样）
+6dc93e8 ON-2 呈现层：主人自身帧不再被抢位规则丢弃（提交 1→200/15s）
+$ git status --short          → 空
+$ git fsck --no-progress      → 零输出（修复前 4 类错误）
+$ git diff --stat 6dc93e8     → 1 file changed, 52 insertions(+), 1 deletion(-)
+```
+
+差异落在 `RuntimeAppleWindowSurface.mm` 一个文件，内容正是 attest scale 钩子 + `NSWindowStyleMaskResizable`，
+与 `179c84e` 的提交正文一致。旧提交降级为 dangling，仍在 reflog 里可追。
+
+队列：`ON-2-03` pending → **done**（v70 → v71），`.active` 释放。
+
+### 一条进 rules 的口径
+
+`commit_must_be_verified`：**每次提交后必须跑 `git fsck` + `git status`，不能只看 `git log`。**
+这次损坏的特征是「commit 与 message 都在，只有一个子树丢」，`git log` 读起来完全正常，
+只有 `status/diff` 才开始报错——而自动化下一轮第一件事恰恰是 `git add`/`diff`，
+不校验就会在下一轮以「莫名其妙的 fatal」形式炸开，且很难归因到上一轮。
+
+### 未验证
+
+ON-2-03 的验收证据（`CONTENTS_SCALE`、1.7 倍拉伸四项断言）全部来自 x86_64 环境，
+**arm64 上未复验**。本轮只修仓库，未动产品代码。
