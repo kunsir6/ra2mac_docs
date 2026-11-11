@@ -50,7 +50,7 @@
 | M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄，`799c9b6`；**故意不动命中逻辑**） | `reports/FIX-06-选择框与命中框的两条口径.md` §2 |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
 | M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
-| M-15 | `build` 停在 `no unit/infantry catalog item` | M-14 断言转绿后暴露：队列单位这一步找不到任一 `canQueue` 的 Unit/Infantry 条目 | 未定，两种可能必须先切开：①夹具缺口——该初始状态下没有己方兵营/战车工厂，客观上排不了 ②`runtimeBuildAvailability` 在本冒烟世界里恒 false（产品缺陷）。判定法同 M-11：先问「这个对象该由谁创建」 | 中：清掉 `build` 最后一个阻塞点的前置 | 打印 catalog 的 Unit/Infantry 条目数与每条 canQueue 原因（缺建筑/缺钱/缺电/前置） | **A** | 简单 | 待修复（第 5 轮由 M-14 之后暴露） | `reports/FIX-06-选择框与命中框的两条口径.md` §3 |
+| M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 待修复（已定性，`64f2c95` 计量） | `reports/FIX-06-选择框与命中框的两条口径.md` §3 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -102,8 +102,8 @@
 
 报告：`reports/FIX-06-选择框与命中框的两条口径.md`。
 
-下一轮起手：**M-12（先补一档计量：该像素上所有 spans 命中对象的 depthVis 清单）**，其次 **M-15**
-（打印 catalog 的 Unit/Infantry 数与 canQueue 原因，判 fixture-gap 还是可用性缺陷）。
+下一轮起手：**M-15**（夹具缺口已定性，直接补己方兵营+战车工厂，一次构建看 build 推进到哪），随后
+**M-12**（补一档计量：该像素上所有 spans 命中对象的 depthVis 清单，先钉死「谁挡住谁」再动 pick）。
 
 基线回归（开工前）：`PASS=6 KNOWN-RED=5 RED-NEW=0`，与第 4 轮收口一致。
 

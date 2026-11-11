@@ -154,7 +154,7 @@ void 指标当场反证。所以本轮只落计量（`799c9b6`），**不改命�
 
 ## 三、新登记
 
-### M-15 `build` 停在 `no unit/infantry catalog item`（M-14 之后暴露）
+### M-15 `build` 停在 `no unit/infantry catalog item`（已定性：夹具缺口）
 
 unit selection 断言转绿后，`build` 冒烟推进到「队列一个单位/步兵」这一段：
 
@@ -165,13 +165,27 @@ const auto unitIt = std::find_if(state.economy.catalog..., [&](const RuntimeBuil
 });
 ```
 
-目录里没有任何 `canQueue` 的单位。根因未定，两种可能要先切开：
+只有一句报错，分不清「夹具里没有工厂」与「可用性判定恒 false」。补一段只读计量后：
 
-1. **夹具缺口**：该图/该初始状态没有己方兵营/战车工厂，所以客观上什么都排不了（fixture-gap）；
-2. **可用性判定**：`runtimeBuildAvailability` 在本冒烟的世界里恒 false（产品缺陷）。
+```
+build catalog: total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0
+  E1        queue=no start=no credits=yes lowPower=no reason="missing InfantryType"
+  ENGINEER  queue=no start=no credits=yes lowPower=no reason="missing InfantryType"
+  ...
+  CMIN      queue=no start=no credits=yes lowPower=no reason="missing UnitType"
+```
 
-判定方法与 M-11 同源——先问「这个对象该由谁创建」：打印 catalog 里 Unit/Infantry 条目数量、
-每条的 `canQueue` 原因（缺建筑 / 缺钱 / 缺电 / 前置科技），再决定是补夹具还是改可用性。
+结论明确：**不是可用性判定坏了**。目录 46 项齐全、钱够（199200）、电够（200/0）、科技等级放行，
+每条都停在 `runtimeOwnerHasCompatibleFactory` 这一步——`reason` 就是 `"missing " + item.requiredFactory`，
+即世界里没有任何己方建筑带 `Factory=InfantryType` / `Factory=UnitType`。
+
+这与 M-11 是同一类问题（2peaks 世界里 `Structures:10` 全为 Neutral，没有己方生产基地）。
+所以 M-15 = **fixture-gap**，修法是给 build 冒烟补一栋己方兵营与一栋己方战车工厂，
+走 `addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`，
+与 M-11 注入 MTNK 同一条产品创建路径。
+
+本轮没做这一步：夹具落点要避开既有建筑的地基，改完还要重跑整条 `build`（它后面还有队列重排/取消/
+集结点等一串断言），属独立一小批工作。时间锚点已到收口，按纪律不在末尾硬塞。
 
 ### M-12 的下一轮起手（更细一档的计量）
 

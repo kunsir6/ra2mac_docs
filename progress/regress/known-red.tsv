@@ -6,6 +6,6 @@
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 interaction	几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）已全部通过，M-12 收窄到右键命中：命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后无人顶替（见 fix-plan M-12）	code-red:needs-metering
 render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
-build	M-14 已修（潜航选择框按 1/3 层级下沉计，六类对象全 aligned=yes）；现停在 no unit/infantry catalog item，待判 fixture-gap 还是可用性缺陷（见 fix-plan M-15）	code-red:needs-metering
+build	M-14 已修（潜航选择框按 1/3 层级下沉计，六类对象全 aligned=yes）；现停在 no unit/infantry catalog item，已定性为 fixture-gap：catalog 46 项钱电科技全放行，全部 reason=missing InfantryType/UnitType（无己方生产基地，见 fix-plan M-15）	fixture-gap
 result	暂停态第二次 WM_PAINT 走 reuseCachedFrame，记分动画不前进；断言源自 2026-10-10 上游（Windows 侧历史绿）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red
