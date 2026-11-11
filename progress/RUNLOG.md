@@ -5983,3 +5983,46 @@ RSS 341 MiB → 342 MiB（10 分钟只涨 1 MiB）
 
 `ON-5-02` → `ON-5-02a` done；新增 `ON-5-02b`（世界 30 分钟 + 主菜单 30 分钟，纯测量、可后台）。
 当前：done 72 / pending 8 / superseded 7 / blocked 3。
+
+## 2026-11-11 16:35 · ON-2-06 重估后降级（现象最像大头，实际不是）
+
+按新排序做 ON-2-06，动了两刀后确认：**它不该排在前三**。
+
+### 三处置脏点，主力在模拟层
+
+之前只找到两处，这轮补上第三处，并用实测判定了谁是主力：
+
+| # | 位置 | 作用 |
+|---|---|---|
+| ① | `RuntimeShell.cpp:88969` `if (tickAdvanced) repaintRequested = true` | 每 tick 置脏 |
+| ② | `RuntimeShell.cpp:88953` `continuousRuntimeFrame = loaded && !isIconic` | 世界加载后恒真 |
+| ③ | **`RuntimeShell.cpp:88883` `if (simulationChanged || waterWakeChanged) repaintRequested = true`** | **主力**：`advanceRuntimeSimulation` 每 tick 都返回 changed |
+
+判定依据：加开关把 ①② 关掉后，`paints` 仍是 **3526/60s**（默认 3529），几乎没变。
+即 ③ 才是真正的置脏源，前两处只是把它盖成了"必然成立"。
+
+### 为什么降级
+
+- 产品已经稳定 **59.9fps / 16.5% CPU**，对"能玩"没有任何贡献，收益只是风扇和电耗；
+- 真正的修法要改 `advanceRuntimeSimulation` 的 changed 语义（区分"时间推进"与"视觉变化"），
+  这是**共享代码**，会同时影响 Windows，而本机没有 Windows 可回归；
+- 风险/收益不划算 → 降到 ON-4-07 / ARM-02 之后（第 8 位）。
+
+**教训（已进 rules）**：性价比排序必须**在摸清修法之后**再定。
+现象严重程度不等于性价比——"52fps 全量重绘"看着最像大头，实际它是"能玩"之后的优化项。
+
+实验开关已完整回滚（`git status` 干净、可编译），没有留半成品。
+
+### ARM-02 定位进展
+
+`concord_mod_history_noop_smoke` 编译失败的真因初步查明：
+
+- 测试文件只 include 了 `simulation/mod_extensions/RuntimeModExtensionsRuntime.inl`，**该文件仅 1 行**；
+- 而 `advanceRuntimeModExtensions` 的唯一声明在 `src/runtime/session/detail/RuntimeProductionOperations.h:9631`；
+- 整个仓库里能用到它的 `RuntimeModExtensionsSmoke.inl` **只被 `RuntimeShell.cpp:59252` include**——
+  也就是说那个 .inl 依赖的是"宿主 TU 里已经有声明"这个前提，而独立测试 TU 没有。
+
+下一轮的方向：给测试 TU 补上声明可见性（而不是猜着改签名），但要先确认
+`RuntimeProductionOperations.h` 拉进来会不会带一堆依赖。
+
+队列 v85 → v86（ON-2-06 降级、诊断入档）。

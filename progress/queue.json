@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 85,
- "updated": "2026-11-11T16:20:00+08:00",
+ "version": 86,
+ "updated": "2026-11-11T16:35:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -157,7 +157,8 @@
   "ground_rubble_excluded_from_scene_z": "scene-Z depth replay 的参与者在 RuntimeStructureSpriteGeometry.inl:361 就把 runtimeObjectIsGroundRubble 的对象筛掉（`|| runtimeObjectIsGroundRubble(object, context)` → continue）。这是**正确行为**：地面残骸没有立体遮挡体，让它参与 replay 会凭空产生遮挡，挡住本该被看见的像素。所以任何\"rubble 也应参与 depth/遮挡\"的断言都是错的，要先核对这条筛选。2026-11-11 ON-4-05 就是因为一条断言同时覆盖 rubble=false/true 两种状态而误红。",
   "playable_today": "2026-11-11 实测：产品**已经可以手动玩**，两条路径都已验证到画面：① `--skip-main-menu` → 遭遇战大厅（1024x640，玩家列表/国家/颜色/队伍/速度/资金/部队数/地图预览全部渲染正确，中文标签正常），attest idx=1 match=yes；② `--skip-main-menu --skip-skirmish-menu` → 加载页（盟军/苏联/尤里标志 + 載入中… 进度条）→ 800x600 世界视图，10s 524 次 present（52fps），三帧 attest 全 match=yes。也就是说「大厅→加载→世界」这条链在代码里是完整的，--skip-skirmish-menu 等价于\"替用户点了载入\"。未验证的只剩一步：在**真窗口**里手动点大厅的「載入」是否同样进入加载页（自建窗口的 smoke 已证明该点击能发起 closing 并交回结果，见 ON-4-02c）。",
   "world_paint_10s_reference": "世界视图的帧率基线（2026-11-11 arm64 实测）：10 秒 524 次 present，paints 全部走 update（UpdateWindow 同步旁路，queue=0），52fps。这是\"画面在动\"的证据，但 ON-2-06 指出其中大量是空转重绘（每 tick 无条件 Invalidate+UpdateWindow），真正的脏区驱动还没做。判断\"卡不卡\"要用这个数字对比，不要凭感觉。",
-  "priority_2026_11_11": "2026-11-11 按「影响效果 ÷ 修改难度」重排（用户要求先高性价比）。判断依据：① 不改代码就能拿到信息的排最前（ON-4-04 性能基线、ON-5-02 长时存活）；② 直接影响\"玩起来爽不爽\"的其次（ON-2-06 世界空转重绘，当前 52fps 全量重绘 800x600×4 = 1.9MB/帧）；③ 一条断言就能清的顺手清（ON-4-06 tooltip）；④ 工程健康类（ARM-02 全量构建）在中段；⑤ 跨 TU、依赖未验证前置、或需要架构级改动的全部靠后（ON-4-02d、ON-3-01b、ON-2-02b、ON-2-04b）。blocked 一律排末尾，不参与优先级。口径：性价比 = 对\"能玩/好玩\"的贡献 ÷ 改动风险；不要因为\"看起来该做\"就提前。"
+  "priority_2026_11_11": "2026-11-11 按「影响效果 ÷ 修改难度」重排（用户要求先高性价比）。判断依据：① 不改代码就能拿到信息的排最前（ON-4-04 性能基线、ON-5-02 长时存活）；② 直接影响\"玩起来爽不爽\"的其次（ON-2-06 世界空转重绘，当前 52fps 全量重绘 800x600×4 = 1.9MB/帧）；③ 一条断言就能清的顺手清（ON-4-06 tooltip）；④ 工程健康类（ARM-02 全量构建）在中段；⑤ 跨 TU、依赖未验证前置、或需要架构级改动的全部靠后（ON-4-02d、ON-3-01b、ON-2-02b、ON-2-04b）。blocked 一律排末尾，不参与优先级。口径：性价比 = 对\"能玩/好玩\"的贡献 ÷ 改动风险；不要因为\"看起来该做\"就提前。",
+  "priority_2026_11_11_revised": "2026-11-11 晚间修正：ON-2-06（空转重绘）从第 3 位下调到 ON-5-01 之前。原因是实测后确认它「不做也不影响玩」——已 59.9fps、CPU 16.5%，修法却要动模拟层 changed 语义（共享代码、影响 Windows、本机无法回归）。教训：性价比排序必须**在摸清修法之后**再定，而不是只看现象严重程度。现象（52fps 全量重绘）看起来最像大头，实际它是\"能玩\"之后的优化项。"
  },
  "tasks": [
   {
@@ -194,19 +195,6 @@
    "verify": "两条各 1800 秒，EXIT=0；RSS 增长 < 5 MiB；帧率无单调衰减。",
    "touches": [],
    "note": "纯测量，无代码改动。可以后台并行跑，不占主线。"
-  },
-  {
-   "id": "ON-2-06",
-   "title": "世界 idle 空转重绘：帧循环每 tick 无条件 InvalidateRect + UpdateWindow",
-   "status": "pending",
-   "detail": "ON-2-02a 实测：世界 20s 内 paints=888（update=887）、submits=888、redundant=881 —— 44 次/秒重画同一画面。要求在\"内容没变\"时不产生重绘：先定位 tick 里是谁无条件置脏，再用内容版本号/脏区判定把它变成条件重绘。",
-   "verify": "世界 idle 20s：submits<=20、redundant<=2、user CPU 明显低于 59%；单位移动时仍 >=30 submits/s。",
-   "touches": [
-    "src/runtime/host/RuntimeShell.cpp",
-    "compat/win32/src/RuntimeWin32CompatUser.cpp"
-   ],
-   "note": "重要约束：这段在**共享代码**里，不是 if(WIN32) 分支——任何行为改动都会同时影响 Windows。按多平台方案 §5.2，共享层只能是\"平台无关的正确改进\"，不能加\"只在 macOS 跳过\"。所以正确方向是：让 repaintRequested 反映\"画面真的变了\"（相机/单位/动画签名），而不是\"tick 推进了\"；continuousRuntimeFrame 也应条件化而不是恒真。这类改动必须跑 Windows 回归，不能快糙猛。",
-   "diagnosis": "2026-11-11 定位到两处叠加（RuntimeShell.cpp:88949-88966，共享代码）：① `if (tickAdvanced) state.repaintRequested = true;` —— 每个模拟 tick 都置脏，哪怕画面一个像素没变；② `const bool continuousRuntimeFrame = state.world.getSummary().loaded && !IsIconic(window);` —— 世界一旦加载就恒为真；于是 `if (state.repaintRequested || continuousRuntimeFrame)` 恒成立，每帧都 InvalidateRect + UpdateWindow（实测 524 次/10s）。"
   },
   {
    "id": "ON-4-06",
@@ -256,6 +244,20 @@
     "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
    "note": "与 ON-2-02 的节流配合，避免「每 tick 一次全屏上传」。"
+  },
+  {
+   "id": "ON-2-06",
+   "title": "世界 idle 空转重绘：帧循环每 tick 无条件 InvalidateRect + UpdateWindow",
+   "status": "pending",
+   "detail": "ON-2-02a 实测：世界 20s 内 paints=888（update=887）、submits=888、redundant=881 —— 44 次/秒重画同一画面。要求在\"内容没变\"时不产生重绘：先定位 tick 里是谁无条件置脏，再用内容版本号/脏区判定把它变成条件重绘。",
+   "verify": "世界 idle 20s：submits<=20、redundant<=2、user CPU 明显低于 59%；单位移动时仍 >=30 submits/s。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp",
+    "compat/win32/src/RuntimeWin32CompatUser.cpp"
+   ],
+   "note": "**降级理由（性价比重估）**：产品已稳定 59.9fps、世界 CPU 16.5%，对\"能玩\"没有贡献；收益是风扇与电耗。而真正的修法要改 `advanceRuntimeSimulation` 的 changed 语义（区分\"时间推进\"与\"视觉变化\"），这是共享代码，会同时影响 Windows，且本机无法回归。风险/收益比不划算，故降到 ON-4-07 / ARM-02 之后。如果将来要做，正确方向：让模拟层在\"单位移动/开火/建造进度/血条/动画帧\"变化时置脏，而不是让 changed 覆盖\"tick 也变了\"。相关：rules.world_paint_10s_reference、reports/ON-4-04-性能基线.md 第五节。",
+   "diagnosis": "2026-11-11 深入定位后修正：置脏不是两处，是**三处**，而且主要那处在模拟层。① `RuntimeShell.cpp:88969` `if (tickAdvanced) repaintRequested = true;`（每 tick）；② `RuntimeShell.cpp:88953` `continuousRuntimeFrame = world.loaded && !isIconic`（加载后恒真）；③ **`RuntimeShell.cpp:88883` `if (simulationChanged || waterWakeChanged) repaintRequested = true;`** ——这才是主力：advanceRuntimeSimulation 每 tick 都返回 changed，等于每 tick 置脏。实测验证：加开关关掉 ①② 后 paints 仍 3526/60s（与默认 3529 几乎相同），证明 ③ 才是源头。",
+   "priority_note": "降级：收益是电耗/风扇，不是体验（已 60fps 流畅）"
   },
   {
    "id": "ON-5-01",
