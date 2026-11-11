@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 105,
-  "updated": "2026-11-12T01:31:25+08:00",
+  "version": 106,
+  "updated": "2026-11-12T02:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2408,6 +2408,19 @@
         "U-18"
       ],
       "note": "没有原版同场景截图就不要动模糊半径。"
+    },
+    {
+      "id": "FIX-03",
+      "title": "回归门禁口径三连：campaign 转 PASS，build/interaction 阻塞点后移",
+      "status": "done",
+      "phase": "问题修复",
+      "detail": "三条同一性质的问题——把平台/资产缺口当产品缺陷判红。①campaign 覆盖门禁拆成「结构缺陷（判红）/资产缺口（计数）/内容完整性（仅有地图时判）」三级，并把 availableMissionCount == missionCount - mapAssetGaps 做成硬约束，该条由 KNOWN-RED 转 PASS；②MCI 音乐探针在无后端时降级为选曲/落盘/阵营断言，mci 栏改报 skipped(no MCI backend)，保留「不许假成功」的反向断言；③interaction 夹具把最后一栋 Neutral 建筑改 owner 为己方，修理光标断言不再永久红。",
+      "verify": "ninja -C build-product-arm concord_runtime 全绿；bash ra2mac_docs/scripts/regress.sh → PASS=6 KNOWN-RED=5 RED-NEW=0（基线 5/6/0）；campaign 判定行 ObjectiveChain=27/27 available=27/27 structuralFailures=0 map-asset-gaps=13 movie-asset-gaps=24 env-gap=ACCOUNTED。",
+      "touches": [
+        "src/data/campaign/CampaignDatabase.cpp",
+        "src/runtime/host/RuntimeShell.cpp"
+      ],
+      "note": "commit cd2e841 / 933d70c / e1dede3；报告 reports/FIX-03-回归门禁口径三连.md。后续阻塞点 M-09（健康条 61x33 vs 61x31）、M-10（南向极值 tile 未覆盖）已登记 fix-plan。"
     }
   ],
   "decisions": {
