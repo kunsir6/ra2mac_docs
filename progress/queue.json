@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 77,
- "updated": "2026-11-11T13:20:00+08:00",
+ "version": 78,
+ "updated": "2026-11-11T13:50:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -337,9 +337,9 @@
    "supersededReason": "2026-11-11 06:55 人工轮确认：detail 描述的 Rectangle 非实线改 4 条 strokeLine 已由 82af67d(S14a) 落地（06:45 并发诊断轮独立得出同一结论），本条是重复条目；verify 的 interaction smoke EXIT=0 是整条契约链终点，不该绑在单条像素任务上。S14b 承接两条 raster 像素契约，ON-4-05 承接 smoke 全绿总目标。"
   },
   {
-   "id": "ON-4-02",
-   "title": "真实输入进游戏：合成鼠标事件走消息队列，菜单→遇战→选图→开局",
-   "status": "pending",
+   "id": "ON-4-02a",
+   "title": "真实点击驱动转场：主菜单→单人页→发起遭遇战（大厅内部交互留 02b）",
+   "status": "done",
    "detail": "现有 smoke 大量直调内部函数（completeMenu / 直接选图）。改成合成 WM_LBUTTONDOWN/UP、WM_MOUSEMOVE、双击，经 PostMessageW 进真实队列，由窗口过程处理；逐屏断言窗口尺寸/标题/像素特征（主菜单 1024x640 → 遇战 800x600 → 加载 → 游戏内）。这条打通后，人眼剧本与自动测试才走同一条代码路径。",
    "verify": "新增 --onscreen-flow-smoke，依次断言 5 个界面并 dump 5 张 bmp，EXIT=0。",
    "touches": [
@@ -347,7 +347,21 @@
     "src/runtime/host/RuntimeMain.cpp",
     "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
-   "note": "依赖 ON-3-01（需要自证通道判断「贴对了」）与 ON-4-01（游戏内像素契约）。"
+   "note": "边界：本条到「转场被发起」为止。点完 Skirmish 后菜单窗口进入 closing，遭遇战窗口由上层 RuntimeMain 启动，跨出 main menu TU —— 属 ON-4-02b。第三张 bmp（skirmish_pending）没抓到是正常的：转场已销毁菜单窗口，IsWindow(page) 为假。回归：指针导航 48/0（forwardDiff=13780 returnDiff=0 不变）、菜单 smoke rampPixels 基线不变、skirmish transition completed=yes、skirmish smoke EXIT=0。",
+   "result": "2026-11-11 13:45 done：新增 CONCORD_ONSCREEN_FLOW_ONLY 入口，全部经 PostMessageW → GetMessageW/DispatchMessageW → 窗口过程驱动，checks=26 failures=0，closing=1 result=Skirmish(3) pending=0。dump flow_01_home / flow_02_single_player。第二跳判据用与产品 smoke 同一组三条件（closing && result==Skirmish && pending 清空），而不是只看\"点了之后 closing\"——后者可能只是页面上别的按钮也关窗。",
+   "commit": "fd16450"
+  },
+  {
+   "id": "ON-4-02b",
+   "title": "遭遇战大厅内部交互：选图→设参→开局（跨出 main menu TU）",
+   "status": "pending",
+   "detail": "ON-4-02a 到「转场被发起」为止，本条接着走：点完 Skirmish 之后由上层启动遭遇战窗口，需要在该窗口里继续投合成鼠标事件——选地图（161 张预览列表）、确认设置、点开始，直到进入加载页/游戏内首帧。实现要点：① 入口要能拿到遭遇战窗口句柄（不能靠 page 变量，那是菜单的）；② 161 张地图的列表选择需要知道行高与滚动条位置，取当前选中项而非\"第 N 行\"；③ 每步都要 waitUntil 状态变化，不要等固定时长。可参考 --skirmish-ui-smoke-test 已有的离屏断言（它已能验证 161 地图预览与设置项），本条要做的是把那些断言换成\"由真实点击驱动\"。",
+   "verify": "按 --skirmish-ui-smoke-test 相同的观察口径，但输入全部走 PostMessageW；断言：进入加载页且出现游戏内首帧（尺寸切换 + 像素非空），dump 3 张 bmp，EXIT=0。若再暴露下一条问题，同样另立任务。",
+   "touches": [
+    "src/ui/skirmish/",
+    "src/runtime/host/RuntimeMain.cpp"
+   ],
+   "note": "前置：ON-4-02a（已 done）。本条跨 TU，失败归因比 02a 难，故单独拆。"
   },
   {
    "id": "ON-4-03",

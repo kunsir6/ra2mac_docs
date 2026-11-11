@@ -5692,3 +5692,57 @@ gameplay tooltip toggle did not control hovered-object help.
 当前：done 66 / pending 9 / superseded 7 / **blocked 3**（共 85）。
 
 产出 `reports/ON-4-05-projection-history契约.md`。
+
+## 2026-11-11 13:50 · ON-4-02a · done（真实点击驱动转场：主菜单→单人页→发起遭遇战）
+
+继续同一轮，取 `ON-4-02`。读完 Q-07 的指针导航后判断它太大，拆成 02a/02b：
+02a 做到「转场被发起」，02b 才进遭遇战大厅（跨 TU，失败归因难）。
+
+### 为什么切在这里
+
+点完 Skirmish 后菜单窗口进入 closing，**遭遇战窗口由上层 RuntimeMain 启动**，
+跨出 `RuntimeMainMenu.cpp` 这个 TU。混在一起会让「谁该为失败负责」不可判。
+
+### 实现
+
+新增 `CONCORD_ONSCREEN_FLOW_ONLY` + `CONCORD_ONSCREEN_FLOW_OUTPUT` 入口，
+复用 Q-07 的 `pointerNavClientPoint` / `pointerNavButtonCentre` / `pointerNavRegionDiff`
+（同一 TU 的匿名 namespace，所以新 `.inl` 必须 include 在指针导航之后）。
+
+全部输入走 `PostMessageW` → `GetMessageW/DispatchMessageW` → 窗口过程，**不用 SendMessageW**
+（那会绕开要验的那一段）。
+
+第二跳的判据是重点：不能只看「点了之后 closing」——页面上别的按钮也可能关窗。
+用与产品侧 smoke 同一组三条件：
+
+```
+state.closing && state.result == RuntimeMainMenuResult::Skirmish && state.pending == MenuAction::None
+```
+
+### 验证
+
+```
+Onscreen flow: checks=26 failures=0 pages=home->single->skirmish
+  closing=1 result=3 pending=0 pendingScreenCaptured=0
+EXIT=0
+dump: flow_01_home.bmp / flow_02_single_player.bmp
+```
+
+`pendingScreenCaptured=0` 是**正常**的：转场已销毁菜单窗口，`IsWindow(page)` 为假，
+所以第三张图抓不到。这条要写进任务说明，否则下次有人会以为漏了一张。
+
+回归（全绿）：
+
+| 项 | 结果 |
+|---|---|
+| 指针导航 | `checks=48 failures=0`，`forwardDiff=13780 returnDiff=0`（与基线逐值相同） |
+| 菜单 smoke | `rampPixels=1056,781,1428` 基线不变 |
+| skirmish transition | `result=skirmish completed=yes transitionMs=112` |
+| 遭遇战 smoke | `EXIT=0` |
+
+改动：新增 1 文件（~200 行）+ `RuntimeMainMenu.cpp` +12，源码 `fd16450`。
+
+### 队列（v77 → v78）
+
+`ON-4-02` → **`ON-4-02a` done**；新增 `ON-4-02b`（pending，大厅内部交互：选图→设参→开局）。
+当前：done 67 / pending 9 / superseded 7 / blocked 3（共 86）。
