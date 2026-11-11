@@ -21,7 +21,7 @@ BIN="$SRC_REPO/build-product-arm/concord_runtime"
 DATA_ROOT="$PROJECT_ROOT/ConcordRTS-GameData"
 OUT="$PROJECT_ROOT/dist"
 APP_NAME="尤里红警"
-BUNDLE_ID="org.concord.rts.yuri.arm64"
+BUNDLE_ID="org.concord.rts.yuri"
 VERSION="0.1.0"
 MIN_MACOS="11.0"
 ICON_SOURCE="$SRC_REPO/packaging/icon-source.png"
@@ -34,7 +34,7 @@ usage: pack-dist.sh [options]
   --data-root <dir>   游戏数据根（默认 ConcordRTS-GameData）
   --out <dir>         dist 输出目录（默认 <项目根>/dist）
   --app-name <name>   .app 与 Finder 显示名（默认 尤里红警）
-  --bundle-id <id>    CFBundleIdentifier（默认 org.concord.rts.yuri.arm64）
+  --bundle-id <id>    CFBundleIdentifier（默认 org.concord.rts.yuri）
   --version <semver>  CFBundleShortVersionString（默认 0.1.0）
   --icon-source <png> 图标源图（默认 ConcordRTS/packaging/icon-source.png）
   --dry-run           只打印将要做的事
