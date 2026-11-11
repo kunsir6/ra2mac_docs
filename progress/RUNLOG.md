@@ -6348,3 +6348,38 @@ AppKit 整体丢弃，而此前只在建窗口时 invalidate 一次，丢了就�
 用户复测："体验可以了，这个问题解决了。" 两份产物 16:54 重建。
 
 队列 v92 → v93。
+
+## 2026-11-11 · 收口：清掉调试期脚手架，只留行为修复
+
+用户要求把排查过程中加的调试代码收掉。逐条判断"是不是在修行为"，不搞一刀切。
+
+### 移除（5 处脚手架）
+
+| 项 | 位置 | 说明 |
+|---|---|---|
+| `CONCORD_CURSOR_TRACE` | compat/Input.cpp | SetCursor 逐次打印，连带删掉多余的 `<cstdio>/<cstdlib>` |
+| `CONCORD_CURSOR_SELFTEST` | compat/.mm | 周期性投合成 mouseMoved |
+| `[cocoa] input target -> %p` | compat/User.cpp | 输入重绑日志 |
+| `[cocoa] system cursor hidden=N` | compat/.mm | 光标策略日志 |
+| `CONCORD_SKIRMISH_AUTOSTART` | src/ui/skirmish/RuntimeSkirmishMenu.cpp | 真实大厅里自动点「開始遊戲」的整段钩子，**共享产品代码**，大厅循环恢复原样 |
+
+### 保留（这些是修复）
+
+- `MsgWaitForMultipleObjectsEx` / `WaitMessage` / `PeekMessageW` 里的 pumpEvents（U-01/U-02）
+- 输入目标随呈现窗口重绑（U-03）
+- `acceptsFirstMouse` / `acceptsMouseMovedEvents`（U-03）
+- 系统指针隐藏 + `windowDidBecomeKey` 重挂 cursor rect + 每事件补 set（U-04/U-05）
+- `CONCORD_HIDE_SYSTEM_CURSOR`：受支持的逃生口（某界面若无自绘指针）
+- ON-4-07 的 smoke 夹具注入（4 个 HTNK）：测试夹具改进，不是调试输出
+
+### 代价（已进队列）
+
+删掉 autostart 后，"大厅→加载→世界"这条链路失去无人值守回归，只能人工验。
+规则里写明：将来若要恢复，应做成独立 diagnostics 入口，不要塞回产品主循环。
+
+### 回归
+
+菜单 smoke `rampPixels=1056,781,1428` 不变；skirmish `EXIT=0` 且 161 预览；
+interaction 推进点不变（已知 ON-4-07 缺口）。两份产物 16:55 重建。
+
+队列 v93 → v94。
