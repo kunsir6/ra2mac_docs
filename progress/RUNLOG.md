@@ -6195,3 +6195,44 @@ arm64 14:47 / x86_64 14:50，签名校验通过；`dist/README.txt` 写明本机
 
 队列 v88 → v89。规则 `any_wait_loop_must_pump_appkit` 合并为三段判定链
 （GetMessageW / MsgWait+WaitMessage / PeekMessageW 现在都会 pump）。
+
+## 2026-11-11 · U-03 进世界后点击无反应
+
+用户进到世界了（截图：画面、侧边栏、单位、FPS 56 全正常），但点击完全无效。
+
+### 三处原因，一个比一个隐蔽
+
+1. **输入目标只绑一次**（主因）。present 末尾：
+   ```cpp
+   static HWND boundTarget = nullptr;
+   if (boundTarget == nullptr) { ... setInputSink(..., boundTarget); }
+   ```
+   主菜单→大厅→加载→世界每跳都换 HWND，绑定从不更新。present 跟着新窗口走
+   （画面全对），鼠标键盘却全部投给第一个窗口——已退场，消息被丢弃。**不报错**，
+   因为投递本身成功了，只是没人收。
+
+2. **没有 mouseMoved**。未开 `acceptsMouseMovedEvents` 时，AppKit 只在按键按住期间
+   派发拖动，平时没有 mouseMoved → 产品收不到 WM_MOUSEMOVE →
+   `state.mouseClientPoint` 永远旧值 → 不是"某一下丢"，而是**每一下都用错坐标**。
+
+3. **首点被吃**。`NSView.acceptsFirstMouse` 默认 NO，激活窗口的那次点击被系统当
+   "激活动作"处理，不派发给 view（"第一下没反应，第二下才行"）。
+
+修法：present 里比对 `toHwnd(w)`，变化即重绑并打一行 `[cocoa] input target -> %p`；
+新增 `ConcordGameView` 返回 acceptsFirstMouse=YES；开 `acceptsMouseMovedEvents`。
+
+### 为什么 smoke 全绿却漏了
+
+交互 smoke / 大厅 flow smoke 都是**直接 PostMessageW 到自己持有的 HWND**，
+绕过"输入目标是谁"这一层。它们证明窗口过程正确，证明不了事件送对地方。
+已进规则：`hwnd_direct_smoke_cannot_cover_input_binding`。
+
+### 验证
+
+input target 三次切换（大厅/加载/世界）；AUTOSTART 全程 loading complete、
+世界 5–8 秒 170–280 帧 EXIT=0；菜单 rampPixels 不变、skirmish EXIT=0/161 预览、
+attest 两帧 match=yes。两份产物已重建（14:53）。
+
+尚未复验：真人鼠标（本机无辅助功能授权）。给了排查工具 `CONCORD_INPUT_TRACE=1`。
+
+队列 v89 → v90。产出 `reports/U-03-点击无反应.md`。

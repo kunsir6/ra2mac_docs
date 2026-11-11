@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 89,
- "updated": "2026-11-11T15:00:00+08:00",
+ "version": 90,
+ "updated": "2026-11-11T15:55:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -164,7 +164,10 @@
   "ctest_fixture_must_be_idempotent": "契约若拒绝已存在的 fixture 根（如菜单资源契约的 Use a new fixture directory），add_test 必须自带清理，否则同一 build 目录第二次跑必然 0.00s 失败而第一次是绿的——极具欺骗性（看着像「刚改坏了」）。做法：FIXTURES_SETUP 挂 `${CMAKE_COMMAND} -E rm -rf <dir>`，被依赖测试加 FIXTURES_REQUIRED；ctest -R 会自动带上 setup。",
   "win32_requires_directory_for_change_notification": "Win32 的 FindFirstChangeNotification 要求入参是目录，传普通文件返回 INVALID_HANDLE_VALUE。compat 层早期只查存在性，FSEvents 会照单全收一个文件并「正常」watch，调用方于是得到「这棵树是新鲜的」这种错误认证（菜单资源契约恒红）。已在 RuntimeWin32CompatChangeNotify.cpp 用 stat + S_ISDIR 对齐；任何「照收下再说」的 compat 实现都要先核对 Win32 的参数前置条件。",
   "any_wait_loop_must_pump_appkit": "macOS 上「拿不到输入 / 彩虹圈」的判定链（已两次踩同一族问题）：① GetMessageW 内置 pumpEvents；② MsgWaitForMultipleObjectsEx / WaitMessage 自 U-01（a863d9e）起内置；③ PeekMessageW 自 U-02（e142ccb）起在队列为空时内置（4ms 节流）。所以现在只要循环里调了这三个原语中的任意一个就会排空 AppKit。反过来：**只睡不取消息**的循环（裸 sleep_for / std::this_thread::sleep_for 轮询、或纯计时等待）一定拿不到输入，且画面会停在第一帧、看着完全正常。见到彩虹圈先 sample 主线程：落在 nanosleep 且栈里没有 pumpEvents 就是这一类，不要去查渲染、死锁或资产加载。",
-  "autostart_regression_entry": "CONCORD_SKIRMISH_AUTOSTART=<n>：真实窗口的大厅第 n 次循环后自动点「開始遊戲」，PostMessageW 入队 + 本循环派发，与真人点击同路径。配合 CONCORD_PRESENT_STATS=1 UNTIL_SEC=8 可在无人值守下回归「大厅→加载→世界」：应看到 loading 1/6..6/6、loading complete、paints>0。注意：它会真的进世界，必须配 UNTIL_SEC 或 attest LIMIT 退出。"
+  "autostart_regression_entry": "CONCORD_SKIRMISH_AUTOSTART=<n>：真实窗口的大厅第 n 次循环后自动点「開始遊戲」，PostMessageW 入队 + 本循环派发，与真人点击同路径。配合 CONCORD_PRESENT_STATS=1 UNTIL_SEC=8 可在无人值守下回归「大厅→加载→世界」：应看到 loading 1/6..6/6、loading complete、paints>0。注意：它会真的进世界，必须配 UNTIL_SEC 或 attest LIMIT 退出。",
+  "input_target_must_follow_presented_window": "compat 的输入目标（setInputSink 的 context）必须跟随**当前呈现窗口**，不能只绑第一次。U-03 实测：主菜单→大厅→加载→世界每跳都换 HWND，只绑第一次会让 present 正常（画面对）而输入全部 PostMessageW 到已退场窗口被丢弃——不报错、日志无异常，表现为\"画面在动但点哪儿都没反应\"。现在每次 present 比对 toHwnd(w)，变化即重绑并打 [cocoa] input target -> %p。",
+  "hwnd_direct_smoke_cannot_cover_input_binding": "直接用 PostMessageW / SendMessageW 投到自己手里 HWND 的 smoke（交互 smoke、大厅 flow smoke）证明不了\"AppKit 事件有没有送对窗口\"——它们绕过了输入绑定这一层，所以 U-03 那三类问题在它们全绿的情况下依然存在。要覆盖输入链路必须走 AppKit → 翻译 → gInputSink → 队列 → 窗口过程 的完整路径，或至少断言 [cocoa] input target 与当前呈现窗口一致。",
+  "macos_game_window_input_defaults": "macOS 上有三个默认行为会让游戏\"点不动/点不准\"，建窗口时必须显式处理：① NSView.acceptsFirstMouse 默认 NO → 激活窗口的那一次点击被系统吃掉（\"第二下才行\"）；② window.acceptsMouseMovedEvents 默认 NO → 平时没有 mouseMoved，产品的 WM_MOUSEMOVE 永远不来，命中判定用旧坐标（\"每一下都错位\"）；③ 输入目标要随呈现窗口重绑（见上条）。症状都像\"输入没接通\"，但实际是三个不同层次。"
  },
  "tasks": [
   {
@@ -191,6 +194,19 @@
    ],
    "commit": "e142ccb",
    "note": "PeekMessageW 在队列为空时排空一次 AppKit 再重试出队，4ms 节流（pumpEvents 内部最多等 2ms，smoke 空转轮询高频调用 Peek，不节流会明显变慢）。副作用顺带覆盖加载页：每个 stage 的 Peek 都会 pump，间隔约 0.5s。仍未复验：真人鼠标（本机无辅助功能授权）。"
+  },
+  {
+   "id": "U-03",
+   "title": "进世界后点击无反应：输入目标只绑第一次 + 鼠标位置不更新 + 首点被吃",
+   "status": "done",
+   "detail": "用户进到世界后点击完全无效（画面正常、FPS 56、无错误日志）。三处原因：① present 末尾用 static HWND 只绑一次输入目标，而主菜单→大厅→加载→世界每跳都换 HWND，鼠标键盘全部 PostMessageW 到已退场的旧窗口；② 未开 acceptsMouseMovedEvents，平时没有 mouseMoved → WM_MOUSEMOVE 不来 → state.mouseClientPoint 永远是旧值，点哪儿都判不中；③ NSView 默认 acceptsFirstMouse=NO，窗口激活的那次点击被系统吃掉。",
+   "verify": "日志可见三次 input target 切换（大厅/加载页/世界）；AUTOSTART 全程 loading complete 且世界 5-8 秒 170-280 帧 EXIT=0；菜单 rampPixels 不变、skirmish EXIT=0/161 预览、attest 两帧 match=yes。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatUser.cpp",
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "commit": "4b91741, da1f8fa",
+   "note": "仍未复验：真人鼠标（本机无辅助功能授权）。排查工具：CONCORD_INPUT_TRACE=1 逐事件打 [input] kind/x/y。教训：直接 PostMessageW 到自持 HWND 的 smoke 覆盖不了\"输入绑定\"，它们全绿而真实点击全落空。"
   },
   {
    "id": "ON-4-04",
