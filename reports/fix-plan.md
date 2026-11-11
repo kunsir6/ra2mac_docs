@@ -13,8 +13,8 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 05:35（第 5 轮开工：M-14 / M-12 同为「选择框与命中框几何口径」，
-> 本轮先做只读计量再动手；基线回归 `PASS=6 KNOWN-RED=5 RED-NEW=0`）
+> 最近更新：2026-11-12 05:55（第 5 轮收口：M-14 完成——根因是断言把 1/3 层级当成半格；
+> M-12 计量后收窄到「可见性门」并故意不动命中逻辑；新登记 M-15。回归 6/5/0，零新回归）
 
 ---
 
@@ -47,9 +47,10 @@
 | M-09 | `build` 建筑健康条比选择框高 2px | 健康条 `actual=61x33`，断言 `expected=61x31`（宽一致、分段 14/14 正常、无限血已正确隐藏） | **已定性：公式旧**。断言按「水平条」算高度（`+1`），实际血条贴冠顶**斜边**排布，包围盒 = 斜边竖直跨度(30) + 冠顶间隙(3) = 33 | 中：清掉 build 第 2 个阻塞点 | 1 处公式 + 常量共享 | **A** | 中等 | 已完成（`0e99bc1`；build 停在 M-11） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-10 | interaction 南向相机极值裸露 | 8 个钳制极值里只有 `S` 一项 `tile=398/625..458/655:no`：最南一行在视口底(640)以下被切 15px；`corners` 同时判红；void 全 0 | **已定性：实现是对的**。物理地图边缘的 reveal 预留被有意做成 −halfTile（相机提前半格停，把锯齿黑边留在客户区外）；错的是「极值 cell 必须完整可见」这条断言，与 `physicalMapEdgeCovered` 直接矛盾。钳到 0 后 void 立刻 0.012/856px，反证策略必要性 | 中：清掉 interaction 第 2 个阻塞点 | 允许溢出量 = 该方向负预留 | **A** | 中等 | 已完成（`469cfa8`；interaction 停在 M-12） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | **已定性：夹具缺口**。默认图 `Units=0`；且必须用 `addRuntimeObjectInstance` 生成（手搓结构体会绕过 pose/`hasRenderPosition`，像素画得出来但命中回不到自己），落点还要保证「自身包围盒中心命中回自己」 | 中：清掉 `build` 第 3 个阻塞点 | 注入 1 台己方 MTNK + 环型找落点 + 探针后按 id 摘掉 | **A** | 简单 | 已完成（`0ce035a`；build 停在 M-14） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
-| M-12 | interaction 建筑 footprint 命中框不一致 | 相机断言全绿后停在新阻塞 `structure footprint hit mismatch` | 未明。需先量 `lastStructureSelectionHitBounds` 与 `lastStructureSelectionFootprintBounds` 的两侧差值，判断是命中框按动画包围盒（含炮管/旗）还是按地基算 | 中：清掉 interaction 第 3 个阻塞点 | 先加只读计量再定性 | **A** | 中等 | 待修复（第 3 轮由 M-10 之后暴露） | `reports/FIX-04-两条断言的几何口径.md` |
+| M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄，`799c9b6`；**故意不动命中逻辑**） | `reports/FIX-06-选择框与命中框的两条口径.md` §2 |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
-| M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 待修复（第 4 轮由 M-11 之后暴露） | `reports/FIX-05-夹具缺口与FPS叠加层.md` §3 |
+| M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
+| M-15 | `build` 停在 `no unit/infantry catalog item` | M-14 断言转绿后暴露：队列单位这一步找不到任一 `canQueue` 的 Unit/Infantry 条目 | 未定，两种可能必须先切开：①夹具缺口——该初始状态下没有己方兵营/战车工厂，客观上排不了 ②`runtimeBuildAvailability` 在本冒烟世界里恒 false（产品缺陷）。判定法同 M-11：先问「这个对象该由谁创建」 | 中：清掉 `build` 最后一个阻塞点的前置 | 打印 catalog 的 Unit/Infantry 条目数与每条 canQueue 原因（缺建筑/缺钱/缺电/前置） | **A** | 简单 | 待修复（第 5 轮由 M-14 之后暴露） | `reports/FIX-06-选择框与命中框的两条口径.md` §3 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -78,15 +79,31 @@
 
 ## 五、本轮（2026-11-12 第 5 轮）打包清单
 
-主题：**两条判红都在「同一矩形被两套口径解释」，先量后改**。M-14（`build` 移动帧选择框）与
-M-12（`interaction` 建筑 footprint 命中框）都不是「改一个数就对」的改动：前者的验证函数有 6 个谓词，
-尺寸相同也可能因锚点谓词判红；后者的命中框与地基框可能根本不是同一个几何量。
-故本轮先把两处的谓词/四边差值打成只读计量，拿到数字再定性，避免重演 M-10「按直觉改产品被 void 指标打回」。
+主题：**多谓词断言必须逐项计量**。M-14（`build` 移动帧选择框）与 M-12（`interaction` footprint 命中）
+两条已知红都只有一句「aligned=no / hit mismatch」出口，把 5~6 条谓词压成一句话，导致问题描述本身
+就是错的（M-14 被写成「选择框盖不住身体」，其实盖住了；M-12 被写成「命中框与地基口径不一致」，其实三个矩形逐边相等）。
+本轮先把两处拆成逐项计量，拿到数字再定性；产品行为零改动。
 
-阶段 0（只读计量，不改产品）：M-14 的 `validateUnitSelectionBounds` 拆 6 谓词逐项打印；
-M-12 打印 hit/footprint 四边差值 + artHeight。两条共用一次构建。
-阶段 1：按计量结论分别定性——断言口径错则改断言，产品口径错则改产品；
-只有确认「不动产品行为即无法自洽」的一方才进产品改动。
+**M-14 → 已完成（`61858b3` + `d2f36b3`）**：六个谓词里只有 `cy` 失败。潜航的预期垂直偏移写成
+`tileHeight/2`（=15px），而 `drawLevelForObject` 的实际下沉是 **1/3 层级**（=5px）。
+把常量提为头文件 inline `runtimeSubmergedVisualDepthLevels()` 供绘制与断言共享，断言按它折算像素。
+六类对象全部 `aligned=yes`，`build` 阻塞点后移到 M-15。
+
+**M-12 → 已计量收窄，故意不修（`799c9b6`）**：几何三项（cells / hash / 三矩形）全部一致，
+`boundsContainsFootprint` 也成立，唯一失败谓词是 `rightClickMatches` 且目标为 `nullptr`。
+命中点 (1043,73) 上只有 `CABUNK02`，其 `structureSpriteHitSpans` 含该像素、depth-visible spans 不含，
+被 `buildingPixelVisible` 拦下后整条对象 `continue`，该像素无人顶替——「画得出、点不到」的空洞。
+两种定性（真被遮挡 vs 可见性门错杀）改法相反，动 pick 会重演 M-10 的误改，故本轮只留计量。
+
+回归结果：`PASS=6 KNOWN-RED=5 RED-NEW=0`（与开工基线一致，零新回归）。
+两条已知红都属「阻塞点后移」，不是修复无效：`build` → M-15，`interaction` → 右键命中的可见性门。
+
+移出本批：无（本轮未硬啃，M-12 的修复按计划留到下一轮先补一档计量）。
+
+报告：`reports/FIX-06-选择框与命中框的两条口径.md`。
+
+下一轮起手：**M-12（先补一档计量：该像素上所有 spans 命中对象的 depthVis 清单）**，其次 **M-15**
+（打印 catalog 的 Unit/Infantry 数与 canQueue 原因，判 fixture-gap 还是可用性缺陷）。
 
 基线回归（开工前）：`PASS=6 KNOWN-RED=5 RED-NEW=0`，与第 4 轮收口一致。
 
