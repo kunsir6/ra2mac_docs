@@ -10,7 +10,7 @@
 #
 # 用法：
 #   bash ra2mac_docs/scripts/pack-dist.sh
-#   bash ra2mac_docs/scripts/pack-dist.sh --app-name "红色警戒2 尤里的复仇" --dry-run
+#   bash ra2mac_docs/scripts/pack-dist.sh --app-name "尤里红警" --dry-run
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -20,7 +20,7 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 BIN="$SRC_REPO/build-product-arm/concord_runtime"
 DATA_ROOT="$PROJECT_ROOT/ConcordRTS-GameData"
 OUT="$PROJECT_ROOT/dist"
-APP_NAME="红色警戒2 尤里的复仇"
+APP_NAME="尤里红警"
 BUNDLE_ID="org.concord.rts.yuri.arm64"
 VERSION="0.1.0"
 MIN_MACOS="11.0"
@@ -33,7 +33,7 @@ usage: pack-dist.sh [options]
   --bin <path>        被测二进制（默认 ConcordRTS/build-product-arm/concord_runtime）
   --data-root <dir>   游戏数据根（默认 ConcordRTS-GameData）
   --out <dir>         dist 输出目录（默认 <项目根>/dist）
-  --app-name <name>   .app 与 Finder 显示名（默认 红色警戒2 尤里的复仇）
+  --app-name <name>   .app 与 Finder 显示名（默认 尤里红警）
   --bundle-id <id>    CFBundleIdentifier（默认 org.concord.rts.yuri.arm64）
   --version <semver>  CFBundleShortVersionString（默认 0.1.0）
   --icon-source <png> 图标源图（默认 ConcordRTS/packaging/icon-source.png）
