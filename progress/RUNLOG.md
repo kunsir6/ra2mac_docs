@@ -6944,3 +6944,30 @@ ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报
 `bash ra2mac_docs/scripts/regress.sh` → PASS=6 KNOWN-RED=5 RED-NEW=0（基线同，零新回归）。
 `build` 阻塞点后移到 M-15（`no unit/infantry catalog item`），`interaction` 收窄到右键可见性门。
 提交：61858b3 / d2f36b3 / 799c9b6（源码），计划与报告见 FIX-06。队列 v108 → v109。
+
+---
+
+## 2026-11-12 第 6 轮：build 冒烟转绿（M-15 夹具生产基地 / M-16 低电探针前置）
+
+`build` 从第 1 轮起就常驻 KNOWN-RED，前五轮每次都只记「阻塞点后移」。真正原因是它在前半段就断了，
+后面大半段断言（队列、集结点、电力、侧边栏、放置预览、EVA）从来没被执行过。
+
+### M-15 夹具缺己方生产基地
+
+计量：catalog total=46 unit=15 infantry=13、credits=199200、power=200/0，每条
+`reason="missing InfantryType"/"missing UnitType"` —— 钱电科技全放行，卡在
+`runtimeOwnerHasCompatibleFactory`：2peaks 的 Structures:10 全 Neutral。
+注入 GAPILE + GAWEAP（owner=己方），落点按 `object.x + width` 判占用（结构锚点是地基左上角），
+半径 2..24 环搜避地基，注入后 `refreshRuntimeObjectOccupancyAfterLocalChange`。
+
+### M-16 低电探针被自己的前置挡死
+
+探针一进门要求 `runtimeEconomyLowPower(state)`，但零售图没有耗电建筑、净电恒正，
+断言本体永远不执行。改为冒烟侧临时抬高 `powerUsed`（produced+50）画完还原，探针本体不改。
+
+### 验证
+
+`--build-smoke-test` 退出码 0，`injected owned factories=2`、`placed GAPOWR at 64,44 produced E1`、
+`Building queue` 全绿。回归 **PASS=6 KNOWN-RED=5 → 7 KNOWN-RED=4，RED-NEW=0**。
+`known-red.tsv` 删掉 build 行。`result` 记分动画已拆四子条件计量（`changed=0`，tick/frames/save 正常），
+登记 M-17：待验 uiClock 在冒烟里是否冻结。队列 v109 → v110。

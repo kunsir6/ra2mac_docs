@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 109,
-  "updated": "2026-11-12T05:58:00+08:00",
+  "version": 110,
+  "updated": "2026-11-12T06:28:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2461,6 +2461,31 @@
    "src/runtime/host/RuntimeShell.cpp"
   ],
   "note": "计量出处 64f2c95；报告 reports/FIX-06-选择框与命中框的两条口径.md §3。"
+ },
+
+ {
+  "id": "FIX-07",
+  "title": "build 冒烟转绿：M-15 补己方生产基地 + M-16 低电探针自建前置",
+  "status": "done",
+  "phase": "问题修复",
+  "detail": "build 自第 1 轮起常驻 KNOWN-RED，二到五轮都只记「阻塞点后移」，真正原因是它在前半段就断了，后面大半段断言（队列、集结点、电力、侧边栏、放置预览、EVA）从未执行。①M-15：2peaks 世界 Structures:10 全 Neutral，没有 Factory=InfantryType/UnitType 的己方建筑，catalog 15 个 Unit + 13 个 Infantry 全停在 runtimeOwnerHasCompatibleFactory。注入 GAPILE + GAWEAP（owner=己方），落点按 object.x+width 判占用（结构锚点是地基左上角）、半径 2..24 环搜避地基，走 addRuntimeObjectInstance + refreshRuntimeObjectOccupancyAfterLocalChange。②M-16：低电探针一进门就要求 runtimeEconomyLowPower，但零售图无耗电建筑、净电恒正，探针走不到断言本体，属前置无人保证。改为冒烟侧临时抬高 powerUsed 再还原，探针本体不改。",
+  "verify": "--build-smoke-test 退出码 0；injected owned factories=2，placed GAPOWR at 64,44 produced E1 objects 29 -> 33 credits=199000，Building queue 全绿；regress.sh → PASS=7 KNOWN-RED=4 RED-NEW=0（基线 6/5/0）。",
+  "touches": [
+   "src/runtime/host/RuntimeShell.cpp"
+  ],
+  "note": "commit 52bd380 / c90ec0e；报告 reports/FIX-07-build冒烟转绿.md。下一轮起手 M-17。"
+ },
+ {
+  "id": "M-17",
+  "title": "result 记分动画两次 paint 出同一张画面",
+  "status": "pending",
+  "phase": "问题修复",
+  "detail": "计量：changed=0（need>=1000），tick=300/300、frames=6/6、saved=yes 三项正常，只有画面没变。缓存门里已有 && !runtimeResultScoreIsAnimated(*state)，且此处置为真，所以不是「没重绘」。待验：记分帧的时间源是 runtimeUiClockNow（uiClock->nowMs()），冒烟只改 campaignScore.presentationStartedAtMs；若 uiClock 在冒烟里冻结，两次 paint 的 elapsed 相同。先加一行只读打印确认 uiClock 是否推进，再决定「探针推进时钟」还是「记分页按 elapsed 取帧」——两种改法方向相反。",
+  "verify": "result 条不再报 stalled；回归保持 PASS>=7 且 RED-NEW=0。",
+  "touches": [
+   "src/runtime/host/RuntimeShell.cpp"
+  ],
+  "note": "计量出处 7f71e72；报告 reports/FIX-07-build冒烟转绿.md §3。"
  }
   ],
   "decisions": {
