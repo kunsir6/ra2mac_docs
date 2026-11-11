@@ -12,3 +12,7 @@ progress/.lock/
 # Python 缓存
 __pycache__/
 *.pyc
+
+# 回归每轮产物：20 秒可重建，不入库（数字进 RUNLOG；基线判据是 known-red.tsv + 脚本本身）
+progress/regress/*/
+

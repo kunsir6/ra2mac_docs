@@ -6383,3 +6383,70 @@ AppKit 整体丢弃，而此前只在建窗口时 invalidate 一次，丢了就�
 interaction 推进点不变（已知 ON-4-07 缺口）。两份产物 16:55 重建。
 
 队列 v93 → v94。
+
+
+## 2026-11-11 17:15 · 进化路线（EVO 族立案）+ EVO-01 done（回归编排器：5 绿 6 红首次显形）
+
+用户定调：游戏已经能运行，**暂时不方便做太多验证**，接下来按性价比安排进化。
+
+这句话改写了排序判据。此前是「影响效果 ÷ 难度」，现在加一条硬约束：**能不能由机器自己证明**。
+需要人眼看一眼才算完成的，一律降级；能变成断言/计量/产物的，优先。
+
+### 先体检，再排计划
+
+排任何东西之前先回答「现在到底什么状态」。用 build-product-arm（16:55，sha 124acc522ea08706）
+把 11 条 smoke 全跑了一遍：
+
+| 用例 | 结果 | 证据 |
+|---|---|---|
+| core | PASS | 仅 NAPSYA 重复建筑告警 |
+| menu | PASS | rampPixels=1056,781,1428 |
+| loading | PASS | 6/6 阶段 firstFramePrewarmed=yes |
+| skirmish | PASS | maps=161 allPreviews=161 |
+| attest | PASS | records=6 failures=0 |
+| render | KNOWN-RED | shadow pipeline candidates=7 drawn=5 structures=0 |
+| interaction | KNOWN-RED | no owned structure for repair cursor |
+| command | KNOWN-RED | amphibious transport: shore unload left tanks aboard |
+| build | KNOWN-RED | evaTextEncoding=no（其余 30 余项 yes） |
+| campaign | KNOWN-RED | movies/sources/audio=FAIL |
+| result | KNOWN-RED | score animation stalled behind paused-frame cache |
+
+**5 绿 6 红，六条红里五条从未被记录。** 结论要诚实写下来：过去说的「回归全绿」只对少数几条
+成立，其余大部分没人跑过。这六条不是本轮引入，已登记 known-red.tsv 待分诊。
+
+### EVO-01 回归编排器（done）
+
+`ra2mac_docs/scripts/regress.sh`：11 条用例、19 秒、三态判定。
+
+| 能力 | 说明 |
+|---|---|
+| PASS / KNOWN-RED / RED-NEW | 只有未登记的失败算数，退出码 = RED-NEW 条数 |
+| 构建指纹 | sha256 + mtime + 架构，先回答「我在测哪个二进制」 |
+| dist 陈旧告警 | 按 mtime 对账；.app 经 ad-hoc 重签名，哈希不可比（新增 rule） |
+| 报告落盘 | progress/regress/<ts>/report.md（人）+ results.tsv（机器） |
+| 反 shim | 纯 bash 字符串匹配，不用被代理的 grep/sed |
+
+首跑基线：**PASS=5 KNOWN-RED=6 RED-NEW=0，退出码 0**。`--only` 过滤与已知红分类都实测过。
+
+### 新立案（队列 v94 → v95，103 条）
+
+| id | 层级 | 内容 | 为什么排这个位置 |
+|---|---|---|---|
+| EVO-01 | T0 | 回归编排器 | done：一切自证的地基 |
+| EVO-02 | T0 | 六条红逐条定性 env-gap / code-red | 不分完类，每次改动都要重新怀疑自己 |
+| EVO-03 | T1 | diagnostics 驱动入口 | 最高杠杆：一次解锁 ON-5-01 / ON-3-01b / ON-4-02d |
+| EVO-04 | T1 | 日志 + collect-diagnostics zip | 用户不看屏时唯一的取证通道 |
+| EVO-05 | T2 | 存档读档真机往返（hash 相等） | 「能不能真玩下去」的分水岭，全自动可判 |
+| EVO-06 | T2 | 世界重绘只读计量（不改行为） | 给 ON-2-06 一个数字依据，零风险 |
+| EVO-07 | T3 | 首次启动引导 + dmg | 给别人用的前置，对本人玩无收益 |
+
+明确不做（写进报告，避免反复讨论）：Bink 解码、系统全屏、屏幕合成抓图、再追帧率数字、
+未经计量就改共享模拟层。
+
+### 产出
+
+- `scripts/regress.sh`（新）
+- `progress/regress/known-red.tsv`（新，6 条 triage-pending）
+- `progress/regress/20261111-171321/{report.md,results.tsv,*.log}`（首跑基线）
+- `reports/EVO-进化路线图.md`（新）
+- 三条新 rule：regress_baseline_2026_11_11 / smoke_suite_is_mostly_red / dist_app_hash_is_not_comparable

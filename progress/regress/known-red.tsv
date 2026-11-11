@@ -1,0 +1,10 @@
+﻿# 已知红清单：id<TAB>原因<TAB>状态
+# 规则：只登记"确认与本轮改动无关"的红，每条必须带一句原因；status=triage-pending
+# 表示尚未判定是数据缺口还是代码缺陷，判定后改成 env-gap 或 code-red。
+# 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
+interaction	no owned structure for repair cursor：夹具 10 个建筑全 Neutral（RUNLOG 2026-11-11 已记为下一缺口）	triage-pending
+render	natural-map shadow pipeline 覆盖不足 candidates=7 drawn=5 shp=5 structures=0（未定因）	triage-pending
+build	semantic audio probe evaTextEncoding=no，其余 30+ 项均 yes（未定因）	triage-pending
+campaign	retail coverage movies/sources/audio=FAIL：maps=40 但视频与素材未齐全（疑 Bink 授权资产缺失）	triage-pending
+result	original score animation stalled behind paused-frame cache（未定因）	triage-pending
+command	Command smoke failed: amphibious transport: shore unload left tanks aboard（未定因）	triage-pending

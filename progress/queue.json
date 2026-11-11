@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 94,
- "updated": "2026-11-11T16:58:00+08:00",
+ "version": 95,
+ "updated": "2026-11-11T17:15:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -170,7 +170,11 @@
   "macos_game_window_input_defaults": "macOS 上有三个默认行为会让游戏\"点不动/点不准\"，建窗口时必须显式处理：① NSView.acceptsFirstMouse 默认 NO → 激活窗口的那一次点击被系统吃掉（\"第二下才行\"）；② window.acceptsMouseMovedEvents 默认 NO → 平时没有 mouseMoved，产品的 WM_MOUSEMOVE 永远不来，命中判定用旧坐标（\"每一下都错位\"）；③ 输入目标要随呈现窗口重绑（见上条）。症状都像\"输入没接通\"，但实际是三个不同层次。",
   "stale_app_bundle_trap": "2026-11-11 实测踩坑：用户复测\"又彩虹圈\"，采样发现它跑的是 build-product-arm/app/ConcordRTS.app（11:29）——加架构后缀之前残留的旧包，与新包（dist 16:32）哈希不同。这不是修复失效，是根本没跑到修复后的二进制。一次排查因此绕了一整轮。处置：把 build-product-{arm,x86,mac}/app/ConcordRTS.app 全部改名为 *.app.stale；构建目录现在只会产出带架构后缀的 ConcordRTS-<ver>-<arch>.app。判定\"用户跑的是哪个包\"最快的方法：sample 头部的 Path 字段；其次是比对 Contents/MacOS/concord_runtime 的 mtime 与哈希。以后让用户复测时，必须给出**唯一绝对路径**，不要只说\"双击 .app\"。",
   "system_cursor_hidden_by_cursor_rect": "macOS 上游戏自绘指针，因此窗口区域内必须隐藏系统指针：view 的 resetCursorRects 里 addCursorRect(self.bounds, 不可见光标)。默认开启，CONCORD_HIDE_SYSTEM_CURSOR=0 可关。三条实证要点：① 不要镜像 Win32 的 SetCursor：世界里产品每秒几十次请求 StockArrow，而游戏同时自绘箭头，   镜像会让系统箭头回来（像素 A/B：hide=0 出现白+灰两个箭头，hide=1 只剩灰色）。② 不要用 [NSCursor hide]：全局计数，漏一次 unhide 指针永久消失。③ cursor rect 会被窗口激活/失焦/orderFront 丢掉，必须 windowDidBecomeKey 重新 invalidateCursorRectsForView，并在每个输入事件里补一次 [invisibleCursor set]。另：本 SDK 无 +[NSCursor invisibleCursor]，用 1×1 空图 initWithImage:hotSpot: 自建。",
-  "debug_scaffolding_policy": "调试脚手架（追踪日志、合成事件注入、自动点击钩子）在问题定位后必须收回：① 定位阶段可以加，但一律 env 开关 + 默认零开销，且一次只加一处；② 收口时按\"是否修行为\"逐条判断——pumpEvents、输入重绑、cursor rect 这类是修复，保留；③ 打印、自测注入、自动点击属于脚手架，删掉，别留在产品代码里；④ 若某能力对回归有价值（如大厅自动开局），改为独立 diagnostics 入口，不侵入主循环。本轮实践：U-01~U-05 期间加了 5 处钩子，收口时全部移除，只留行为修复 + CONCORD_HIDE_SYSTEM_CURSOR（受支持的逃生口）。"
+  "debug_scaffolding_policy": "调试脚手架（追踪日志、合成事件注入、自动点击钩子）在问题定位后必须收回：① 定位阶段可以加，但一律 env 开关 + 默认零开销，且一次只加一处；② 收口时按\"是否修行为\"逐条判断——pumpEvents、输入重绑、cursor rect 这类是修复，保留；③ 打印、自测注入、自动点击属于脚手架，删掉，别留在产品代码里；④ 若某能力对回归有价值（如大厅自动开局），改为独立 diagnostics 入口，不侵入主循环。本轮实践：U-01~U-05 期间加了 5 处钩子，收口时全部移除，只留行为修复 + CONCORD_HIDE_SYSTEM_CURSOR（受支持的逃生口）。",
+  "regress_baseline_2026_11_11": "2026-11-11 EVO-01：回归不再靠人记命令。`bash ra2mac_docs/scripts/regress.sh` 跑 11 条用例（core/menu/loading/skirmish/attest/render/interaction/command/build/campaign/result），约 20 秒，输出三态：PASS / KNOWN-RED（已登记在 progress/regress/known-red.tsv）/ RED-NEW（未登记，退出码=其条数）。首次基线：PASS=5 KNOWN-RED=6 RED-NEW=0。规矩：① 每轮收尾先跑它；② 出现 RED-NEW 先看日志确认是不是自己弄坏的，确认无关才可登记进 known-red.tsv（必须带一句原因）；③ 不许把红改判成绿来收口。报告在 progress/regress/<时间戳>/report.md。",
+  "smoke_suite_is_mostly_red": "2026-11-11 首次全量实测：11 条 smoke 里只有 5 条绿（core/menu/loading/skirmish/attest），6 条红且其中 5 条从未被记录（render/interaction/command/build/campaign/result）。结论：过去「回归全绿」的说法只对少数几条成立，别把个别 smoke 的绿当成整体健康证明。这 6 条不是本轮引入，已登记 known-red.tsv 待 EVO-02 分诊。",
+  "dist_app_hash_is_not_comparable": "2026-11-11 实测：不能拿 .app 里 concord_runtime 的 sha256 与 build 产物对账——ad-hoc 重签名会改写文件，哈希必然不同（两份 thin 产物分别签名）。判定 dist 是否为旧包要按 mtime：app 内二进制早于 build 产物 60s 以上即为旧包。repo 里残留的 build-product-*/app/*.app.stale 一律不要用（rules.stale_app_bundle_trap）。",
+  "priority_2026_11_11_evolution": "2026-11-11 傍晚用户定调：游戏已能运行，暂不方便做大量人工验证，后续按「无人值守可自证」排序。新顺序：EVO-01 回归编排器（done）→ EVO-02 红基线分诊 → EVO-03 diagnostics 驱动入口（解锁 ON-5-01/ON-3-01b/ON-4-02d）→ EVO-04 日志与崩溃现场 → EVO-05 存档读档往返 → EVO-06 世界重绘只读计量 → EVO-07 首次启动引导+dmg。判据变更：凡是「必须人眼看一眼」的任务一律降级，凡是能变成断言/计量的任务优先。ON-5-02b 仍是纯测量，可随时后台插跑。"
  },
  "tasks": [
   {
@@ -1896,6 +1900,122 @@
    ],
    "note": "沙箱内大概率被拒（TCC），需要用户在桌面会话里执行一次。",
    "blocked_reason": "CGWindowListCreateImage 在 macOS 26 SDK 已标记 **unavailable**（不只是 deprecated），编译直接报错（CGWindow.h:271 \"has been explicitly marked unavailable\"）。2026-11-11 实测，故本条不只是\"缺屏幕录制授权\"，API 本身已不可用。"
+  },
+  {
+   "id": "EVO-01",
+   "title": "回归编排器：11 条 smoke 三态判定（PASS / KNOWN-RED / RED-NEW）+ 构建指纹",
+   "status": "done",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T0",
+   "detail": "30+ 个 smoke 入口此前只靠 RUNLOG 里散落的命令，没有任何地方记录「哪些本来红」——实测首次全量跑就发现 6 条红，其中 5 条从未被记录。新增 ra2mac_docs/scripts/regress.sh：① 11 条用例 manifest；② 三态判定，只有未登记的失败才算 RED-NEW；③ 构建指纹（sha256/mtime/架构）+ dist 陈旧告警（ad-hoc 重签名会改哈希，故按 mtime 对账）；④ 报告落 progress/regress/<ts>/（report.md 给人、results.tsv 给机器）；⑤ 纯 bash，不用 shim 化的 grep/sed，强制 cd GameData，timeout 护栏。",
+   "verify": "全量 20s 内跑完，输出 PASS=5 KNOWN-RED=6 RED-NEW=0，退出码 0；--only 过滤生效；dist 比 build 旧时打印告警。",
+   "touches": [
+    "ra2mac_docs/scripts/regress.sh",
+    "ra2mac_docs/progress/regress/known-red.tsv"
+   ],
+   "result": "PASS=5 KNOWN-RED=6 RED-NEW=0（11 条，19s，退出码 0）。报告 progress/regress/20261111-171321/report.md。6 条既有红已登记 known-red.tsv（全部 triage-pending），后续任何新增红都会立刻显形。",
+   "note": "这是「无人值守自证」的地基：今后每轮收尾先跑它，再谈 done。"
+  },
+  {
+   "id": "EVO-02",
+   "title": "红基线分诊：6 条 KNOWN-RED 逐条定性为 env-gap 还是 code-red",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T0",
+   "detail": "EVO-01 首次全量跑暴露 6 条红，全部标 triage-pending：interaction（repair cursor，已知夹具全 Neutral）、render（shadow pipeline candidates=7 drawn=5 structures=0）、command（amphibious transport 岸上卸载没卸下坦克）、build（evaTextEncoding=no，其余 30+ 项 yes）、campaign（movies/sources/audio=FAIL）、result（score animation stalled behind paused-frame cache）。逐条只读日志判性质，产出结论表：根因一句话 + 判据 + 修它要动哪一层。campaign 疑为 Bink 授权资产缺失，若确认可直接结案为 env-gap；build 的编码项疑为码表问题；result 的 paused-frame cache 与 ON-2-01 的 CGImage 缓存疑同源。",
+   "verify": "known-red.tsv 每条 status 由 triage-pending 变为 env-gap / code-red，且 reports/ 出一份分诊表；本轮不改产品代码，回归结果与 EVO-01 基线逐条相同。",
+   "touches": [
+    "ra2mac_docs/reports/",
+    "ra2mac_docs/progress/regress/known-red.tsv"
+   ],
+   "depends_on": [
+    "EVO-01"
+   ],
+   "note": "不先把红分完类，后面每次改动都会在「到底是不是我弄坏的」上浪费一轮。"
+  },
+  {
+   "id": "EVO-03",
+   "title": "diagnostics 驱动入口：无人值守走完 菜单→大厅→载入→世界（替代被删的 autostart 钩子）",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T1",
+   "detail": "U 系列收口时删掉了 CONCORD_SKIRMISH_AUTOSTART，代价是「大厅→载入→世界」失去无人值守回归，只能人工点。按 rules.debug_scaffolding_policy 的正确做法重建：独立 --diagnostics-drive=<步骤列表>，只在 smoke/diagnostics 入口调用，产品主循环保持原样。用它驱动真实消息队列点击，走完主菜单→单人页→大厅→载入→世界，并在每步做 attest。一次投入同时解锁 ON-5-01（三轮进出泄漏）、ON-3-01b（五界面上屏自证）、ON-4-02d（跨 TU 首帧）。",
+   "verify": "--diagnostics-drive=menu,single,lobby,loading,world 走完四界面以上，onscreen-attest 至少 4 条互异记录（size+hash 去重）且 layerHash==dibHash，EXIT=0；产品默认启动行为不变（menu smoke rampPixels=1056,781,1428 不变）。",
+   "touches": [
+    "src/runtime/host/RuntimeMain.cpp",
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "depends_on": [
+    "EVO-01"
+   ],
+   "note": "这是当前最高杠杆的一条：没有它，凡是「要点一下」的验证都只能等人。"
+  },
+  {
+   "id": "EVO-04",
+   "title": "日志与崩溃现场落地：~/Library/Logs + --collect-diagnostics=<zip>",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T1",
+   "detail": "用户暂时不方便盯屏复测，那「出了问题怎么把现场给我」就是唯一通道。① 运行期 stderr 与 [cocoa]/[attest] 关键行落 ~/Library/Logs/ConcordRTS/<时间戳>.log，进程异常退出也保留到最后一秒（setvbuf 无缓冲或按行刷新）；② --collect-diagnostics=<zip> 打包 log + 最近一帧 BMP + 最近 attest 记录 + 系统与二进制指纹（sha256/mtime/arch）+ queue 版本，一条命令产出可直接发回的 zip。",
+   "verify": "正常启动→退出后日志存在且包含 present 计数行；kill -SEGV 后 zip 内含 log 与 last-frame.bmp 且能打开；zip < 20 MiB；默认启动零新增输出（不引入调试噪声）。",
+   "touches": [
+    "src/runtime/host/RuntimeMain.cpp",
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "depends_on": [
+    "EVO-01"
+   ],
+   "note": "与 rules.debug_scaffolding_policy 不冲突：日志是常驻能力，不是一次性打印。"
+  },
+  {
+   "id": "EVO-05",
+   "title": "存档/读档真机往返：存→推进→读，simulation hash 必须相等",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T2",
+   "detail": "S10 已实现文件与 HANDLE 族（原子存档的生产路径），各 gameplay smoke 里的 save/load 都是内存态往返；macOS 真机上「文件到底落在哪、Load Game 能不能读回来」没有验证过。先诊断：找到存档目录、确认写盘成功、确认主菜单 Load Game 能列出该档；再做契约：开局→存档→推进 30s→读档→deterministicSimulationStateHash 与存档瞬间相同。",
+   "verify": "存档文件出现在预期目录且非空；读档后 hash 相等；读档前后 RSS 增幅 < 20%（不重复装载整份资产）。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp",
+    "src/ui/main_menu/RuntimeMainMenu.cpp"
+   ],
+   "depends_on": [
+    "EVO-03"
+   ],
+   "note": "「能不能真玩下去」的分水岭，且完全可自动判定，不需要人眼。"
+  },
+  {
+   "id": "EVO-06",
+   "title": "世界重绘只读计量：tick 里有几次真的改变了画面（不改行为）",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T2",
+   "detail": "ON-2-06 已定性但降级：修法要动模拟层 changed 语义（共享代码、影响 Windows、本机无法回归）。在动它之前先拿数字：只读计算每 tick 的视觉签名（相机位置/单位格/动画帧/血条/建造进度），统计 repaintRequested 中「实际视觉有变化」的比例。若 99% 空转得到证实，再讨论分层方案（平台无关的 dirty 传播，而不是 if(WIN32)）。",
+   "verify": "世界 idle 20s 打印 visualChanged / ticks / repaintRequested 三值；同一场景导出帧与当前基线逐字节相同（证明零行为改动）；单位移动时 visualChanged 比例显著上升。",
+   "touches": [
+    "src/runtime/host/RuntimeShell.cpp"
+   ],
+   "depends_on": [
+    "EVO-01"
+   ],
+   "note": "零风险决策输入。ON-2-06 的降级理由仍然成立，本条不是它的替代，是它的前置。"
+  },
+  {
+   "id": "EVO-07",
+   "title": "首次启动引导 + dmg 分发：数据根缺失给可读提示，About 显示版本/架构/构建时间",
+   "status": "pending",
+   "phase": "EVO 进化（能玩之后）",
+   "tier": "T3",
+   "detail": "ON-1-02 现在是「打印搜索过的路径」，命令行看得懂，双击 .app 的人看不懂。改成 AppKit 对话框：说明缺什么、给「选择目录」与「退出」。另加 dmg 打包（dist/ 两份 thin 产物分别出），About 面板显示版本、架构、构建时间，均从二进制内嵌常量读，避免与产物对不上。",
+   "verify": "把数据根移走后双击 .app 弹出可读提示，选目录后能继续启动；dmg 挂载→拖入 Applications→双击能玩；About 三字段与 sha256/mtime 实测一致。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatUser.cpp",
+    "src/runtime/host/RuntimeMain.cpp"
+   ],
+   "depends_on": [
+    "EVO-01"
+   ],
+   "note": "给别人用的前置条件；对本人玩没有收益，故排最后。"
   }
  ],
  "decisions": {
