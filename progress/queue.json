@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 75,
- "updated": "2026-11-11T12:45:00+08:00",
+ "version": 77,
+ "updated": "2026-11-11T13:20:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -153,7 +153,8 @@
   "retina_scale_measurement_trap": "2026-11-11 实测陷阱：attest 里的 scale 只在**裸二进制**（不在 .app 内）直接执行时可信——arm 裸二进制得到 scale=2.0，而 arm/x86 的 .app 内二进制直接 exec 都得到 scale=1.0。原因是高分辨率由 LaunchServices 启动时决定，直接 exec bundle 内二进制会退回 legacy 1x。故「x86 切片在 Rosetta 下 scale=1.0」不能证明产物有 Retina 缺陷，也不能证明没有——Retina 判据必须在真 Intel 机器上以裸二进制方式复验。",
   "system_fullscreen_needs_nsapp_run": "系统全屏（进入独立 Space）在「不跑 [NSApp run]」的架构下不可用，已实测确认：willEnter 触发、didEnter 永不到；放宽 pumpEvents 的 run loop 时间无效。因此窗口设为 NSWindowCollectionBehaviorFullScreenNone **显式禁用**——实测 Default 挡不住，全屏照样开始（willEnter 仍触发）而后卡死，比没有该功能更糟。约束：任何\"需要 AppKit 生命周期推进\"的能力（全屏、Space 切换、系统对话框）都要先假设不可用，并用自测确认，不要按\"应该能行\"直接依赖。",
   "selftest_must_wait_for_sink": "2026-11-11 实证：present 里注入的自测必须等 gInputSink 就绪。setInputSink 是在 present **返回之后**才调用的（它要用刚呈现的窗口做 context），所以第一次 present 时 sink 为空，delegate 会走\"没人接就放行\"的分支。症状极具欺骗性：日志里 close self-test 已经打出来了，窗口也确实关了，但进程继续跑到第 30 帧——看着像\"注入成功但链路不通\"，实际是自测根本没进被测分支。口径：自测打日志 ≠ 走到被测分支；注入前先断言前置条件（sink/window/attest）。",
-  "contents_scale_must_follow_backing": "gView.layer.contentsScale 不能只在建窗口时从 backingScaleFactor 抓一次。2026-11-11 实测：同一进程里 layer=2.0 而 window.backingScaleFactor=1.0，ON-2-03 的 scale-test 因此报 fail。改为每帧同步（变化时才提交 CATransaction，disableActions）。注意 pass 只说明「layer 跟随 backing」，不说明「Retina 正确」——无人值守运行时 backing 可能为 1.0（见 rules.retina_scale_measurement_trap），Retina 最终验收仍需人工双击 .app。"
+  "contents_scale_must_follow_backing": "gView.layer.contentsScale 不能只在建窗口时从 backingScaleFactor 抓一次。2026-11-11 实测：同一进程里 layer=2.0 而 window.backingScaleFactor=1.0，ON-2-03 的 scale-test 因此报 fail。改为每帧同步（变化时才提交 CATransaction，disableActions）。注意 pass 只说明「layer 跟随 backing」，不说明「Retina 正确」——无人值守运行时 backing 可能为 1.0（见 rules.retina_scale_measurement_trap），Retina 最终验收仍需人工双击 .app。",
+  "ground_rubble_excluded_from_scene_z": "scene-Z depth replay 的参与者在 RuntimeStructureSpriteGeometry.inl:361 就把 runtimeObjectIsGroundRubble 的对象筛掉（`|| runtimeObjectIsGroundRubble(object, context)` → continue）。这是**正确行为**：地面残骸没有立体遮挡体，让它参与 replay 会凭空产生遮挡，挡住本该被看见的像素。所以任何\"rubble 也应参与 depth/遮挡\"的断言都是错的，要先核对这条筛选。2026-11-11 ON-4-05 就是因为一条断言同时覆盖 rubble=false/true 两种状态而误红。"
  },
  "tasks": [
   {
@@ -287,7 +288,7 @@
   {
    "id": "ON-3-01b",
    "title": "上屏自证扩展到五界面：大厅/加载/游戏内需合成输入驱动",
-   "status": "pending",
+   "status": "blocked",
    "est": "1 轮（排在 ON-4-02 之后）",
    "detail": "ON-3-01 已把机制做完并能自动覆盖 3 档画面，但原要求的「五个界面各一条」还差遭遇战大厅与加载页：--skirmish-ui-smoke-test 是离屏的（present 0 次），要在真实窗口里点到大厅/加载必须用合成鼠标事件推进菜单，即 ON-4-02。做法：ON-4-02 落地后，用 CONCORD_ONSCREEN_ATTEST_LIMIT 调大 + 场景脚本依次经过主菜单→单人页→遭遇战大厅→加载→游戏内，最后按 size/title/内容 hash 去重统计界面数。",
    "verify": "--onscreen-attest-smoke <dir> 走完五界面脚本，onscreen-attest.log 中至少 5 条互不相同的界面记录（按 size+hash 去重），每条 layerHash==dibHash==providerHash，且 windowState 无异常，EXIT=0。",
@@ -296,19 +297,21 @@
     "src/runtime/host/RuntimeShell.cpp",
     "src/runtime/host/RuntimeMain.cpp"
    ],
-   "note": "依赖 ON-4-02（合成鼠标事件走消息队列）。在 ON-4-02 完成前不要尝试用离屏 smoke 凑数：那只会得到 present 0 次的空日志。"
+   "note": "依赖 ON-4-02（合成鼠标事件走消息队列）。在 ON-4-02 完成前不要尝试用离屏 smoke 凑数：那只会得到 present 0 次的空日志。",
+   "blocked_reason": "依赖 ON-4-02（合成鼠标事件走消息队列）。在此之前只能用离屏 smoke 凑，而离屏 smoke 的 present 次数是 0（日志无 [cocoa] NSWindow created），拿它取证只会得到空日志。"
   },
   {
    "id": "ON-3-02",
    "title": "--onscreen-capture：用 CGWindowListCreateImage 抓自己窗口",
-   "status": "pending",
-   "detail": "CGWindowListCreateImage 抓本进程窗口不需要额外 API 权限（屏幕录制授权一次即可，用户侧执行）。产出 png 与标准 BMP 比对，差异应仅来自系统合成（颜色管理/缩放）。用于向人证明「屏幕上真的是这幅画」。",
+   "status": "blocked",
+   "detail": "CGWindowListCreateImage 抓本进程窗口不需要额外 API 权限（屏幕录制授权一次即可，用户侧执行）。产出 png 与标准 BMP 比对，差异应仅来自系统合成（颜色管理/缩放）。用于向人证明「屏幕上真的是这幅画」。 【2026-11-11 修订】实现路径需换：① screencapture -l <windowNumber> 子进程（memory 已验证它是\"判定自己窗口是否更新\"的正解，仍需 TCC）；② ScreenCaptureKit（SCScreenshotManager，macOS 14+ 官方替代，异步 API + TCC）。CALayer.renderInContext 可无授权拿到 PNG，但那只证明\"layer 里是什么\"，不构成\"屏幕合成结果\"这一层证据，只能作为降级选项标注使用。",
    "verify": "用户授权屏幕录制后执行 --onscreen-capture /tmp/on.png，与同帧 BMP 平均通道差 < 2。",
    "touches": [
     "compat/win32/src/RuntimeAppleWindowSurface.mm",
     "src/runtime/host/RuntimeMain.cpp"
    ],
-   "note": "沙箱内大概率被拒（TCC），需要用户在桌面会话里执行一次。"
+   "note": "沙箱内大概率被拒（TCC），需要用户在桌面会话里执行一次。",
+   "blocked_reason": "CGWindowListCreateImage 在 macOS 26 SDK 已标记 **unavailable**（不只是 deprecated），编译直接报错（CGWindow.h:271 \"has been explicitly marked unavailable\"）。2026-11-11 实测，故本条不只是\"缺屏幕录制授权\"，API 本身已不可用。"
   },
   {
    "id": "ON-3-03",
@@ -397,7 +400,7 @@
   {
    "id": "ON-4-05",
    "title": "清 projection history 契约：rubble/selling 结构未参与 scene-Z replay",
-   "status": "pending",
+   "status": "done",
    "est": "1 轮（先诊断拿数字，再修）",
    "detail": "S14b 修完后 --interaction-smoke-test 前进到 `projection history contract: actual rubble/selling structure did not participate in scene-Z replay`（RuntimeProjectionHistoryContract.inl:378-380）：resolveRuntimeBuildingVisibleHitSpansWin32 之后 !actualSpans.contains(base.instanceId)。resolveRuntimeBuildingVisibleHitSpans（RuntimeStructureSpriteGeometry.inl:581-598）先查 findRuntimePaintBuildingVisibleHitSpans 绘制缓存，命中即 return true；否则才建 RuntimeBuildingDepthFrameScope 做几何 replay。**第一步必须实测**：加临时观测打印 ① 本次是命中缓存还是走 replay ② spans 里实际有哪些 instanceId ③ base.instanceId 与 mission(Sold/Destroyed)、rubble 状态，拿到数字再定修法，不要猜缓存失效条件。注意契约第 374 行 fastPixels != originalPixels 已通过，说明与 GDI 像素写入无关。",
    "verify": "cd ConcordRTS-GameData && ../ConcordRTS/build-product-mac/concord_runtime --interaction-smoke-test; echo EXIT=$?  期望 EXIT=0，且三条契约输出（Selected path batch / Selected path raster / Selection frame raster）全绿；若再暴露下一条契约，按同样方式另立任务，别把 EXIT=0 又绑回本条。",
@@ -406,7 +409,22 @@
     "src/render/geometry/RuntimeStructureSpriteGeometry.inl",
     "src/render/geometry/RuntimeBuildingVisibleHitSpans.h"
    ],
-   "note": "既有缺陷首次暴露，非 S14b 回归：该断言排在两条像素契约之后，改动前 smoke 直接 return 在 selected path raster，从未执行；文档库中 projection history / scene-Z 零命中。"
+   "note": "诊断数字（已留档在报告里）：rubble=1 时 spans 只有 {810002:139}，不含 810502（type=GAPOWR/Destroyed）。smoke 整体仍 EXIT=1，但已推进到新一条 gameplay tooltip toggle，另立 ON-4-06。",
+   "result": "2026-11-11 13:10 done：原断言「rubble/selling 结构必须参与 scene-Z replay」把两种状态混成一条。replay 在 RuntimeStructureSpriteGeometry.inl:361 就排除 runtimeObjectIsGroundRubble 的对象（地面残骸没有立体遮挡体，参与会凭空产生遮挡），所以按状态分开：rubble=false 必须参与、rubble=true 必须不参与。Projection history 与 Idle overlay 两条契约同时转绿，输出 \"14 same-tick rubble/selling paint and visible-hit cases verified\"。",
+   "commit": "ba49ef2"
+  },
+  {
+   "id": "ON-4-06",
+   "title": "gameplay tooltip toggle 契约：禁用后仍弹出悬停帮助",
+   "status": "pending",
+   "detail": "ON-4-05 转绿后暴露的下一条：\"gameplay tooltip toggle did not control hovered-object help. point=yes hit=yes enabled=yes disabled=no menu=no\"。读法：坐标命中(hit=yes)、开关打开时行为正确(enabled=yes)、关掉开关后仍然弹出了帮助(disabled=no)，menu=no 说明与菜单路径无关。所以要查\"关闭开关后 hover 帮助的抑制条件\"——不是命中判定、不是菜单。先定位该契约实现与 tooltip 开关的状态来源，再判断是开关没被读到、还是抑制分支漏了路径。",
+   "verify": "--interaction-smoke-test 的 tooltip 契约行转绿，且既有三条像素契约 + Projection history + Idle overlay 全部保持绿；smoke 若再暴露下一条，同样另立任务。",
+   "touches": [
+    "src/ui/selection/diagnostics/",
+    "src/ui/input/",
+    "src/render/"
+   ],
+   "note": "既有缺陷首次暴露，非 ON-4-05 引入：该断言排在前五条之后，之前从未执行到。"
   },
   {
    "id": "ON-5-01",

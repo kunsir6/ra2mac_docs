@@ -5624,3 +5624,71 @@ Retina 最终验收仍需人工双击 `.app`。
 系统全屏（04b）；Retina 真实倍率（需人工双击）；世界视图的红叉（世界主循环不经过 pumpEvents）。
 
 产出 `reports/ON-2-04-窗口语义.md`。
+
+## 2026-11-11 13:20 · ON-4-05 · done（projection history 契约：断言写错，不是渲染错）
+
+继续同一轮，取 `ON-4-05`（`--interaction-smoke-test` 一直卡在这里）。
+
+### 先拿数字
+
+按任务要求加临时观测，把「解析是否成功 / 有哪些 instanceId」带进失败消息：
+
+```
+resolved=1 rubble=1 id=810502 type=GAPOWR mission=Destroyed spans=1 entries=[810002:139 ]
+```
+
+三个事实：解析**成功**（不是缓存失效、不是资源缺失）；spans 里只有 `810002:139`、
+不含 `810502`；只在 `rubble=1` 那次失败（`rubble=false` 已通过）。
+
+### 根因
+
+`RuntimeStructureSpriteGeometry.inl:361` 的参与者筛选里有
+`|| runtimeObjectIsGroundRubble(object, context)` —— 地面残骸**根本不进** depth replay 候选表。
+这是**正确行为**：残骸没有立体遮挡体，让它参与 replay 会凭空产生遮挡，挡住本该看见的像素。
+
+所以是断言写错了：一句话同时覆盖两种状态，而两种状态的正确期望**相反**。
+
+| 状态 | 含义 | 正确期望 |
+|---|---|---|
+| `rubble=false`（Sold） | 建筑还立着，只是被卖了 | 必须**参与** |
+| `rubble=true`（Destroyed） | 已塌成地面残骸 | 必须**不**参与 |
+
+改成按状态分开断言，失败消息里保留 spans 明细（下次不用再加诊断）。
+**没有**去改 `runtimeObjectIsGroundRubble` 的筛选——那会让残骸挡住后面的东西，是渲染缺陷而不是修测试。
+
+### 结果
+
+```
+Projection history contract: complete geometry/order and map+overlay pixels match;
+  dead pose cache hit, identity/revival/order and all live signature fields verified;
+  all original dead-structure fields and 14 same-tick rubble/selling paint and visible-hit cases verified.
+Idle overlay contract: 10 RGB-identical cases; ... world hashes unchanged.
+```
+
+两条契约同时转绿，14 个同 tick 案例全过。改动 1 文件 +29/−3（诊断打印已移除），源码 `ba49ef2`。
+
+### 同时把三个任务标 blocked
+
+- `ON-3-01b`：依赖 ON-4-02（合成输入）；离屏 smoke 的 present 次数是 0，拿它取证只会得到空日志。
+- `ON-3-02`：**`CGWindowListCreateImage` 在 macOS 26 SDK 已标记 unavailable**（不只是 deprecated，
+  `CGWindow.h:271` 直接报错）——本条不只是缺 TCC，API 本身没了。已写两条替代路径
+  （`screencapture -l` / ScreenCaptureKit），以及"`CALayer.renderInContext` 只能作降级"的理由。
+- `ON-2-04b`：系统全屏需 `[NSApp run]`（本轮前一段已记）。
+
+### 新暴露的下一条（另立 ON-4-06）
+
+```
+gameplay tooltip toggle did not control hovered-object help.
+  point=yes hit=yes enabled=yes disabled=no menu=no.
+```
+
+`enabled=yes` 但 `disabled=no`：开关打开时对，**关掉后仍弹出帮助**；`menu=no` 说明与菜单无关。
+按任务要求另立任务，不把 EXIT=0 绑回本条。
+
+### 队列（v75 → v77）
+
+`ON-4-05` done、新增 `ON-4-06`(pending)、`ON-3-01b`/`ON-3-02` 标 blocked；
+新增 rule `ground_rubble_excluded_from_scene_z`。
+当前：done 66 / pending 9 / superseded 7 / **blocked 3**（共 85）。
+
+产出 `reports/ON-4-05-projection-history契约.md`。
