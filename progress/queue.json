@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 74,
- "updated": "2026-11-11T11:45:00+08:00",
+ "version": 75,
+ "updated": "2026-11-11T12:45:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -150,7 +150,10 @@
   "product_full_build_is_broken": "产品级 `cmake --build build-product-arm`（1823 目标）在 [182/1823] 失败于 concord_mod_history_noop_smoke：RuntimeModExtensionsHistoryNoopSmoke.cpp 调用 advanceRuntimeModExtensions(宿主自造类型)，而唯一声明是 src/runtime/session/detail/RuntimeProductionOperations.h:9631 的 advanceRuntimeModExtensions(RuntimeGameSessionState&)，测试既没 include 该头、类型也不匹配。与架构无关，历史上一直存在——过去所有验证都只编 concord_runtime 主目标，从没触发。因此：判据命令沿用 `cmake --build <dir> --target concord_runtime`；要恢复全量构建见 ARM-02。",
   "lighting_simd_off_on_arm64": "src/render/lighting/RuntimeLightingLookupRaster.h 用 __SSE2__ 选路，arm64 上该宏未定义 → SSE2/AVX2 全关、走标量，无 NEON 替代。内核哈希不含光照光栅，故金标准哈希不受影响；但该文件的系数是「只在能逐项精确复现 rounded 查找表时才被接受」，若将来把光照纳入像素级判据，必须单独验证标量与 SSE2 逐像素一致。性能影响待 ON-4-04 量化。",
   "delivery_two_thin_binaries": "交付形态 = 两份 thin 产物，不做 universal（用户 2026-11-11 决策）。arm64: cmake -B build-product-arm -DCONCORD_MACOS_APP_NAME=ConcordRTS-0.1.0-arm64 -DCONCORD_MACOS_BUNDLE_ID=org.concord.rts.arm64 → --target concord_app；x86_64: 同上再加 -DCMAKE_OSX_ARCHITECTURES=x86_64，APP_NAME/BUNDLE_ID 换 x86_64。出口目录 /Users/zhenglk/AiProjects/ra2mac/dist/，文件名=APP_NAME。不入库。【标识必须一起区分】CFBundleName / DisplayName / Identifier / IconFile 四项都随 APP_NAME 走；只改文件名不改 bundle id，会让 LaunchServices 把两个产物当同一个应用。CFBundleIconFile 已由 packaging/Info.plist.in 的 @CONCORD_APP_NAME@ 驱动（原写死 ConcordRTS，改名即丢图标，2026-11-11 已修，源码 3d7267e）。可执行文件名保持 concord_runtime 不变——开发形态路径被十几套 smoke 引用，改它只会打断验证。注意 .app 内的 Contents/Resources/data-root 是**文本指针**（指向 ConcordRTS-GameData 绝对路径），不是数据副本；把 app 发给别人必须同时给数据树或改这个指针。",
-  "retina_scale_measurement_trap": "2026-11-11 实测陷阱：attest 里的 scale 只在**裸二进制**（不在 .app 内）直接执行时可信——arm 裸二进制得到 scale=2.0，而 arm/x86 的 .app 内二进制直接 exec 都得到 scale=1.0。原因是高分辨率由 LaunchServices 启动时决定，直接 exec bundle 内二进制会退回 legacy 1x。故「x86 切片在 Rosetta 下 scale=1.0」不能证明产物有 Retina 缺陷，也不能证明没有——Retina 判据必须在真 Intel 机器上以裸二进制方式复验。"
+  "retina_scale_measurement_trap": "2026-11-11 实测陷阱：attest 里的 scale 只在**裸二进制**（不在 .app 内）直接执行时可信——arm 裸二进制得到 scale=2.0，而 arm/x86 的 .app 内二进制直接 exec 都得到 scale=1.0。原因是高分辨率由 LaunchServices 启动时决定，直接 exec bundle 内二进制会退回 legacy 1x。故「x86 切片在 Rosetta 下 scale=1.0」不能证明产物有 Retina 缺陷，也不能证明没有——Retina 判据必须在真 Intel 机器上以裸二进制方式复验。",
+  "system_fullscreen_needs_nsapp_run": "系统全屏（进入独立 Space）在「不跑 [NSApp run]」的架构下不可用，已实测确认：willEnter 触发、didEnter 永不到；放宽 pumpEvents 的 run loop 时间无效。因此窗口设为 NSWindowCollectionBehaviorFullScreenNone **显式禁用**——实测 Default 挡不住，全屏照样开始（willEnter 仍触发）而后卡死，比没有该功能更糟。约束：任何\"需要 AppKit 生命周期推进\"的能力（全屏、Space 切换、系统对话框）都要先假设不可用，并用自测确认，不要按\"应该能行\"直接依赖。",
+  "selftest_must_wait_for_sink": "2026-11-11 实证：present 里注入的自测必须等 gInputSink 就绪。setInputSink 是在 present **返回之后**才调用的（它要用刚呈现的窗口做 context），所以第一次 present 时 sink 为空，delegate 会走\"没人接就放行\"的分支。症状极具欺骗性：日志里 close self-test 已经打出来了，窗口也确实关了，但进程继续跑到第 30 帧——看着像\"注入成功但链路不通\"，实际是自测根本没进被测分支。口径：自测打日志 ≠ 走到被测分支；注入前先断言前置条件（sink/window/attest）。",
+  "contents_scale_must_follow_backing": "gView.layer.contentsScale 不能只在建窗口时从 backingScaleFactor 抓一次。2026-11-11 实测：同一进程里 layer=2.0 而 window.backingScaleFactor=1.0，ON-2-03 的 scale-test 因此报 fail。改为每帧同步（变化时才提交 CATransaction，disableActions）。注意 pass 只说明「layer 跟随 backing」，不说明「Retina 正确」——无人值守运行时 backing 可能为 1.0（见 rules.retina_scale_measurement_trap），Retina 最终验收仍需人工双击 .app。"
  },
  "tasks": [
   {
@@ -229,15 +232,29 @@
    "commit": "38286db"
   },
   {
-   "id": "ON-2-04",
-   "title": "窗口语义：红叉真退出、Cmd+Q、系统全屏、最小化恢复",
-   "status": "pending",
+   "id": "ON-2-04a",
+   "title": "窗口语义（可做部分）：红叉真退出、Cmd+Q 回归、缩放不脱节",
+   "status": "done",
    "detail": "用户决策（2026-11-11）：只做窗口形态，**不做独占全屏/改分辨率**。范围：① 红叉 → WM_CLOSE→WM_DESTROY→退出（现在 pumpEvents 里 `if (event.type == NSEventTypeAppKitDefined) continue;` 把关闭事件整类丢掉，点红叉只 orderOut、进程还在）；② Cmd+Q（ON-1-03 已加 App 菜单 + 键等价物，自测 EXIT=0，本条只做回归）；③ Ctrl+Cmd+F 系统全屏进出后内容不丢；④ 最小化恢复保留最后一帧。",
    "verify": "点红叉后进程退出码 0（用 CONCORD_QUIT_SELFTEST 同款注入路径验证关闭事件）；全屏进出前后 presentHash 一致。",
    "touches": [
     "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
-   "note": "独占全屏在 macOS 上无意义（SIP 后不可改显示模式），明确不做。"
+   "note": "系统全屏**不可用**，已拆到 ON-2-04b(blocked) 并在本轮显式禁用（FullScreenNone）。最小化恢复未自动验证（用户点 Dock 恢复不经过本层代码，无可插判定点）。世界视图的红叉未覆盖：世界主循环不经过 pumpEvents。详见 reports/ON-2-04-窗口语义.md。",
+   "result": "2026-11-11 12:40 done：红叉从「AppKit 自己 orderOut、进程还在」改为 windowShouldClose: 拦下 → InputEvent::Kind::Close → compat 投 WM_CLOSE → DestroyWindow → 窗口真没了才 PostQuitMessage；arm64 与 x86_64 自测均 EXIT=0。Cmd+Q 回归 EXIT=0。顺带修 contentsScale 只在建窗口时抓一次导致与 backing 脱节。",
+   "commit": "0c1eefe"
+  },
+  {
+   "id": "ON-2-04b",
+   "title": "系统全屏（进入独立 Space）：需 [NSApp run]，当前架构不可用",
+   "status": "blocked",
+   "blocked_reason": "全屏切换是 AppKit 动画状态机 + Space 切换，需要 [NSApp run] 持续驱动；本项目主循环是 compat 自己的 GetMessageW，从不跑 NSApp run。实测：windowWillEnterFullScreen 触发、windowDidEnterFullScreen 永不触发；把 pumpEvents 的 run loop 从 2ms 放宽到 20ms 也无效。",
+   "detail": "两条可选路线，都需要用户决策：① 在 pumpEvents 里跑真正的 NSRunLoop（[[NSRunLoop currentRunLoop] runMode:beforeDate:]），让 AppKit 生命周期得以推进——风险：会改变事件派发语义，可能影响既有输入与定时器行为，必须全量回归 smoke + 指针导航 48 断言；② 自实现「窗口铺满屏幕」（setFrame 到 screen.frame + 隐藏菜单栏/Dock），不走 Space —— 同步、不需要 run loop，但不是\"系统全屏\"。",
+   "verify": "任一方案下：进入全屏后 windowDidEnterFullScreen 触发；退出后 layer.contents 仍在且尺寸等于呈现尺寸；菜单 smoke 像素基线不变（rampPixels=1056,781,1428）。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "note": "当前已设 NSWindowCollectionBehaviorFullScreenNone 显式禁用，绿灯是 zoom，用户按 Ctrl+Cmd+F 不会卡在半途。解除 blocked 前不要撤掉这一位。"
   },
   {
    "id": "ON-2-05",

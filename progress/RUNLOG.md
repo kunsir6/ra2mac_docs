@@ -5545,3 +5545,82 @@ BMP SHA-256        7f3708c822cdac09e9025e8a2357028db1a1c36e（两份完全相同
 
 队列 v73 → v74：`rules.delivery_two_thin_binaries` 补入命名与四项标识约定，
 以及 `CFBundleIconFile` 的 bug 与修复提交号。
+
+## 2026-11-11 12:45 · ON-2-04a · done（红叉真退出；系统全屏确认不可用并显式禁用）
+
+用户指示「继续后续任务，在当前 arm 芯片随时运行验证」，取队首 `ON-2-04`。
+
+### 红叉：注释与代码脱节
+
+`pumpEvents` 里 `if (event.type == NSEventTypeAppKitDefined) continue;` 上面写着
+「窗口关闭按钮走标准关闭路径：转成 quit」，代码却是丢弃。真正发生的是：没人实现
+`windowShouldClose:` 时 **AppKit 自己 orderOut** —— 窗口消失、进程继续跑，
+而 `GetMessageW` 只认 Win32 消息，看不见这件事。
+
+改法（复用既有输入通道，边界不新增约定）：delegate 拦下并返回 NO → 发
+`InputEvent::Kind::Close` → compat 投 `WM_CLOSE` → `DefWindowProc` → `DestroyWindow`
+→ 窗口**真的没了**才 `PostQuitMessage(0)`。
+
+`PostQuitMessage` 只在 `!IsWindow(target)` 时发，不违反 Q-11：Q-11 否的是
+「DefWindowProc 里任何窗口销毁都代劳 quit」（子窗口、STATIC 壳会被误杀），
+这里是「用户明确关掉呈现窗口」这个事件的处理者，且已验证销毁发生。
+
+### 一个让自测假成功的坑（已进 rules）
+
+第一版自测把 `performClose:` 放在 present 末尾，日志打出了
+`close self-test: performClose` 却毫无效果：窗口关了、进程继续跑到 frame 30。
+原因是 `setInputSink` 在 present **返回之后**才调用，第一次 present 时 sink 为空，
+delegate 走了「没人接就放行」。改成等 sink 就绪再注入。
+**口径：自测打日志 ≠ 走到被测分支。**
+
+### 系统全屏：三条证据，结论是不支持
+
+| 尝试 | 结果 |
+|---|---|
+| 默认 collectionBehavior + toggleFullScreen | `willEnter` 触发（styleMask=0xf），`didEnter` 永不触发，90s 超时 |
+| FullScreenPrimary + 切换期 run loop 从 2ms 放宽到 20ms | 同上，仍然只有 `willEnter` |
+| FullScreenNone | `willEnter` 不再出现，自测 61 帧后报 unsupported 并正常退出 0 |
+
+根因：全屏是 AppKit 动画状态机 + Space 切换，需 `[NSApp run]` 持续驱动，
+而本项目主循环是自己的 `GetMessageW`（Q-06 起的架构前提），不能为一个窗口形态去动它。
+
+**关键是必须显式禁用**：实测 `NSWindowCollectionBehaviorDefault` **挡不住**，
+全屏照样开始照样卡死——比没有该功能更糟。设 `FullScreenNone` 后绿灯是 zoom
+（同步 setFrame，不需 run loop），用户按 Ctrl+Cmd+F 不会卡。已拆 `ON-2-04b`(blocked)。
+
+### 顺带修：contentsScale 与 backing 脱节
+
+跑 ON-2-03 的 scale-test 时报 `result=fail`，四项里三项 yes。加诊断看到
+`contentsScale=2.0 backing=1.0`：`layer.contentsScale` 只在建窗口时抓一次，
+backing 变了就脱节。改为每帧同步（只在变化时提交事务），现在
+`contentsScale=1.0 backing=1.0 result=pass`。
+
+**但 pass 只说明「layer 跟随 backing」，不说明「Retina 正确」**——本次 `backing=1.0`，
+窗口没跑在 Retina 模式，与 PKG-01 的 `retina_scale_measurement_trap` 是同一现象。
+Retina 最终验收仍需人工双击 `.app`。
+
+### 回归（全绿）
+
+| 项 | 结果 |
+|---|---|
+| 红叉 arm64 / x86_64 | `EXIT=0` / `EXIT=0` |
+| Cmd+Q | `EXIT=0` |
+| 缩放自测 | `result=pass` |
+| 菜单 smoke | `sideTopFrames=2 warningFrames=91 slotFrames=17`、`rampPixels=1056,781,1428`（基线不变） |
+| 遭遇战 smoke | `EXIT=0` |
+| 上屏自证 | 3 帧 `match=yes`，`EXIT=0` |
+
+改动 3 文件 +262/−5（`.h` +6/−1、`.mm` +237/−4、`CompatUser.cpp` +19），源码提交 `0c1eefe`。
+
+### 队列变更（v74 → v75）
+
+- `ON-2-04` → **`ON-2-04a` done**；新增 `ON-2-04b`（**blocked**，系统全屏，两条可选路线已写进 detail）。
+- 新增 3 条 rules：`system_fullscreen_needs_nsapp_run`、`selftest_must_wait_for_sink`、
+  `contents_scale_must_follow_backing`。
+
+### 未验证
+
+最小化恢复（用户点 Dock 恢复不经过本层代码，无可插判定点，留给 ON-3-03 人眼剧本）；
+系统全屏（04b）；Retina 真实倍率（需人工双击）；世界视图的红叉（世界主循环不经过 pumpEvents）。
+
+产出 `reports/ON-2-04-窗口语义.md`。
