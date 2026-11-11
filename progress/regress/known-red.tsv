@@ -6,6 +6,6 @@
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 interaction	相机极值断言已修（M-10/469cfa8，负预留是物理边缘策略，断言允许半格溢出）；现停在 structure footprint 命中框与地基 bounds 不一致（见 fix-plan M-12）	code-red:needs-metering
 render	2peaks 有 10 个建筑但 structureShadowsDrawn=0（shp=5 正常）；未区分相机可见性与阴影帧解析	code-red:needs-metering
-build	血条高度断言已修（M-09/0e99bc1，斜边跨度+冠顶间隙=33）；现停在夹具世界里没有可悬停的单位（见 fix-plan M-11）	fixture-gap
+build	悬停单位夹具已补（M-11/0ce035a，用 addRuntimeObjectInstance 注入并按 id 摘掉）；现停在 DLPH/SQD 的移动帧选择框不覆盖可见身体（见 fix-plan M-14）	code-red:needs-metering
 result	暂停态第二次 WM_PAINT 走 reuseCachedFrame，记分动画不前进；断言源自 2026-10-10 上游（Windows 侧历史绿）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

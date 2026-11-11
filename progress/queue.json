@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 107,
-  "updated": "2026-11-12T03:20:00+08:00",
+  "version": 108,
+  "updated": "2026-11-12T04:38:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2304,7 +2304,7 @@
     {
       "id": "U-17",
       "title": "FPS 叠加层默认常显（原版无此面板）",
-      "status": "pending",
+      "status": "done",
       "phase": "UI 对账",
       "detail": "正式版没有任何帧率面板，当前实现每次提交帧后无条件调用 drawRuntimeFpsDisplay（RuntimeShell.cpp L29275/L29347/L29358 三条提交路径），窗口左下固定 96x22、底色 RGB(19,29,39)、白字，真实窗口截图可见 FPS: 60。改为默认关闭，新增 --show-fps 与 [Options] ShowFps 开关，仅显式开启时绘制；drawRuntimeFpsDisplay 保持原样供 smoke 使用。注意 RuntimeMainFrameContract 里有『FPS panel exists』断言与 runtimeFpsDisplayRect 非空校验，需同步改成按开关分支断言，否则契约会红。",
       "verify": "ninja concord_runtime 过；不带 --show-fps 启动后抓窗口，左下无 FPS 文字且像素与改动前同区域不同；带 --show-fps 启动仍有 FPS: NN；主帧契约 smoke 通过；11 条回归 PASS=5 KNOWN-RED=6 RED-NEW=0。",
@@ -2314,7 +2314,7 @@
         "src/runtime/performance/diagnostics/RuntimeMainFrameContract.inl",
         "src/runtime/config/RuntimeConfig.h"
       ],
-      "note": "这是本次对账里唯一可以直接动手改的视觉硬伤，成本 10 分钟级。"
+      "note": "已完成 2026-11-12 第 4 轮：新增 RuntimeConfig::fpsOverlayEnabled（默认 false）、[Options] ShowFps、--show-fps；三条提交路径各自门控，帧率计照旧记录。commit c1ccfe6，报告 reports/FIX-05-夹具缺口与FPS叠加层.md。"
     },
     {
       "id": "U-18",
@@ -2421,20 +2421,20 @@
         "src/runtime/host/RuntimeShell.cpp"
       ],
       "note": "commit cd2e841 / 933d70c / e1dede3；报告 reports/FIX-03-回归门禁口径三连.md。后续阻塞点 M-09（健康条 61x33 vs 61x31）、M-10（南向极值 tile 未覆盖）已登记 fix-plan。"
-    }
-,
+    },
     {
-     "id": "FIX-04",
-     "title": "两条断言的几何口径：M-09 血条高度 / M-10 相机极值（产品零改动）",
-     "status": "done",
-     "phase": "问题修复",
-     "detail": "两条判红的根因都不在产品。①M-09：建筑血条贴冠顶斜边排布，包围盒高度=斜边竖直跨度(30)+冠顶间隙(3)=33，旧断言用水平条口径 +1 恒定少算 2px；间隙提为 kStructureHealthBarClearance 供绘制与断言共享。②M-10：物理地图边缘的 reveal 预留是有意的 −halfTile（相机提前半格停，把渲染锯齿黑边留在客户区外），先按直觉钳到 0 被 physicalMapEdgeCovered 断言打回、void 由 0.000 变 0.012/856px，遂改为断言侧允许溢出量=该方向负预留（其余方向仍 0），void 保证不放宽。",
-     "verify": "ninja -C build-product-arm concord_runtime 全绿；bash ra2mac_docs/scripts/regress.sh → PASS=6 KNOWN-RED=5 RED-NEW=0；build 报 Structure hover health edge=61x33 selection-edge=yes；interaction 报 edgeCells=4/4 corners=4/4 physicalEdge=half-tile-covered。",
-     "touches": [
-      "src/runtime/host/RuntimeShell.cpp"
-     ],
-     "note": "commit 0e99bc1 / 469cfa8；报告 reports/FIX-04-两条断言的几何口径.md。两条仍 KNOWN-RED 但阻塞点后移：build→M-11（夹具无单位）、interaction→M-12（footprint 命中框），已登记 fix-plan。"
-    }  ],
+      "id": "FIX-04",
+      "title": "两条断言的几何口径：M-09 血条高度 / M-10 相机极值（产品零改动）",
+      "status": "done",
+      "phase": "问题修复",
+      "detail": "两条判红的根因都不在产品。①M-09：建筑血条贴冠顶斜边排布，包围盒高度=斜边竖直跨度(30)+冠顶间隙(3)=33，旧断言用水平条口径 +1 恒定少算 2px；间隙提为 kStructureHealthBarClearance 供绘制与断言共享。②M-10：物理地图边缘的 reveal 预留是有意的 −halfTile（相机提前半格停，把渲染锯齿黑边留在客户区外），先按直觉钳到 0 被 physicalMapEdgeCovered 断言打回、void 由 0.000 变 0.012/856px，遂改为断言侧允许溢出量=该方向负预留（其余方向仍 0），void 保证不放宽。",
+      "verify": "ninja -C build-product-arm concord_runtime 全绿；bash ra2mac_docs/scripts/regress.sh → PASS=6 KNOWN-RED=5 RED-NEW=0；build 报 Structure hover health edge=61x33 selection-edge=yes；interaction 报 edgeCells=4/4 corners=4/4 physicalEdge=half-tile-covered。",
+      "touches": [
+        "src/runtime/host/RuntimeShell.cpp"
+      ],
+      "note": "commit 0e99bc1 / 469cfa8；报告 reports/FIX-04-两条断言的几何口径.md。两条仍 KNOWN-RED 但阻塞点后移：build→M-11（夹具无单位）、interaction→M-12（footprint 命中框），已登记 fix-plan。"
+    }
+  ],
   "decisions": {
     "date": "2026-11-11",
     "source": "用户四点决策回复",

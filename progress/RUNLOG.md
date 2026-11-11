@@ -6901,3 +6901,18 @@ ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报 edge=61x33 selection
 interaction 报 edgeCells=4/4 corners=4/4 physicalEdge=half-tile-covered。
 两条仍 KNOWN-RED 但阻塞点后移：build→M-11（夹具无单位）、interaction→M-12（footprint 命中框）。
 队列 v106 → v107（FIX-04 done）。
+
+### 2026-11-12 第 4 轮（FIX-05）
+
+M-11 定性为**夹具缺口**：`build` 的默认图 `Units=0`，悬停单位血条断言没有主语。
+补单位必须走 `addRuntimeObjectInstance`（手搓结构体会绕过 pose/`hasRenderPosition`，
+像素画得出来但命中回不到自己），且落点要保证「自身包围盒中心命中回自己」，故沿半径 2..10 环搜格。
+S-09 把 FPS 面板改为默认关（`--show-fps` / `[Options] ShowFps`），三条提交路径各自门控，
+帧率计照旧记录；不改 overlay 合成路径，否则会把自绘指针一起关掉。
+
+### 验证
+
+ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报
+`Unit hover fixture: injected MTNK id=31 at 62,42` + `unitHover=1 pixelDelta=168`，
+阻塞点后移到 M-14（DLPH 43x25/43x25 aligned=no、SQD 92x51/100x41 aligned=no）。
+队列 v107 → v108（U-17 done）。
