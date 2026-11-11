@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 70,
- "updated": "2026-11-11T07:58:02+08:00",
+ "version": 71,
+ "updated": "2026-11-11T10:25:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -145,7 +145,8 @@
   "attest_exit_must_happen_in_present": "取证/自证模式要自己退出时，退出点必须在 present 内（写完记录、fflush 之后 _Exit），且退出码要带失败数（_Exit(failures==0?0:1)，否则 match=no 会被掩盖成成功）。两条常规路径都不通：① 世界视图的窗口不是 key window，合成 Cmd+Q 收不到；② 本项目从不跑 [NSApp run]，[NSApp terminate:nil] 只是排队，且在 pumpEvents 里发也无效——世界主循环根本不经过 pumpEvents。用 _Exit 而不是 exit，避免触发退出期静态析构（rules.handle_table_outlives_process）。",
   "takeover_rule_blocked_the_owner": "2026-11-11 ON-2-02a 实测：maybePresentClientFrame 的抢位规则只有\"严格更大者接管\"，而当前呈现主人与自己面积相等 → area>gPresentedArea 恒假 → 主人自己的**每一次**后续重绘都被丢弃。表现是屏幕永久停在第 1 帧，而 DIB 正确、attest(默认 LIMIT=1) match=yes、进程不崩、CPU 还在动。判据：CONCORD_PRESENT_STATS=1 时 takeover{self} 必须为 0；任何\"只允许更大者接管\"的门都得给主人自己开绿灯。",
   "world_paint_path_is_updatewindow": "呈现路径按场景不同：主菜单 200/200 次 WM_PAINT 来自队列合成（popMessage），世界 887/888 来自 UpdateWindow 同步旁路、队列合成为 0。任何\"每帧一次 present\"或\"每个 EndPaint 都贴\"的推断都必须按场景分开量，不能用一个场景代表全部。",
-  "present_layer_dedup_is_not_the_cost_centre": "ON-2-02a：菜单 submits=200 且 redundant=0（present 层无重复可合并）；世界 redundant=881/888 但每帧 CGImage 建造成本只有 1.3µs（ON-2-01 已测），真正的浪费是**空转重绘**（44 次/秒画同一画面），应在帧循环解决（ON-2-06/ON-4-03），不要在 present 层加去重门——那需要全帧 hash（>1ms/帧）才安全，比它省下的还贵。"
+  "present_layer_dedup_is_not_the_cost_centre": "ON-2-02a：菜单 submits=200 且 redundant=0（present 层无重复可合并）；世界 redundant=881/888 但每帧 CGImage 建造成本只有 1.3µs（ON-2-01 已测），真正的浪费是**空转重绘**（44 次/秒画同一画面），应在帧循环解决（ON-2-06/ON-4-03），不要在 present 层加去重门——那需要全帧 hash（>1ms/帧）才安全，比它省下的还贵。",
+  "commit_must_be_verified": "每次提交后必须跑 git fsck --no-progress 与 git status --short，不能只看 git log。2026-11-11 实证：179c84e 的 commit 对象与 message 都在、git log 读起来正常，只有 compat/ 子树对象没落盘，git status/diff 全部 fatal；而下一轮自动化第一件事就是 git add/diff，不校验就会以\"莫名其妙的 fatal\"炸开且无法归因到上一轮。"
  },
  "tasks": [
   {
@@ -213,13 +214,15 @@
   {
    "id": "ON-2-03",
    "title": "Retina 与缩放：contentsScale 跟随 backingScaleFactor、可缩放窗口、任意拉伸",
-   "status": "pending",
+   "status": "done",
    "detail": "用户决策（2026-11-11）：缩放策略取**任意拉伸**（画面铺满窗口），不做整数倍 letterbox。三点：① layer.contentsScale 跟随 window.backingScaleFactor，否则 2x 屏上整幅被系统放大成糊的；② styleMask 加 Resizable（当前只有 Titled|Closable|Miniaturizable），并把 contentsGravity 保持 kCAGravityResize；③ 拖动缩放时不得触发 Q-12 的『上次呈现尺寸』回写（那是换界面用的，不是给用户拖动用的）——两者必须用不同状态位区分，否则用户一拖窗口就被掰回原尺寸。",
    "verify": "2x 屏上 layer.contentsScale==2 且画面无二次放大（采样断言）；把窗口拖到 1.7 倍尺寸后画面铺满不变形，且下一次 surface 尺寸变化仍能正确 setContentSize。",
    "touches": [
     "compat/win32/src/RuntimeAppleWindowSurface.mm"
    ],
-   "note": "用户已在四点决策里明确选 (b) 任意拉伸。"
+   "note": "用户已在四点决策里明确选 (b) 任意拉伸。 【2026-11-11 10:2x 仓库修复】原提交 179c84e 的 compat/ 子树对象丢失，导致 HEAD 不可读（git status/diff/show 全部 fatal）。已由 6dc93e8 重建 index 并重做提交 38286db，提交信息逐字保留、工作树差异同为一文件 +52/−1。验收证据来自 x86_64 环境，arm64 待复验。",
+   "result": "2026-11-11 08:26 done（x86_64 环境实测）：styleMask 加 NSWindowStyleMaskResizable，缩放策略按用户决策取任意拉伸铺满；contentsScale 跟随 backingScaleFactor；拖拽缩放不回写\"上次呈现尺寸\"。CONCORD_ONSCREEN_ATTEST_SCALE=1 下四项断言（contentsScale 跟随 backing / view 铺满 / 内容 hash 未变 / gPresentedWidth 未被污染）全 pass，菜单与遭遇战 smoke、指针导航 48/0 全绿。",
+   "commit": "38286db"
   },
   {
    "id": "ON-2-04",
