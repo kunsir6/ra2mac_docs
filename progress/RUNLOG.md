@@ -6499,3 +6499,45 @@ interaction 推进点不变（已知 ON-4-07 缺口）。两份产物 16:55 重�
 | EVO-12 | T1 | result 记分动画只读计量 |
 
 产出 `reports/EVO-02-红基线分诊.md` + 更新 `progress/regress/known-red.tsv`。
+
+
+## 2026-11-11 18:30 · U-06 done（世界侧栏指针消失：视口外一律不给游标帧）
+
+用户实测：世界页面里光标在地图区正常，移进右侧栏就消失。预期"各区域显示该显示的内容"。
+
+### 根因
+
+`runtimeMouseCursorFrameForPoint` 开头把"不在 mapViewport"直接当成"没有指针"：
+
+```cpp
+if (!state.mouseClientPointValid || !pointInRectInclusive(viewport, point))
+    return std::nullopt;
+```
+
+`drawRuntimeMouseCursorOverlay` 拿到 nullopt 就 return。Windows 上被系统箭头遮住看不见，
+U-05 隐藏系统指针后暴露——所以**不是 U-05 引入的，是它揭出来的既有缺陷**。
+顺带修正一句旧结论：U-05 说的"产品自绘指针覆盖全窗口"是假设，没有验证过 HUD 区域。
+
+### 修法
+
+视口外但仍在客户区内 → 回落标准箭头（mouse 第 0 帧）；客户区外仍返回空；diplomacy 早退不变。
+这是平台无关的正确改进（原版在 Windows 上侧栏也是自绘箭头，只是被系统箭头遮着）。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| 新增断言（interaction，放在右取消之后、修理光标之前，必执行） | `HUD cursor: right=1016 top=8 frame=0 atlas=mouse` |
+| 全量回归 11 条 | `PASS=5 KNOWN-RED=6 RED-NEW=0`，与修前逐条相同 |
+| 菜单像素基线 | `rampPixels=1056,781,1428` 不变 |
+| 产物 | dist 18:28 重打包；包内二进制复跑同一断言输出一致；旧包改名 `.stale` |
+
+interaction 仍停在既知的 `no owned structure for repair cursor`（EVO-10 的事），
+说明新断言通过后才走到老缺口——断言不是空转。
+
+### 新 rule
+
+`system_cursor_hidden_needs_full_coverage`：隐藏系统指针的前提是"每个区域都有自绘指针"，
+必须逐区域验证。以后新增原生页面/浮层，检查项就是"该区域内游标函数是否返回帧"。
+
+产出 `reports/U-06-世界侧栏指针消失.md`；队列 v96 → v97。
