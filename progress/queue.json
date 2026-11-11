@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 99,
- "updated": "2026-11-11T19:02:00+08:00",
+ "version": 100,
+ "updated": "2026-11-11T20:37:23+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -180,7 +180,10 @@
   "get_key_state_units": "GetKeyState 与 GetKeyboardState 共用一张字节表但位布局不同：表里按下=字节 bit7(0x80)，GetKeyState 返回 SHORT 的按下=bit15(0x8000)、bit0 是锁存位。搬运必须显式做，直接强转会让所有 `& 0x8000` 判据恒假，症状与『没人写表』完全一样。",
   "compat_headers_no_windows_in_objcxx": "Objective-C++(.mm) 里禁止 include 带 <windows.h> 的 compat 头：会与 AppKit 的 Polygon/GetCurrentProcess/GetProcessInformation 互撞而编译失败（调换包含顺序治标不治本）。需要什么就拆一个不含 windows.h 的小头（如 RuntimeWin32CompatKeyState.h），平台常量翻译留在 .cpp。",
   "bundle_identity_is_atomic": ".app 的身份 = 名字 + 图标 + LaunchServices 登记，三者必须一次改完：只换二进制/Finder 仍显示旧图标旧名。交付一律走 ra2mac_docs/scripts/pack-dist.sh，不要手工 cp 进 .app。",
-  "icns_exists_is_not_enough": "判断图标是否生效，不能看 .icns 是否存在、也不能只跑 iconutil，必须向 IconServices 取渲染结果并与「无图标空壳 bundle」的空白占位图比对。macOS 图标要求 1024 画布/824 内容/半径185/透明边距；源图无 alpha 的方块图会被静默丢弃。"
+  "icns_exists_is_not_enough": "判断图标是否生效，不能看 .icns 是否存在、也不能只跑 iconutil，必须向 IconServices 取渲染结果并与「无图标空壳 bundle」的空白占位图比对。macOS 图标要求 1024 画布/824 内容/半径185/透明边距；源图无 alpha 的方块图会被静默丢弃。",
+  "fullscreen_needs_primary_and_real_click": "全屏能力有两位：collectionBehavior=NSWindowCollectionBehaviorFullScreenPrimary（决定绿灯是「展开箭头」还是「+」）+ 窗口可缩放。自测必须点真绿灯（standardWindowButton:NSWindowZoomButton 的 performClick）而不是直接 toggleFullScreen:，且退回要从主循环栈发起——在 windowDidEnterFullScreen 通知栈里再调 toggleFullScreen 会被 AppKit 静默丢掉。",
+  "view_coords_are_not_surface_coords": "鼠标坐标必须先按「表面尺寸/view 尺寸」反算回呈现表面空间再交给游戏。view 坐标只在 view==表面时等于客户区坐标；全屏或拉伸窗口之后直接用 view 坐标会让点击整体偏移到打空（而且不报任何错）。",
+  "fullscreen_criteria_no_hash": "全屏自测的判据不能用「前后帧 hash 不变」：全屏期间界面本来就在动（光标闪烁、动画），hash 必变。判据应是 contents 未丢 + CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧。"
  },
  "tasks": [
   {
@@ -2153,6 +2156,19 @@
    "note": "教训：① .icns 文件存在 != 系统采用，判据必须是「向 IconServices 要图并与空白占位图比较」；② 无 alpha 的方块图不能直接做 macOS 图标，纯 10 帧 iconset 会被 iconutil 拒；③ 同 bundle id 的多份拷贝登记会覆盖图标与显示名的解析，交付脚本必须显式注销旧路径。仍未做：图标源仅 256px（换 1024 原图即可）、封面里 Westwood 字样被原图裁半、LaunchServices 旧 id 残留需 lsregister -kill 重建（影响本机其它应用，未做）。见 reports/U-08-应用身份与打包.md。"
   },
   {
+   "id": "U-09",
+   "title": "全屏能力：绿灯是「+」不是全屏 —— ON-2-04 的 FullScreenNone 定案被复测推翻",
+   "status": "done",
+   "phase": "U 可玩性收尾",
+   "detail": "用户报「左上角绿灯显示一个 +，不是全屏操作」。两件事同一个根：窗口建的时候 collectionBehavior 是 NSWindowCollectionBehaviorFullScreenNone（ON-2-04 定案，理由是「系统全屏走不完：willEnter 有、didEnter 永远不到」）。U-09 用四个一次性探针穷举当时怀疑的前提（跑不跑 [NSApp run] / 只出队还是 sendEvent / Accessory 策略 / 2ms 切片）——四种组合 toggleFullScreen 全部 willEnter→didEnter→willExit→didExit 走完、frame 变屏幕尺寸，说明「没有 [NSApp run]」不是障碍；真实前提是 ON-2-04 早于 U-01/U-02，那时主循环有大段路径根本不 pumpEvents（世界循环纯 PeekMessageW+sleep_for，大厅走 MsgWaitForMultipleObjectsEx），动画状态机拿不到 run loop 时间。修法五处：① collectionBehavior 改 FullScreenPrimary；② 退回不能在 windowDidEnterFullScreen 通知栈里发（实测被 AppKit 丢掉，日志停在 entered），改为置 gFullScreenExitPending 由下一帧 present 在主循环栈里发；③ 判据改写——原「hash 必须等于进入前」假设全屏期间不重绘，而遭遇战界面一直在动，进出都误报 ok=0，改为 contents 还在 + CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧，hash 降级为诊断；④ 自测改走用户那条路：standardWindowButton:NSWindowZoomButton 的 performClick（点真按钮、走它的 action），8 帧内无 willEnter 才退回 toggleFullScreen 并如实打印哪条路生效；⑤ 顺带修全屏后鼠标坐标整体错位：view 坐标原来直接当客户区坐标，只有 view==表面时才对，全屏后 view 1512x949 / 表面 800x600，点正中报 (756,474) 在 800x600 里永远打空，抽出 mapViewPointToSurface 按比例反算并夹到 [0,表面-1]（view==表面时比例 1，行为不变）。",
+   "verify": "CONCORD_FULLSCREEN_SELFTEST=1 ./build-product-arm/concord_runtime --skirmish-ui-smoke-test → affordance collection=fullScreenPrimary:1 resizable:1 greenButton=present ok=1；request via green button → willEnter styleMask=0xf → entered window=1512x949 contents=kept size=kept ok=1；pointer map view=1512x949 center->400,300 expect=400,300 ok=1；request exit from present() → exited window=800x632 contents=kept size=kept framesInFullScreen=1 ok=1；done: affordance=1 viaButton=1 failures=0，exit=0。dist 包内二进制复跑逐行相同。改动后全量回归 PASS=5 KNOWN-RED=6 RED-NEW=0，与改动前逐条一致。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm"
+   ],
+   "result": "绿灯点击（performClick）直接进入全屏并以主循环栈退回，failures=0；dist/红色警戒2 尤里的复仇.app 20:36 重打包，包内二进制复跑同一断言一致；11 条回归分类与改前完全一致。",
+   "note": "没能做像素级验证：本机 Accessibility 未授权（System Events 查 AX 属性 -10004 权限违例，合成点击也进不去），进程内读绿灯 AX 子角色返回 nil（AX 元素懒创建）。判据因此换成两层：形态（FullScreenPrimary+可缩放）+ 行为（点绿灯真进全屏），后者比图标更硬。另：全屏是把 800x600 表面 Nearest 放大到整屏，不是按显示器分辨率重绘（EVO-14）。"
+  },
+  {
    "id": "EVO-13",
    "title": "尤里的复仇战役未接入战役数据库（只有基础版 ra2 的战役可选）",
    "status": "pending",
@@ -2163,6 +2179,19 @@
     "src/ui/campaign/RuntimeCampaignMenu.cpp"
    ],
    "note": "与 U-08 的关系：app 名字已是「红色警戒2 尤里的复仇」，但内层只能选到红色警戒 2 的战役，这是名不副实的地方。基础版规则文件 ra2/local/rules.ini、art.ini 都在数据树里，所以将来做真正的双入口（两个 .app 各带 config）在数据上可行。"
+  },
+  {
+   "id": "EVO-14",
+   "title": "全屏/拉伸下的原生分辨率渲染：呈现表面尺寸应跟随窗口，而不是放大 800x600",
+   "status": "pending",
+   "phase": "EVO 进化",
+   "detail": "U-09 打通全屏后暴露的下一层问题：画面是按 contentsGravity=Resize + kCAFilterNearest 把 800x600 的呈现表面放大到整屏（1512x949 / 1800x1130 视显示器），比例正确但像素块大小不均（非整数倍），观感是「能全屏但不清晰」。根因不在呈现层——游戏侧渲染目标是固定尺寸 DIB（遭遇战 800x600、主菜单 1024x640），窗口尺寸变化不触发 surface 重建。要真正清晰，需要一条「窗口尺寸 → 逻辑分辨率 → 重建 surface」的链路，并且游戏 UI 的坐标/命中要跟着逻辑分辨率走（现有 UI 布局全部按固定分辨率硬编码）。",
+   "verify": "待做：全屏后 surface 尺寸 == 显示器像素尺寸（或整数倍缩放），screencapture 出一帧与「最近邻放大」比对，像素块应均匀；回归里 render/interaction 数字不退化；退出全屏后 surface 回到原始分辨率且不残留拉伸。",
+   "touches": [
+    "compat/win32/src/RuntimeAppleWindowSurface.mm",
+    "src/ui"
+   ],
+   "note": "与 ON-2-03 的取舍关系：ON-2-03 选的是「任意拉伸铺满、不做整数倍 letterbox」，那是当时的正确取舍（宁可填满不要黑边）。EVO-14 不是推翻它，而是把「填满」的代价（放大）换成「重绘」。"
   }
  ],
  "decisions": {

@@ -6655,3 +6655,82 @@ ra2-tutorial(4)`，一条 `yr-*` 都没有。YR 战役数据在 `langmd/missions
 有人对两个仓库统一改写了 author/committer 身份（哈希随元数据变），内容无缺失：
 queue v97、三份报告、known-red.tsv、regress.sh 均在位。按 rules.commit.never 不做任何历史操作，
 仅在此记录，供以后对账时不要按哈希找提交。
+
+## 2026-11-11 20:37 · U-09 全屏：绿灯是「+」不是全屏
+
+用户：
+
+> 全屏能力还没有实现。左上角那个绿色的全屏按钮显示的是一个 + 号，不是全屏操作
+
+### 结论先行：ON-2-04 的定案是错的
+
+ON-2-04 把 `collectionBehavior` 设成 `FullScreenNone`，理由是「系统全屏走不完：
+willEnter 有、didEnter 永远不到」。现象是真的，归因错了。四个一次性探针
+（`/tmp/fsprobe.m`、`/tmp/fsprobe2.m`）穷举了当时怀疑的四个前提——跑不跑 `[NSApp run]`、
+只出队还是 `sendEvent`、`Accessory` 策略、2ms 切片——**四种组合全部
+willEnter → didEnter → willExit → didExit 走完，frame 变屏幕尺寸**。
+
+真实前提是时间线：ON-2-04 早于 U-01/U-02，那时主循环里有大段路径根本不 pumpEvents
+（世界循环纯 `PeekMessageW` + 裸 `sleep_for`，大厅走 `MsgWaitForMultipleObjectsEx`）。
+动画状态机拿不到 run loop 时间，自然停在半途。U-01/U-02 把三处入口都接上 pump 之后，
+这个前提已经不存在了。
+
+### 五处改动
+
+1. `collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary`
+   —— 只有这一档绿灯才是展开箭头，`Ctrl+Cmd+F` 才可用（窗口本来就 Resizable，前置满足）。
+2. 退回不能在 `windowDidEnterFullScreen` 通知栈里发：实测被 AppKit 丢掉，日志停在
+   `entered`，进程带着全屏窗口跑完整个 smoke。改为置 `gFullScreenExitPending`，
+   由下一帧 `present()` 在主循环栈里发起。
+3. 判据改写：原「前后帧 hash 不变」假设全屏期间不重绘，但遭遇战界面一直在动
+   （光标闪烁、背景动画），进出两段都误报 `ok=0`。改为 contents 未丢 +
+   CGImage 尺寸等于呈现尺寸 + 全屏期间确实呈现过帧；hash 降级为诊断。
+4. 自测改走**用户那条路**：`standardWindowButton:NSWindowZoomButton` 的 `performClick`。
+   原来直接调 `toggleFullScreen:` 只能证明「窗口能全屏」，证明不了「绿灯接在全屏上」，
+   而用户报障的正是后者。8 帧内无 `willEnter` 才退回 `toggleFullScreen:` 并如实打印哪条路生效。
+5. 顺带修全屏后鼠标坐标整体错位：view 坐标原来直接当客户区坐标交给游戏，只有
+   view==表面时才对；全屏后 view 1512×949 / 表面 800×600，点正中报 (756,474)，永远打空。
+   抽出 `mapViewPointToSurface()` 按比例反算并夹到 `[0, 表面-1]`（比例 1 时行为不变）。
+
+### 验证
+
+```
+[fullscreen] affordance collection=fullScreenPrimary:1 resizable:1 greenButton=present subrole=(nil, AX 未接线，仅诊断) fullScreenButton:0 zoomButton:0 ok=1
+[fullscreen] request via green button hash=2742914174
+[fullscreen] willEnter styleMask=0xf
+[fullscreen] entered window=1512x949 view=1512x949 contents=kept size=kept framesInFullScreen=0 ... ok=1
+[fullscreen] pointer map view=1512x949 center->400,300 expect=400,300 ok=1
+[fullscreen] request exit from present()
+[fullscreen] exited window=800x632 view=800x600 contents=kept size=kept framesInFullScreen=1 ... ok=1
+[fullscreen] done: enter=2742914174 exit=200330514 before=2742914174 affordance=1 viaButton=1 failures=0
+```
+
+| 项 | 输出 |
+|---|---|
+| 绿灯路径进全屏 | `request via green button` → `willEnter` → `entered`，`viaButton=1` |
+| 全屏后仍能操作 | `pointer map view=1512x949 center->400,300 ok=1` |
+| dist 内二进制 | 复跑同一组断言，逐行相同，`failures=0` |
+| 回归 | `PASS=5 KNOWN-RED=6 RED-NEW=0`，与改前逐条一致 |
+
+### 没能验的
+
+绿灯图标的**像素级**对比没做成：本机 Accessibility 未授权（System Events 查 AX 属性
+`-10004 权限违例`，合成点击也进不去，点了绿灯窗口纹丝不动）；进程内读绿灯 AX 子角色
+返回 nil（AX 元素懒创建，没有 AX 客户端连不上）。所以判据换成两层：形态
+（`FullScreenPrimary` + 可缩放）+ **行为**（点绿灯真进全屏）。第二层比图标本身更硬——
+只能缩放的窗口，点绿灯永远进不了全屏。
+
+### 新 rule
+
+- `fullscreen_needs_primary_and_real_click`：全屏能力 = FullScreenPrimary + 可缩放；
+  自测要点真绿灯、退回要从主循环栈发。
+- `view_coords_are_not_surface_coords`：鼠标坐标必须按「表面/view」比例反算，否则
+  全屏或拉伸后点击整体偏移到打空，且不报任何错。
+- `fullscreen_criteria_no_hash`：全屏判据不能用帧 hash（界面本来就在动）。
+
+### 新立项
+
+EVO-14（pending）：全屏/拉伸下按显示器分辨率重绘，而不是把 800×600 最近邻放大。
+ON-2-03 选的「任意拉伸铺满、不做整数倍 letterbox」不推翻，只是把「填满」的代价从放大换成重绘。
+
+产出 `reports/U-09-全屏能力.md`；队列 v99 → v100。
