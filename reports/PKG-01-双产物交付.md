@@ -32,7 +32,34 @@ cmake --build build-product-x86 --target concord_app
 | `dist/ConcordRTS-0.1.0-x86_64.app` | `x86_64` | 52,637,120 B | 52 MB | ad-hoc |
 
 两份都通过 `codesign --verify --deep --strict`，`Info.plist` 均含
-`NSHighResolutionCapable=true`、`LSMinimumSystemVersion=11.0`、`CFBundleIdentifier=org.concord.rts`。
+`NSHighResolutionCapable=true`、`LSMinimumSystemVersion=11.0`。
+
+### 2.1 标识也要区分，不只是文件名
+
+只改文件名不够：两个 bundle 若共用 `CFBundleName` 和 `CFBundleIdentifier`，Dock 里长得一模一样，
+LaunchServices 还会把它们当成同一个应用。所以四个字段全部带架构：
+
+| 字段 | arm64 | x86_64 |
+|---|---|---|
+| 文件名 | `ConcordRTS-0.1.0-arm64.app` | `ConcordRTS-0.1.0-x86_64.app` |
+| `CFBundleName` | `ConcordRTS-0.1.0-arm64` | `ConcordRTS-0.1.0-x86_64` |
+| `CFBundleDisplayName` | 同上 | 同上 |
+| `CFBundleIdentifier` | `org.concord.rts.arm64` | `org.concord.rts.x86_64` |
+| `CFBundleIconFile` | `ConcordRTS-0.1.0-arm64` | `ConcordRTS-0.1.0-x86_64` |
+| 可执行文件 | `concord_runtime`（不动） | `concord_runtime`（不动） |
+
+可执行文件名刻意不改：`build-product-*/concord_runtime` 这个开发形态路径被十几套 smoke 与
+脚本引用，改它会打断既有验证，而不带来任何收益。
+
+### 2.2 顺带修掉一个「改名就丢图标」的 bug
+
+`packaging/Info.plist.in` 里 `CFBundleIconFile` 原本写死成 `ConcordRTS`，而打包脚本生成的
+图标文件名是跟随 `--app-name` 的。也就是说**只要把 app 改名，Dock 里立刻变白纸**——
+之前一直没暴露，是因为名字从来没改过。已改为 `@CONCORD_APP_NAME@`，与 icns 文件名保持同步。
+
+验证：两份 `Contents/Resources/` 下的 icns 均为 1024 px，与 `CFBundleIconFile` 一致。
+
+源码提交：`3d7267e PKG-01 打包：Info.plist 的 CFBundleIconFile 跟随 app 名（双产物标识区分）`
 
 ## 三、等价性证据
 
