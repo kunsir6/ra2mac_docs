@@ -6916,3 +6916,31 @@ ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报
 `Unit hover fixture: injected MTNK id=31 at 62,42` + `unitHover=1 pixelDelta=168`，
 阻塞点后移到 M-14（DLPH 43x25/43x25 aligned=no、SQD 92x51/100x41 aligned=no）。
 队列 v107 → v108（U-17 done）。
+
+---
+
+## 2026-11-12 第 5 轮：多谓词断言逐项计量（M-14 完成 / M-12 收窄）
+
+上一轮把 `build` 与 `interaction` 的红都写成「选择框几何不对」「命中框口径不一致」。
+本轮先把两处出口拆成逐项输出，结果两条描述都不准确。
+
+### M-14 潜航单位选择框（已完成）
+
+`validateUnitSelectionBounds` 有 6 个谓词，只给一个 `aligned=no`。拆开后 DLPH/SQD 只有 `cy` 失败：
+`dy=5` 而断言期望 `tileHeight/2 = 15`。`drawLevelForObject` 里潜航的下沉是 **1/3 层级**
+（60x30 瓦片 = 5px），当年这条常量只是函数内 `constexpr`，断言看不见只能猜「半格」。
+提为头文件 inline `runtimeSubmergedVisualDepthLevels()` 供两侧共享，六类对象全 `aligned=yes`。
+
+### M-12 建筑右键命中（计量收窄，故意不改）
+
+`cells=4/4`、`hash` 相同、`preview/hit/footprint` 三矩形逐边相等、`bounds` 覆盖 footprint——
+几何口径的假设被推翻。唯一失败的是 `rightClickMatches` 且目标为 `nullptr`。
+命中点 (1043,73) 上只有 `CABUNK02`：`structureSpriteHitSpans` 含该像素、depth-visible spans 不含，
+被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替，形成「画得出、点不到」的空洞。
+两种定性（真被遮挡 vs 可见性门错杀）改法相反，动 pick 会重演 M-10 的误改，故只留计量。
+
+### 验证
+
+`bash ra2mac_docs/scripts/regress.sh` → PASS=6 KNOWN-RED=5 RED-NEW=0（基线同，零新回归）。
+`build` 阻塞点后移到 M-15（`no unit/infantry catalog item`），`interaction` 收窄到右键可见性门。
+提交：61858b3 / d2f36b3 / 799c9b6（源码），计划与报告见 FIX-06。队列 v108 → v109。
