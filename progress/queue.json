@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 88,
- "updated": "2026-11-11T15:05:00+08:00",
+ "version": 89,
+ "updated": "2026-11-11T15:00:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -163,7 +163,7 @@
   "nested_cmake_runs_before_platformapple": "DevelopmentTargets.cmake（CMakeLists 第 30 行）早于 CompilerAndPlatform.cmake（第 32 行），所以 tests/infrastructure/*/CMakeLists.txt 这类 add_subdirectory 里不能调用 concord_apple_add_win32_compat_sources，也读不到 CONCORD_APPLE_FSEVENTS_FRAMEWORK_DIR —— 函数与变量那时都还不存在，if(COMMAND)/if(DEFINED) 会静默跳过，症状是「某些自测链接报一堆 FSEvent 未定义」。两条出路：① 在 CompilerAndPlatform.cmake 的 APPLE 分支里补挂（既有先例：concord_multiplayer_two_process_smoke、concord_window_parent_win32_contract）；② 嵌套目录里写成自包含（xcrun --show-sdk-path + 目标级 -F），不依赖 include 顺序。另：set_source_files_properties 是目录作用域，父目录设了不管用。",
   "ctest_fixture_must_be_idempotent": "契约若拒绝已存在的 fixture 根（如菜单资源契约的 Use a new fixture directory），add_test 必须自带清理，否则同一 build 目录第二次跑必然 0.00s 失败而第一次是绿的——极具欺骗性（看着像「刚改坏了」）。做法：FIXTURES_SETUP 挂 `${CMAKE_COMMAND} -E rm -rf <dir>`，被依赖测试加 FIXTURES_REQUIRED；ctest -R 会自动带上 setup。",
   "win32_requires_directory_for_change_notification": "Win32 的 FindFirstChangeNotification 要求入参是目录，传普通文件返回 INVALID_HANDLE_VALUE。compat 层早期只查存在性，FSEvents 会照单全收一个文件并「正常」watch，调用方于是得到「这棵树是新鲜的」这种错误认证（菜单资源契约恒红）。已在 RuntimeWin32CompatChangeNotify.cpp 用 stat + S_ISDIR 对齐；任何「照收下再说」的 compat 实现都要先核对 Win32 的参数前置条件。",
-  "any_wait_loop_must_pump_appkit": "macOS 上任何「等消息」的循环都必须排空 AppKit：GetMessageW 已内置 pumpEvents，MsgWaitForMultipleObjectsEx / WaitMessage 自 U-01（a863d9e）起也内置。如果某处只用 PeekMessageW 空转、或自己 sleep 轮询而不用这两个原语，它同样拿不到鼠标键盘输入，且**画面会停在第一帧、看着完全正常**——症状是「窗口在但点不动、点一下就彩虹圈」。判定口径：见到彩虹圈先 sample 主线程，若停在 sleep_for/nanosleep 且栈里没有 pumpEvents，就是这一类，不要去查渲染或死锁。",
+  "any_wait_loop_must_pump_appkit": "macOS 上「拿不到输入 / 彩虹圈」的判定链（已两次踩同一族问题）：① GetMessageW 内置 pumpEvents；② MsgWaitForMultipleObjectsEx / WaitMessage 自 U-01（a863d9e）起内置；③ PeekMessageW 自 U-02（e142ccb）起在队列为空时内置（4ms 节流）。所以现在只要循环里调了这三个原语中的任意一个就会排空 AppKit。反过来：**只睡不取消息**的循环（裸 sleep_for / std::this_thread::sleep_for 轮询、或纯计时等待）一定拿不到输入，且画面会停在第一帧、看着完全正常。见到彩虹圈先 sample 主线程：落在 nanosleep 且栈里没有 pumpEvents 就是这一类，不要去查渲染、死锁或资产加载。",
   "autostart_regression_entry": "CONCORD_SKIRMISH_AUTOSTART=<n>：真实窗口的大厅第 n 次循环后自动点「開始遊戲」，PostMessageW 入队 + 本循环派发，与真人点击同路径。配合 CONCORD_PRESENT_STATS=1 UNTIL_SEC=8 可在无人值守下回归「大厅→加载→世界」：应看到 loading 1/6..6/6、loading complete、paints>0。注意：它会真的进世界，必须配 UNTIL_SEC 或 attest LIMIT 退出。"
  },
  "tasks": [
@@ -178,7 +178,19 @@
     "src/ui/skirmish/RuntimeSkirmishMenu.cpp"
    ],
    "commit": "a863d9e",
-   "note": "修法放在 MsgWaitForMultipleObjectsEx / WaitMessage 里（平台层文件，Windows 不编译），不在共享菜单代码加 #ifdef __APPLE__（§5.2）。新增 CONCORD_SKIRMISH_AUTOSTART=<n> 作为「大厅→加载→世界」的无人值守回归入口。未复验：真人点击（本机无辅助功能授权）；用户双击 .app 手工确认即可闭环。详见 reports/U-01-大厅不处理事件.md。"
+   "note": "修法放在 MsgWaitForMultipleObjectsEx / WaitMessage 里（平台层文件，Windows 不编译），不在共享菜单代码加 #ifdef __APPLE__（§5.2）。新增 CONCORD_SKIRMISH_AUTOSTART=<n> 作为「大厅→加载→世界」的无人值守回归入口。复验中暴露第二段：进入世界后同样不排空 AppKit（见 U-02）。详见 reports/U-01-大厅不处理事件.md。"
+  },
+  {
+   "id": "U-02",
+   "title": "进世界/加载页仍无响应：PeekMessageW 也不排空 AppKit",
+   "status": "done",
+   "detail": "U-01 之后用户复测仍见彩虹圈。定位：世界主循环既不调 GetMessageW 也不调 MsgWaitForMultipleObjectsEx——RuntimeWindowHostWin32::drainMessages() 是纯 PeekMessageW，sleepForIdleSlice() 是裸 sleep_for(1ms)。采样 1226 样本中 557 落在 sleepForIdleSlice、pumpEvents 出现 0 次。表现：画面在动（present 由 active 触发）但输入进不来、系统判定无响应。加载页同理：pumpRuntimeLoadingWindow 每 stage 只做 InvalidateRect+UpdateWindow+PeekMessageW，整段 3 秒零 pump。",
+   "verify": "世界循环采样：drainMessages→PeekMessageW→pumpEvents→nextEventMatchingMask，436 样本中 429 在 pumpEvents（此前 0）；加载阶段采样 pumpEvents 219 样本且 loading complete；回归：菜单 rampPixels 不变、skirmish EXIT=0 / 161 预览、交互 smoke 推进点不变。",
+   "touches": [
+    "compat/win32/src/RuntimeWin32CompatUser.cpp"
+   ],
+   "commit": "e142ccb",
+   "note": "PeekMessageW 在队列为空时排空一次 AppKit 再重试出队，4ms 节流（pumpEvents 内部最多等 2ms，smoke 空转轮询高频调用 Peek，不节流会明显变慢）。副作用顺带覆盖加载页：每个 stage 的 Peek 都会 pump，间隔约 0.5s。仍未复验：真人鼠标（本机无辅助功能授权）。"
   },
   {
    "id": "ON-4-04",

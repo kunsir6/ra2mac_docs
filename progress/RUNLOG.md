@@ -6156,3 +6156,42 @@ box selection 从"selection 0 / cleared"变成"selection 4 | HTNK #9000"，
 - **30 分钟挂机两次被我的 pkill 误杀**（跑回归时清的），ON-5-02b 仍待跑。
 
 队列 v87 → v88。产出 `reports/U-01-大厅不处理事件.md`。
+
+## 2026-11-11 · U-02 进世界仍是彩虹圈 —— 同一族的第二段（Peek 也不 pump）
+
+U-01 只修了大厅（Peek + MsgWait）。用户复测后仍有彩虹圈，说明还有第二段。
+
+### 定位
+
+世界主循环：
+
+```
+RuntimeWindowHostWin32::drainMessages()     = 纯 PeekMessageW 转一圈
+RuntimeWindowHostWin32::sleepForIdleSlice() = 裸 sleep_for(1ms)
+```
+
+两者都不排空 AppKit。进世界 9 秒后采样：1226 样本中 557 落在 sleepForIdleSlice，
+pumpEvents **0 次**。画面在动（present 由 active 触发）但输入进不来、系统判无响应。
+加载页同理：`pumpRuntimeLoadingWindow()` 每 stage 只 InvalidateRect+UpdateWindow+Peek，
+整段约 3 秒零 pump —— 即使大厅修好，点开始后仍会立刻彩虹圈。
+
+### 修法
+
+`PeekMessageW` 在**队列为空**时排空一次 AppKit 再重试出队，按 4ms 节流
+（pumpEvents 内部最多等 2ms；smoke 的空转轮询会高频调 Peek，不节流会慢一个量级）。
+一处改动同时覆盖世界循环与加载页。
+
+### 验证
+
+- 世界：`drainMessages → PeekMessageW → pumpEvents → nextEventMatchingMask`，
+  436 样本中 429 在 pumpEvents（此前 0）；
+- 加载：pumpEvents 219 样本，loading complete 正常；
+- 回归：菜单 rampPixels 不变、skirmish EXIT=0 / 161 预览、交互 smoke 推进点不变。
+
+### 顺带
+
+两份产物都重建了（此前 x86 那份还是修复前的旧包，用户双击后自然会以为"修了没用"）：
+arm64 14:47 / x86_64 14:50，签名校验通过；`dist/README.txt` 写明本机该开哪一份。
+
+队列 v88 → v89。规则 `any_wait_loop_must_pump_appkit` 合并为三段判定链
+（GetMessageW / MsgWait+WaitMessage / PeekMessageW 现在都会 pump）。
