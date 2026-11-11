@@ -6593,6 +6593,60 @@ F 键映射未端到端验证（需真键盘或辅助功能授权）。所以"�
 
 产出 `reports/U-07-快捷键与键状态.md`；队列 v97 → v98。
 
+## 2026-11-11 19:00 U-08 App 身份：图标空白、名字是构建名
+
+### 症状与第一误判
+
+用户报「app 图标、app 名称没同步到位」。包里 `.icns` 明明在（2 MB，`CFBundleIconFile` 也对），
+所以第一反应会是"缓存没刷"。实际用 `NSWorkspace.iconForFile`（JXA 走 AppKit）把系统渲染结果抓下来，
+是**通用空白占位图**——系统根本没采用那个 icns。
+
+### 三条根因
+
+1. 源图 `icon-source.png` 是 256×256、RGB、**无 alpha** 的封面方块。纯 10 帧 iconset 被 `iconutil`
+   直接判 `Invalid Iconset`；侥幸生成的 icns IconServices 也不认。macOS 要的是
+   1024 画布 / 824 内容 / 半径 185 / 透明边距这套网格。
+2. `CFBundleName`/`CFBundleDisplayName` 填的是 `ConcordRTS-0.1.0-arm64`——构建标识进了显示名。
+3. 同一 bundle id 在 LaunchServices 里登记过 **18 次**（废纸篓 7、build 4、dist/.stale 3、
+   AppTranslocation 2…），图标与名字解析命中哪份不确定。
+
+### 修法
+
+- 新增 `packaging/make-icon.py`：Pillow 按 macOS 网格合成圆角+透明+烘阴影+内高光，
+  再切 10 帧给 iconutil；源图自带 alpha 时用 `--no-mask` 跳过套壳。
+- `make-app-bundle.sh` 改调它，中间 iconset 放 `mktemp -d`（不再往 build/dist 里丢 10 张 PNG）。
+- `Info.plist.in` 补 `LSApplicationCategoryType`、`CFBundleDevelopmentRegion`。
+- 新增 `ra2mac_docs/scripts/pack-dist.sh`：归档旧包并注销 → 组装 → 登记 → 验证身份 →
+  **验证图标**（现场造一个无图标空壳做参照，比较平均像素差）→ 跑 `--smoke-test`。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| 图标是否被系统采用 | `diff-vs-generic=96.2/255`（阈值 >8；故障态下这条会红） |
+| Finder 显示名 | `kMDItemDisplayName = "红色警戒2 尤里的复仇.app"` |
+| LaunchServices | `org.concord.rts.yuri.arm64 | 红色警戒2 尤里的复仇 | …/dist/红色警戒2 尤里的复仇.app` |
+| 交付物可运行 | `--smoke-test rc=0`；包内二进制仍输出 `Team keys: ctrl+1 create=4 units plain1 recall=1` |
+
+### 关于「一个应用、两个入口」
+
+外层一个 app 名；区分放在应用内（战役选择器按版本加「（红色警戒 2）」/「（尤里的复仇）」后缀）。
+但复核内容时发现**名不副实**：`--campaign-smoke-test` 的战役 id 全是 `ra2-gdi(44)/ra2-nod(36)/
+ra2-tutorial(4)`，一条 `yr-*` 都没有。YR 战役数据在 `langmd/missionsmd.pkt` 里，只是没接进战役库。
+已立项 EVO-13（pending），不混在 U-08 里假装做完。
+
+### 新 rule
+
+- `bundle_identity_is_atomic`：名字 + 图标 + LS 登记必须一次改完，交付走 pack-dist.sh。
+- `icns_exists_is_not_enough`：判据是 IconServices 的渲染结果，不是文件存在。
+
+### 踩到的坑（老坑重犯）
+
+`say "archived  $ARCHIVED（…）"` —— 全角括号紧跟变量名会被 bash 吞进变量名，报 `unbound variable`。
+和 EVO-01 里 `regress.sh` 那次一模一样，一律写 `${VAR}`。
+
+产出 `reports/U-08-应用身份与打包.md`；队列 v98 → v99。
+
 
 ### 附：仓库历史哈希变化（2026-11-11 18:30 观察）
 

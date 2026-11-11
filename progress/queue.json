@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 98,
- "updated": "2026-11-11T18:46:00+08:00",
+ "version": 99,
+ "updated": "2026-11-11T19:02:00+08:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -178,7 +178,9 @@
   "triage_2026_11_11": "2026-11-11 EVO-02 分诊结论（6 条 KNOWN-RED 全部落定）：build=code-red（compat 未实现 CP1252，零售 Text= 里的 0x85 省略号被逐字节 widen 成 U+0085；日志有 'only UTF-8 is supported here' 为直接证据）；command=code-red（两栖船靠岸卸不下坦克，纯合成夹具、两次同点失败、与平台无关）；interaction=fixture-gap（建筑全 Neutral）；campaign=env-gap（13/40 无地图 + Bink 缺失，该 gate 在 macOS 按现定义永远不会绿，应改白名单而不是修）；render / result=code-red:needs-metering（未定因，先加只读计量）。教训：红基线必须先分诊再修，否则会把夹具缺口当产品缺陷修，或把上游绿过的断言当自己的锅。分诊表 reports/EVO-02-红基线分诊.md。",
   "system_cursor_hidden_needs_full_coverage": "2026-11-11 U-06：隐藏系统指针的前提是「每个区域都有游戏自绘指针」，而这个前提必须逐区域验证，不能只看地图区。实测反例：世界页面右侧栏（HUD）此前根本不是自绘——runtimeMouseCursorFrameForPoint 对视口外一律返回 nullopt，Windows 上被系统箭头遮住，macOS 隐藏系统指针后指针整体消失。以后新增「原生页面/浮层」时的检查项：该区域内 runtimeMouseCursorFrameForPoint 是否返回帧；不返回就必须显式回落标准箭头。",
   "get_key_state_units": "GetKeyState 与 GetKeyboardState 共用一张字节表但位布局不同：表里按下=字节 bit7(0x80)，GetKeyState 返回 SHORT 的按下=bit15(0x8000)、bit0 是锁存位。搬运必须显式做，直接强转会让所有 `& 0x8000` 判据恒假，症状与『没人写表』完全一样。",
-  "compat_headers_no_windows_in_objcxx": "Objective-C++(.mm) 里禁止 include 带 <windows.h> 的 compat 头：会与 AppKit 的 Polygon/GetCurrentProcess/GetProcessInformation 互撞而编译失败（调换包含顺序治标不治本）。需要什么就拆一个不含 windows.h 的小头（如 RuntimeWin32CompatKeyState.h），平台常量翻译留在 .cpp。"
+  "compat_headers_no_windows_in_objcxx": "Objective-C++(.mm) 里禁止 include 带 <windows.h> 的 compat 头：会与 AppKit 的 Polygon/GetCurrentProcess/GetProcessInformation 互撞而编译失败（调换包含顺序治标不治本）。需要什么就拆一个不含 windows.h 的小头（如 RuntimeWin32CompatKeyState.h），平台常量翻译留在 .cpp。",
+  "bundle_identity_is_atomic": ".app 的身份 = 名字 + 图标 + LaunchServices 登记，三者必须一次改完：只换二进制/Finder 仍显示旧图标旧名。交付一律走 ra2mac_docs/scripts/pack-dist.sh，不要手工 cp 进 .app。",
+  "icns_exists_is_not_enough": "判断图标是否生效，不能看 .icns 是否存在、也不能只跑 iconutil，必须向 IconServices 取渲染结果并与「无图标空壳 bundle」的空白占位图比对。macOS 图标要求 1024 画布/824 内容/半径185/透明边距；源图无 alpha 的方块图会被静默丢弃。"
  },
  "tasks": [
   {
@@ -2134,6 +2136,33 @@
    ],
    "result": "Ctrl+数字编队、Shift/Alt 组合键在消息层恢复；F1–F12 键码补齐（View1-4/SetView/Taunt 依赖它们，此前被 keyCode==0 丢弃）。",
    "note": "两处教训：① 绑定层单测全绿不能证明输入链路通，断言必须穿过消息循环，否则绕过的正是 GetKeyState 这一段；② .mm 不要 include 带 windows.h 的头（与 AppKit 的 Polygon/GetCurrentProcess 互撞），改为拆出不含 windows.h 的 RuntimeWin32CompatKeyState.h，AppKit 常量→VK 的映射留在 .cpp。仍未修：GetAsyncKeyState 恒 0、MapVirtualKeyW 恒 0（只影响键盘重绑定界面显示）；F 键映射未端到端验证（需真键盘）。详见 reports/U-07-快捷键与键状态.md。"
+  },
+  {
+   "id": "U-08",
+   "title": "App 身份：图标显示空白、名字还是构建名（图标无 alpha + 18 份同 id 登记）",
+   "status": "done",
+   "phase": "U 可玩性收尾",
+   "detail": "用户报「app 图标、app 名称没同步到位」。实测两条：Finder 显示名是 ConcordRTS-0.1.0-arm64（构建标识进了 displayName）；NSWorkspace 取到的图标是通用空白占位图，而包内 .icns 确实存在。三条根因：① 源图 icon-source.png 是 256×256 RGB 无 alpha 方块，按 macOS 网格（1024 画布/824 内容/半径185/透明边距）不成立，纯 10 帧 iconset 被 iconutil 判 Invalid Iconset，侥幸生成的 icns 也不被 IconServices 采信；② CFBundleName/DisplayName 被 CONCORD_MACOS_APP_NAME 填成带版本与架构的构建名；③ 同一 bundle id 在 LaunchServices 里登记过 18 次（废纸篓 7、build 4、dist/.stale 3、AppTranslocation 2…），图标与名字的解析命中哪份不确定。修法：新增 packaging/make-icon.py（Pillow 按 824/185 网格合成圆角+透明+烘阴影+内高光，支持 --no-mask），make-app-bundle.sh 改为调用它并把中间 iconset 放 mktemp；Info.plist 补 LSApplicationCategoryType 与 CFBundleDevelopmentRegion；新增 ra2mac_docs/scripts/pack-dist.sh，把「归档旧包+注销陈旧登记+组装+登记+验证身份+验证图标+验证可运行」做成一次原子动作。",
+   "verify": "pack-dist.sh 输出：archived 三份旧命名包并注销；icon 1973491 bytes alpha=yes；plist displayName=红色警戒2 尤里的复仇 id=org.concord.rts.yuri.arm64；icon diff-vs-generic=96.2/255（阈值>8，故障态下该断言会红，因为系统当时渲染的正是空白占位图）；smoke --smoke-test rc=0。mdls 确认 Finder 显示名已变为「红色警戒2 尤里的复仇.app」；lsregister -dump 可见 org.concord.rts.yuri.arm64 | 红色警戒2 尤里的复仇 | dist/红色警戒2 尤里的复仇.app。包内二进制复跑 --interaction-smoke-test 仍输出 Team keys: ctrl+1 create=4 units plain1 recall=1。",
+   "touches": [
+    "packaging/make-icon.py",
+    "packaging/make-app-bundle.sh",
+    "packaging/Info.plist.in"
+   ],
+   "result": "dist 现在只有一个 app：红色警戒2 尤里的复仇.app（arm64），带封面圆角图标；旧命名包归档到 dist/.archive 并从 LaunchServices 注销。打包改由 pack-dist.sh 一条命令完成，图标可换图（--icon-source / make-icon.py）。",
+   "note": "教训：① .icns 文件存在 != 系统采用，判据必须是「向 IconServices 要图并与空白占位图比较」；② 无 alpha 的方块图不能直接做 macOS 图标，纯 10 帧 iconset 会被 iconutil 拒；③ 同 bundle id 的多份拷贝登记会覆盖图标与显示名的解析，交付脚本必须显式注销旧路径。仍未做：图标源仅 256px（换 1024 原图即可）、封面里 Westwood 字样被原图裁半、LaunchServices 旧 id 残留需 lsregister -kill 重建（影响本机其它应用，未做）。见 reports/U-08-应用身份与打包.md。"
+  },
+  {
+   "id": "EVO-13",
+   "title": "尤里的复仇战役未接入战役数据库（只有基础版 ra2 的战役可选）",
+   "status": "pending",
+   "phase": "EVO 进化",
+   "detail": "U-08 复核「一个应用两个入口」时实测：--campaign-smoke-test 的战役 id 全部是 ra2-gdi(44)/ra2-nod(36)/ra2-tutorial(4)，没有任何 yr-* 条目；coverage gate 报 maps=40 objectives=27 → FAIL。数据侧 YR 战役是齐的（local_data/resources/mix_exports/langmd/missionsmd.pkt），缺的是把 Source=yr 的战役接进战役定义库并让它出现在选择器里；RuntimeCampaignMenu 已有 campaignEditionSuffix()/campaignSourceIs(..,\"yr\") 这类按版本分组的骨架，说明设计上是双版本，只是没数据。",
+   "verify": "待做：接入后 --campaign-smoke-test 应出现 yr-* 条目；选择器里「尤里的复仇」分组可选且能进图；known-red.tsv 里 campaign 条目从 env-gap 改为真实覆盖数字。",
+   "touches": [
+    "src/ui/campaign/RuntimeCampaignMenu.cpp"
+   ],
+   "note": "与 U-08 的关系：app 名字已是「红色警戒2 尤里的复仇」，但内层只能选到红色警戒 2 的战役，这是名不副实的地方。基础版规则文件 ra2/local/rules.ini、art.ini 都在数据树里，所以将来做真正的双入口（两个 .app 各带 config）在数据上可行。"
   }
  ],
  "decisions": {
