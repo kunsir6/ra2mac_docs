@@ -13,11 +13,12 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 10:05（第 9 轮开工：基线 **8/3/0**，`RED-NEW=0`。
-> 「简单区清空」的结论本轮修正：S-10 仍可打包（日志误报，单文件），M-20 的改动面只有
-> 一个函数 + 三个调用点，实测后按「简单」重分级与 S-10 同批；M-18 的定性继续靠 M-20
-> 的计量推进，不另开一轮。上轮 08:29 的并发改动（建造就绪角标）其主人已提交
-> （`7afbc54` / `2cb8364` / `4acf858`），本轮不再有他人在建文件）
+> 最近更新：2026-11-12 11:02（第 9 轮收口：基线 **8/3/0** → **8/3/0**，零新回归。
+> **M-18 定性翻案**：建筑投影不是产品缺陷，是门禁在自己的帧里看不见建筑——ore 探针把镜头
+> 居中到「无 overlay 的空地」（探针判据本身就是没盖东西），同一帧要 `structureShadowsDrawn>0`
+> 构造性不可能。M-20 四桶计量给出 `structureOff=2/empty=0`，自证帧第一栋 `CAAIRP` 即
+> 13551 像素。`render` 仍红，阻塞点后移到 M-21（矿喷发动画，改前逐字相同）。
+> 第 8 轮 08:29 的并发改动（建造就绪角标）其主人已提交（`7afbc54`/`2cb8364`/`4acf858`））
 
 ---
 
@@ -34,7 +35,7 @@
 | S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 已废弃（并入 M-17；缓存命中假设已被证伪，真因是时钟纪元） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
 | S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复（与 M-03 同源，落地时合并） | `reports/ON-2-前排任务现状对账.md` |
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
-| S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 待修复 | — |
+| S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 已完成（`5ce280b`） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §3 |
 
 > **简单区现状（第 8 轮核对）**：S-01~S-09 全部已完成或已废弃，只剩 S-08（与 M-03 同源，须合并做）
 > 和本轮新登记的 S-10（日志误报，C 级）。**可打包的简单批已经用尽**——前 7 轮把「夹具/探针口径」
@@ -61,9 +62,10 @@
 | M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
 | M-16 | `build` 低电探针被自己的前置挡死 | `sidebar low-power integration probe state is not low power`，探针一进门就要求 `runtimeEconomyLowPower`，而零售图没有耗电建筑（powerUsed 恒 0），净电永远为正 | **已定性：前置无人保证**。`runtimeEconomyLowPower` 判 `produced - used < 0`，探针走不到断言本体，属夹具职责缺位而非产品缺陷 | 高：它是 `build` 转 PASS 的最后一道门 | 冒烟侧临时抬高 powerUsed 再还原（3 行） | **S** | 简单 | 已完成（`c90ec0e`；**build 整条转 PASS**） | `reports/FIX-07-build冒烟转绿.md` §2 |
 | M-17 | `result` 记分动画两次 paint 出同一张画面 | `original score animation stalled behind paused-frame cache`；计量 `changed=0 tick=300/300 frames=6/6 saved=yes`，三个子条件正常，只有画面没变 | **已定性：两个时钟纪元相减**。记分页取 `runtimeUiClockNow()`（macOS = `CLOCK_MONOTONIC`），而探针用 `GetTickCount64()` 写起点；两个纪元在 macOS 上不同 → `now - start` 恒为巨大值 → `runtimeUiScoreElapsed` 两次都钳到末帧 → 两张图逐像素相同。已排除缓存（门里带 `!runtimeResultScoreIsAnimated`） | 中：结算页动画是用户可见的一段 | 探针改用 `runtimeUiClockNow` 作基准（产品零改动） | **B** | 简单 | 已完成（`4cdc891`，**该条转 PASS**） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
-| M-18 | 建筑完全不投影（`render` 的真红） | 自然地图阴影 `candidates=7 drawn=5 shp=5` 但 `structures=0`；`structureCand=2 structureEmpty=2`——两个候选进了地面阴影通道、掩码「解析成功」，却一个像素都没压暗 | **仍未定性，但排除了一条**：第 8 轮加 `CONCORD_SHADOW_TRACE` + 第三桶 `structureNoArt` 后，测得自然地图上确实存在 0×0 的 `NATBNK`（`NewTheater` 只有 `art/snow` 变体，图为 TEMPERATE），但 `structureNoArt=0` 而 `structureEmpty=2`，**记录侧那两个候选不是空体建筑**，故「资产缺口」解释不成立。剩下的可疑路径：①帧矩形与 viewport 不相交/裁剪到零宽时 `drawRuntimeVoxelShadowMask` 也 `return true` + 0 像素 ②span 生成空 | 高：建筑没有影子是画面硬伤 | 下一步很便宜：在 `recordRuntimeWorldObjectShadowResult` 里打印 type/instance/rect/intersects（追踪要打在记录点才能与汇总对上），一次构建即可裁定 ①/② | **A** | 中等 | 待修复（第 8 轮三桶计量，`c66d2f6`；`structureNoArt=0` 否掉了资产缺口解释） | `reports/FIX-09-建筑零投影的三桶计量.md` |
-| M-19 | 自然地图上的 `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0 nonzero=0 globalH=126`，`Structure sprites: 2 loaded, 0 missing` 却什么都画不出来；`render` 的 trace 里反复出现同一实例 | **已定性：资产缺口**。`artmd.ini [NATBNK] NewTheater=yes`，导出集只有 `mix_exports/art/snow/natbnk.shp`（与 `_b`），`2peaks.map` 是 TEMPERATE | 中：任何「建筑可见/可点/有影子」的断言在该图上是不可满足的，先把这个洞标出来 | 资产侧：补 temperate 变体，或让冒烟换一张带可加载建筑的图 | **A** | 简单 | 待修复（第 8 轮登记） | `reports/FIX-09-建筑零投影的三桶计量.md` §2 |
-| M-20 | 离屏帧被记成「空掩码」 | `drawRuntimeVoxelShadowMask` 在 `!rectIntersects(imageRect, viewport)` 与 `clippedStartX >= clippedEndX` 两处直接 `return true`，`darkenedPixels` 保持 0，调用方看到的是「掩码解析成功但没压暗」 | **待验**：返回值同时承担「掩码有效」与「画了」两种语义，离屏/裁剪路径在统计上与真正的空掩码不可区分；`CAOILD` trace 已实测 `intersects=0` 走的就是这条 | 中：它可能是 M-18 的真因，也可能只是让 M-18 的读数失真的旁证 | 小：`drawRuntimeVoxelShadowMask` 增一个「是否真的落在视口内」的输出位，调用方据此分开计数 | **A** | 中等 | 待修复（第 8 轮登记，先做再动掩码） | `reports/FIX-09-建筑零投影的三桶计量.md` §2 |
+| M-18 | 建筑完全不投影（`render` 的真红） | 自然地图阴影 `candidates=7 drawn=5 shp=5` 但 `structures=0`；`structureCand=2 structureEmpty=2`——两个候选进了地面阴影通道、掩码「解析成功」，却一个像素都没压暗 | **仍未定性，但排除了一条**：第 8 轮加 `CONCORD_SHADOW_TRACE` + 第三桶 `structureNoArt` 后，测得自然地图上确实存在 0×0 的 `NATBNK`（`NewTheater` 只有 `art/snow` 变体，图为 TEMPERATE），但 `structureNoArt=0` 而 `structureEmpty=2`，**记录侧那两个候选不是空体建筑**，故「资产缺口」解释不成立。剩下的可疑路径：①帧矩形与 viewport 不相交/裁剪到零宽时 `drawRuntimeVoxelShadowMask` 也 `return true` + 0 像素 ②span 生成空 | 高：建筑没有影子是画面硬伤 | 下一步很便宜：在 `recordRuntimeWorldObjectShadowResult` 里打印 type/instance/rect/intersects（追踪要打在记录点才能与汇总对上），一次构建即可裁定 ①/② | **A** | 中等 | 已定性并修门禁（`8b14b61`）：**非产品缺陷**。帧被 ore 探针居中到无 overlay 空地，建筑必在视口外；自证帧 `CAAIRP` = `drawn=4 pixels=13551` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
+| M-19 | 自然地图上的 `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0 nonzero=0 globalH=126`，`Structure sprites: 2 loaded, 0 missing` 却什么都画不出来；`render` 的 trace 里反复出现同一实例 | **已定性：资产缺口**。`artmd.ini [NATBNK] NewTheater=yes`，导出集只有 `mix_exports/art/snow/natbnk.shp`（与 `_b`），`2peaks.map` 是 TEMPERATE | 中：任何「建筑可见/可点/有影子」的断言在该图上是不可满足的，先把这个洞标出来 | 资产侧：补 temperate 变体，或让冒烟换一张带可加载建筑的图 | **C** | 简单 | 待修复（不再阻塞任何门禁：`CAAIRP` 已能投影，降为画面完整性待办） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
+| M-20 | 离屏帧被记成「空掩码」 | `drawRuntimeVoxelShadowMask` 在 `!rectIntersects(imageRect, viewport)` 与 `clippedStartX >= clippedEndX` 两处直接 `return true`，`darkenedPixels` 保持 0，调用方看到的是「掩码解析成功但没压暗」 | **待验**：返回值同时承担「掩码有效」与「画了」两种语义，离屏/裁剪路径在统计上与真正的空掩码不可区分；`CAOILD` trace 已实测 `intersects=0` 走的就是这条 | 中：它可能是 M-18 的真因，也可能只是让 M-18 的读数失真的旁证 | 小：`drawRuntimeVoxelShadowMask` 增一个「是否真的落在视口内」的输出位，调用方据此分开计数 | **A** | 简单（实测后降级：一个函数 + 1 个 out 参数） | 已完成（`dd6eb31`）：读数由 `empty=2` 变 `off=2/empty=0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §1 |
+| M-21 | `render` 矿喷发动画未被判为「已画」 | `oreGrowthSpawnerAnimationDrawn=false frames=11`，而 `ran/changed/ring=1/overlay` 全绿；被阴影门禁屏蔽 6 轮，第 9 轮门禁拆开后才露出来（改前基线日志逐字相同） | 未明：`frames=11` 说明帧号在推进，两种可能——①动画层数为 0（没进绘制循环）②层在但压暗像素为 0（同 M-18 的返回值语义问题，现已可分流） | 中：清掉 `render` 当前阻塞点 | 先看 `oreGrowthSpawnerAnimationDrawn` 的置位处（`RuntimeShell.cpp` ~34960 上游），再决定加计量还是直接修 | **A** | 中等 | 待修复（第 9 轮登记） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §5 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -92,13 +94,29 @@
 
 ## 五、本轮（2026-11-12 第 9 轮）打包清单
 
-主题：**把「掩码有效」与「真的画了」分开**。上一轮把 `render` 的资产缺口解释否掉后，
-剩下的唯一分歧是「离屏/裁剪被记成空掩码」和「span 生成空」——两者都表现为
-`masks resolved=7 drawn=5`，必须给返回值加一个「是否真的落在视口内」的输出位才能分开。
-本批取 **S-10（日志误报，简单）+ M-20（返回值语义，实测后重分级为简单）**，
-一次构建、一次回归；M-18 的定性挂在这批的计量上，拿到数字再决定是否当轮落修复。
+主题：**把「掩码有效」与「真的画了」分开**。S-10（日志分级）+ M-20（返回值语义）+ M-18
+（定性收口），一次构建、一次回归。报告 `reports/FIX-10-阴影掩码四桶与结构自证帧.md`。
 
-开工基线：`PASS=8 KNOWN-RED=3 RED-NEW=0`（`progress/regress/20261112-095823`）。
+- **S-10 → 已完成（`5ce280b`，简单）**：逐条重复告警聚合成一条 `data-note`，带首次出现的
+  item 下标；`Corrupt` 仍单独报。`core` 输出从 1 条噪声变成 1 条可读事实。
+- **M-20 → 已完成（`dd6eb31`，实测后重分级为简单）**：`drawRuntimeVoxelShadowMask` 的 `bool`
+  兼作「有效/已画」，离屏与裁剪两条路都 `return true` 且 `darkenedPixels=0`。改为可选
+  `RuntimeShadowMaskOutcome`，结构阴影从 3 桶改 4 桶（`structureOff`/`structureClip`），
+  读数由 `empty=2` 变为 `off=2/empty=0`。
+- **M-18 → 已定性并修复门禁（`8b14b61`）**：**不是产品缺陷**。该帧被 ore 探针居中到一排
+  「无 overlay 的空地」，建筑必然在视口外；`structureShadowsDrawn>0` 与其取景互斥。
+  拆除该条到独立的「自证帧」：逐栋建筑对焦、独立 DIB/缓存，搜到第一栋真的压暗为止
+  （缺剧场美术的建筑合法地不投影，不能混进管线判据）。`focus=CAAIRP` 即 `drawn=4 pixels=13551`。
+- **M-19 → 状态不变（资产缺口，不再阻塞）**：`CAAIRP` 能投影后，NATBNK 的 temperate 缺图
+  不再影响任何门禁判定，降级为「画面完整性」待办。
+
+回归：`PASS=8 KNOWN-RED=3` → **`PASS=8 KNOWN-RED=3`**，`RED-NEW=0`（`20261112-101458`）。
+`render` 仍红，但**阻塞点后移到 M-21**（矿喷发动画 `anim=no/frames=11`，改前基线逐字相同）。
+
+移出本批：无。新登记 **M-21**（矿喷发动画未被判为已画，中等）。
+
+下一轮起手：**M-21**——先看 `oreGrowthSpawnerAnimationDrawn` 的置位处，分辨「动画层数 0」
+还是「层在但像素 0」；其次 **M-12**（右键命中的可见性门）。
 
 ## 五-旧、第 8 轮（2026-11-12）打包清单（存档）
 
