@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 116,
-  "updated": "2026-11-12T19:50:00+08:00",
+  "version": 117,
+  "updated": "2026-11-12T21:20:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2566,6 +2566,15 @@
       "verify": "守卫能跑通且 baseline 与当前源码树一致（无 stale 条目）",
       "complexity": "简单（阻塞在产物）",
       "value": "C"
+    },
+    {
+      "id": "M-02",
+      "status": "measuring",
+      "title": "框选按包围盒判，含精灵帧透明留白",
+      "detail": "原写「框选用世界坐标、投影用表面坐标」，第 13 轮已证伪：拖拽框与命中共用 leftPointer.start/current，runtimeRightPointerNative* 是恒等转换，实测 picked(4)==bbox(4)。真实形态是包围盒含精灵帧透明留白（移动帧还会变矮变宽），读数 band=8,8 513,632 bbox=4 center=3 bboxOnly=1，样本 #9003 包围盒只有 10px 进框、中心在框外。下一步先给单位侧补可见像素范围计量（建筑侧已有 extractRuntimeBuildingVisibleHitSpans，单位侧没有），再在「判中心」与「按可见跨度」两种改法里选一个。",
+      "verify": "框外单位不被选中（反向断言）+ 框内可见像素必被选中；interaction 冒烟走真实 DOWN/MOVE/UP 消息",
+      "complexity": "中等",
+      "value": "A"
     }
   ],
   "decisions": {
@@ -2612,6 +2621,23 @@
         "topic": "断言里的时间单位",
         "decision": "凡「帧 / 拍 / 毫秒」同处一段，变量名带单位后缀（...FrameDelay / ...TickDelay）",
         "effect": "M-21 卡 10 轮的根因就是 AnimationRate（帧）被当拍用，两个词在相邻行出现却无人核。"
+      }
+    ]
+  }
+,
+  "decisions_20261112_r13": {
+    "date": "2026-11-12",
+    "source": "第 13 轮（FIX-14）",
+    "items": [
+      {
+        "topic": "自测断言必须跑产品链路",
+        "decision": "冒烟里凡「自己重算一遍期望值再直接调最终应用函数」的写法，一律改成投递真实消息/走真实入口",
+        "effect": "interaction 的框选断言十二轮都是同义反复（自己算 bbox 相交再 applySelection），产品拖选链路零覆盖；换成 DOWN/MOVE/UP 三条消息后立刻能量出 bbox 与中心口径的差。与 U-12 红灯、L10N-03 红叉同族：performClick/直调 action 不算用户路径。"
+      },
+      {
+        "topic": "台账里的根因也是待验假设",
+        "decision": "条目根因写「未证」直到有读数；读数与描述冲突时改描述，不改产品去迁就描述",
+        "effect": "M-02 的「两套坐标未对齐」与 M-12/M-14 的「aligned=no / hit mismatch」同一类：一句话症状把多谓词压扁，实测每次都推翻原描述。"
       }
     ]
   }
