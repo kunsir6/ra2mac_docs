@@ -7165,3 +7165,27 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
   否则一律按新回归算——误报一次的成本（人看一眼）远低于漏报一次的成本（一小时才发现）。
 - 简单区被前 11 轮清空后，**不为凑批量去拆中等问题**当简单项做；宁可一轮只做一条，
   也不做一批未经计量的猜测。
+
+## 2026-11-12 21:15 · M-02 · measuring（第 13 轮）
+
+- `interaction` 的「Box selection」断言原来是**同义反复**：自己重算一遍「包围盒 ∩ 矩形」
+  再直接 `applySelection`，产品的拖选链路（`handleRuntimeMapLeftPointerUp` → `boxProjectionItems`）
+  一次都没被执行。改为 `WS_POPUP` 不上屏窗口 + `PostMessageW(WM_LBUTTONDOWN/MOUSEMOVE/LBUTTONUP)`
+  穿过 `runtimeWindowProc`，断言改成「产品选中集合 == 独立算出的包围盒集合」。
+- 顺带把 M-02 的两种口径分开计数：`band=8,8 513,632 bbox=4 center=3 bboxOnly=1 picked=4`；
+  `#9003`（HTNK，cell 103,99）包围盒 `(503,481)-(561,523)` 只有 10px 进框、中心在框外。
+- **原根因被证伪**：不是「世界坐标 vs 表面坐标」，拖拽框与命中共用同一对 `leftPointer.start/current`，
+  且 `picked == bbox`（真错位会系统性偏向一边）。真实形态是包围盒含精灵帧透明留白。
+- 未做：那 10px 条带里有多少可见像素——单位侧没有 `extractRuntimeBuildingVisibleHitSpans` 的对应物。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（基线 `20261112-201018` → 收口 `20261112-201714`），
+产品代码零改动（`ConcordRTS` 只有一条 test:）。队列 v116 → v117：新增 M-02 measuring。
+报告 `reports/FIX-14-框选断言穿过消息循环.md`。
+
+### 决策
+
+- 「自测自己算期望值再直调最终应用函数」= 假门，与 U-12 绿灯、L10N-03 红叉同族。
+  断言必须能抓到链路断掉，而不只是抓到函数返回。
+- 台账里的根因也是待验假设：读数与描述冲突时改描述，不改产品去迁就描述。
