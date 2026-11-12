@@ -13,7 +13,14 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 11:02（第 9 轮收口：基线 **8/3/0** → **8/3/0**，零新回归。
+> 最近更新：2026-11-12 12:12（第 10 轮开工：基线 **8/3/0**（`20261112-120122`）。
+> **本轮第一发现：known-red 行正在掩盖新回归**。`ffdd7c5`（10:42，BUILD-03 速度阶梯）把 6 档从
+> 「零等待哨兵」改成 5 档 ×1.5=281 拍/秒，但 interaction 冒烟里两张节奏表仍钉着 `speed6 → 0`，
+> 于是 ESC 菜单断言先红（`gameSpeedSlider=geometry:yes/coord:no/pacing:no/drag:yes/kbd:yes`）。
+> interaction 本来就是 known-red，`regress.sh` 不会报 RED-NEW；且该断言在 `RuntimeShell.cpp:38131`，
+> 排在 footprint 命中（40422）**之前** → **M-12 这一轮根本测不到**。登记 S-11 修掉这道假门。）
+>
+> 第 9 轮收口：基线 **8/3/0** → **8/3/0**，零新回归。
 > **M-18 定性翻案**：建筑投影不是产品缺陷，是门禁在自己的帧里看不见建筑——ore 探针把镜头
 > 居中到「无 overlay 的空地」（探针判据本身就是没盖东西），同一帧要 `structureShadowsDrawn>0`
 > 构造性不可能。M-20 四桶计量给出 `structureOff=2/empty=0`，自证帧第一栋 `CAAIRP` 即
@@ -37,13 +44,14 @@
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 | S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 已完成（`5ce280b`） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §3 |
 
-> **简单区现状（第 8 轮核对）**：S-01~S-09 全部已完成或已废弃，只剩 S-08（与 M-03 同源，须合并做）
-> 和本轮新登记的 S-10（日志误报，C 级）。**可打包的简单批已经用尽**——前 7 轮把「夹具/探针口径」
-> 这一类便宜活清完了，后续每轮起手应从「中等」里取一条，按单条中等成轮执行。
-
-## 二、待修复 —— 中等
+> **简单区现状（第 10 轮核对）**：S-01~S-10 全部已完成或已废弃，只剩 S-08（与 M-03 同源，须合并做）。
+> 第 10 轮新登记 S-11，性质是「别人改了产品语义、断言没跟上」，属典型简单批（两文件、根因由断言输出直接指认）。
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
+|---|---|---|---|---|---|---|---|---|---|
+| S-11 | 速度阶梯改了，两处断言表还在钉旧哨兵 | interaction 的 ESC 菜单断言红在 `gameSpeedSlider`；`gameSpeedSlider=yes/no/no/yes/yes` → 几何/拖拽/键盘三组绿，**坐标组与全局节奏组红**。support-power 冒烟同样在 `initialRate != 0` 上判 fail | **已定性：断言表过期，不是产品缺陷**。`ffdd7c5` 把 7 档改为 31/37.5/46.88/62.5/93.75/187.5/281.25（6 档 = 5 档×1.5，`unlimited()` 恒 false）；`RuntimeShell.cpp:37667` 仍写 `== 0`、`expectedGameSpeedPacing` 末位仍写 `0`、`RuntimeSupportPowerSmoke.inl` 仍留 `initiallyUncapped/changedUncapped` 两支 | 高：它挡在 interaction 冒烟**靠前**的 ESC 菜单段，不清掉 M-12 永远测不到；清掉后该条才有信号价值 | 两文件共 ~15 行：两张表末位改 281、拆掉 uncapped 分支 | **S** | 简单 | 第 10 轮修复 |
+
+## 二、待修复 —— 中等
 |---|---|---|---|---|---|---|---|---|---|
 | M-01 | EVO-08 compat 实现 CP1252 解码 | 零售 `Text=` 的智能标点（0x85/0x91…）被逐字节 widen 成控制字符，`build` 条常驻红 | compat 只有 UTF-8 分支，CP1252 直接返回 0 | 高：影响所有零售文本（含 EVA 字幕） | 编码表 + 请求路由 | **A** | 中等 | 已完成（FIX-02） | `reports/FIX-02-CP1252解码.md` |
 | M-02 | ON-4-07 box selection 与投影不一致 | 框选结果和画面上框住的单位对不上 | 框选用世界坐标，投影用表面坐标，两套换算未对齐 | 中高：操作手感 | 换算对齐 + 断言 | **A** | 中等 | 待修复 | — |
@@ -56,7 +64,7 @@
 | M-09 | `build` 建筑健康条比选择框高 2px | 健康条 `actual=61x33`，断言 `expected=61x31`（宽一致、分段 14/14 正常、无限血已正确隐藏） | **已定性：公式旧**。断言按「水平条」算高度（`+1`），实际血条贴冠顶**斜边**排布，包围盒 = 斜边竖直跨度(30) + 冠顶间隙(3) = 33 | 中：清掉 build 第 2 个阻塞点 | 1 处公式 + 常量共享 | **A** | 中等 | 已完成（`0e99bc1`；build 停在 M-11） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-10 | interaction 南向相机极值裸露 | 8 个钳制极值里只有 `S` 一项 `tile=398/625..458/655:no`：最南一行在视口底(640)以下被切 15px；`corners` 同时判红；void 全 0 | **已定性：实现是对的**。物理地图边缘的 reveal 预留被有意做成 −halfTile（相机提前半格停，把锯齿黑边留在客户区外）；错的是「极值 cell 必须完整可见」这条断言，与 `physicalMapEdgeCovered` 直接矛盾。钳到 0 后 void 立刻 0.012/856px，反证策略必要性 | 中：清掉 interaction 第 2 个阻塞点 | 允许溢出量 = 该方向负预留 | **A** | 中等 | 已完成（`469cfa8`；interaction 停在 M-12） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | **已定性：夹具缺口**。默认图 `Units=0`；且必须用 `addRuntimeObjectInstance` 生成（手搓结构体会绕过 pose/`hasRenderPosition`，像素画得出来但命中回不到自己），落点还要保证「自身包围盒中心命中回自己」 | 中：清掉 `build` 第 3 个阻塞点 | 注入 1 台己方 MTNK + 环型找落点 + 探针后按 id 摘掉 | **A** | 简单 | 已完成（`0ce035a`；build 停在 M-14） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
-| M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄，`799c9b6`；**故意不动命中逻辑**） | `reports/FIX-06-选择框与命中框的两条口径.md` §2 |
+| M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄，`799c9b6`；**故意不动命中逻辑**）。第 10 轮补充：**当前测不到**——ESC 菜单断言（`RuntimeShell.cpp:38131`）排在其前且被 S-11 判红，S-11 修完才轮到它 | `reports/FIX-06-选择框与命中框的两条口径.md` §2 |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
 | M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
 | M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
@@ -92,7 +100,15 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 9 轮）打包清单
+## 五、本轮（2026-11-12 第 10 轮）打包清单
+
+主题：**先修那道「假门」**。基线 `PASS=8 KNOWN-RED=3 RED-NEW=0`（`20261112-120122`），与第 9 轮收口一致；
+但交互条的红点已经从 M-12 前移到 ESC 菜单——`ffdd7c5` 改速度阶梯时漏改两张断言表。
+
+- S-11（简单，本批）：见 §一。
+- M-21（中等，本批第二条，视余量）：`render` 矿喷发动画 `anim=no/frames=11`。
+
+## 五-旧、第 9 轮（2026-11-12）打包清单（存档）
 
 主题：**把「掩码有效」与「真的画了」分开**。S-10（日志分级）+ M-20（返回值语义）+ M-18
 （定性收口），一次构建、一次回归。报告 `reports/FIX-10-阴影掩码四桶与结构自证帧.md`。
