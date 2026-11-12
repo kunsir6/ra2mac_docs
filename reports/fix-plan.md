@@ -13,7 +13,11 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 19:50（第 11 轮收口：`9/2/0` → **`10/1/0`**，零新回归。
+> 最近更新：2026-11-12 20:05（第 12 轮开工：基线 `10/1/0`（`20261112-200207`），与第 11 轮收口一致。
+> 本轮主题：**给回归门禁补一道「红的是同一件事」的闸**——S-12 落地（known-red 第 4 列存失败前缀），
+> 并顺手清两条同族的简单项。唯一 known-red 仍是 `command`（C-02 两栖卸载，复杂）。
+>
+> 第 11 轮收口：`9/2/0` → **`10/1/0`**，零新回归。
 > 本轮主题：**把「空 span 表两种语义」钉死**。M-12 加四桶计量后当场定性——不是可见性门错杀，
 > 也不是谁挡住谁，而是**被采样的建筑整栋落在 map viewport 之外**（`drawsOffView=1 / visiblePixels=0`），
 > 拿它去断言「点得到」构造性不可满足，与 M-18 同一条纪律。**`interaction` 转 PASS**，
@@ -48,13 +52,17 @@
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 | S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 已完成（`5ce280b`） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §3 |
 
-> **简单区现状（第 11 轮核对）**：S-01~S-11 全部已完成或已废弃，S-08（与 M-03 同源，须合并做）之外
-> 只剩本轮新登记的 S-12（known-red 失败前缀门禁），下一轮可直接作简单批的起手项。
-> 第 10 轮新登记 S-11，性质是「别人改了产品语义、断言没跟上」，属典型简单批（两文件、根因由断言输出直接指认）。
+> **简单区现状（第 12 轮开工核对）**：S-01~S-11 全部已完成或已废弃；在册简单项为
+> S-12（known-red 失败前缀门禁，**本轮做**）、S-08（与 M-03 同源，须合并做）、
+> S-13（结构守卫基线陈旧，卡在缺 `--inventory/--trace` 产物，本轮不做）。
+> 另逐条核对了两条「报告里的遗留」：`ICM_QUERY/ICM_OFF` 反写（`b0与S5` 报告）**早已修复**
+> （`windows.h:1228` 留了实测记录，见 §四），不作为待办重开；U-16 的「全局 pin 部署目标」属复杂，
+> 321 个测试目标要跟编，留作单独成轮。
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|
 | S-11 | 速度阶梯改了，两处断言表还在钉旧哨兵 | interaction 的 ESC 菜单断言红在 `gameSpeedSlider`；`gameSpeedSlider=yes/no/no/yes/yes` → 几何/拖拽/键盘三组绿，**坐标组与全局节奏组红**。support-power 冒烟同样在 `initialRate != 0` 上判 fail | **已定性：断言表过期，不是产品缺陷**。`ffdd7c5` 把 7 档改为 31/37.5/46.88/62.5/93.75/187.5/281.25（6 档 = 5 档×1.5，`unlimited()` 恒 false）；`RuntimeShell.cpp:37667` 仍写 `== 0`、`expectedGameSpeedPacing` 末位仍写 `0`、`RuntimeSupportPowerSmoke.inl` 仍留 `initiallyUncapped/changedUncapped` 两支 | 高：它挡在 interaction 冒烟**靠前**的 ESC 菜单段，不清掉 M-12 永远测不到；清掉后该条才有信号价值 | 两文件共 ~15 行：两张表末位改 281、拆掉 uncapped 分支 | **S** | 简单 | 已完成（`d69980d`；interaction 越过 ESC 菜单段，回到 M-12） | `reports/FIX-11-被known-red掩盖的新回归.md` §1 |
+| S-13 | 结构守卫基线列着已删文件 | `tools/structure/structure-baseline.json` 仍列 U-15 已删的两个文件；守卫是开发期静态检查（不在构建链里），本机没有它的 `--inventory/--trace` 产物，从没跑过 | 基线是「人工审过的精确清单」，删除文件后没回写；守卫本身没有生成产物的入口脚本 | 低：守卫当前不参与判定，脏基线只会在下次跑守卫时误报 | 需先补产物（守卫的 inventory/trace 由谁生成尚未查清），再重生成基线 | **C** | 简单（但阻塞在产物） | 待修复（第 12 轮登记，来自 `U-15` §遗留） | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | S-12 | known-red 会吞掉「失败原因被换掉」的新回归 | S-11 那次：交互条本来就红，速度表回归把红点从 footprint 前移到 ESC 菜单，三态判定仍报 KNOWN-RED。**只有人读日志才发现**，机器判定完全盲 | `regress.sh` 对已登记 id 只看「非零退出码」，不比对失败文案；`known-red.tsv` 也只记一句自由文本原因，没有可比对的锚 | 高：这是回归门禁可信度的地基——现在的 KNOWN-RED 只保证「红」，不保证「红的是同一件事」 | 小：`known-red.tsv` 第 4 列存失败前缀，`regress.sh` 只对该行做字符串包含比对；不一致即判 RED-NEW 并把两侧前缀打进报告 | **A** | 简单 | 待修复（第 11 轮登记，来自 `FIX-11` §「下一轮起」） | `reports/FIX-11-被known-red掩盖的新回归.md` §4 |
 
 ## 二、待修复 —— 中等
@@ -103,6 +111,7 @@
 | L10N-01/02/03 界面简中化、字形、红叉 | 已完成 | `reports/L10N-*.md` |
 | ON-2-01 呈现缓存（去掉每帧 CGImageCreate） | **已废弃**（方向被证伪） | 「不能缓存 CGImage」的结论本身成立，但当时的方案（按指针+尺寸缓存）会冻帧，见 `reports/ON-2-01-呈现缓存否定报告.md` |
 | ON-5-02b 30 分钟存活 | 待修复（仍是 pending，属长时间人肉验收，不占本轮） | — |
+| S1 遗留：`ICM_QUERY`/`ICM_OFF` 取值反写 | **已完成（早于本台账，第 12 轮核对确认无需重开）** | `compat/win32/include/windows.h:1228` 已按 windwingdi.h 校正为 QUERY=1/ON=2/OFF=3，并写明「反写会让 `SetICMMode(dc,ICM_QUERY)!=ICM_OFF` 变成永远碰巧成立的假断言」；`RuntimeTerrainViewportFill.h:75`、`RuntimeRadarPixelStoreWin32.cpp:35` 的断言现在是真的在判 |
 
 ---
 
