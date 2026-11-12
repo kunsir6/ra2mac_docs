@@ -4,6 +4,5 @@
 #              / code-red:needs-metering（疑为产品缺陷，先加只读计量再定性）
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-interaction	几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）已全部通过，M-12 收窄到右键命中：命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后无人顶替（见 fix-plan M-12）	code-red:needs-metering
-render	自然地图阴影管线已证真：掩码四桶把 structureEmpty 拆成 structureOff=2（ore 探针把镜头居中到无 overlay 空地，建筑必在视口外），自证帧 CAAIRP = drawn=4 pixels=13551，M-18/M-20 已收口。当前阻塞点是矿喷发动画 oreGrowthSpawnerAnimationDrawn=false frames=11（改前基线逐字相同，非当轮引入），见 fix-plan M-21	code-red:needs-metering
+interaction	ESC 菜单段已过（S-11 修掉被掩盖的速度表回归）。当前停在 structure footprint hit mismatch：spansSprite=140/foreground=0/visible=0，整栋 CABUNK02 在深度重放里零可见像素，不是该像素被挡；空 span 表同时表示「没参加重放」与「全被挡住」，pick 侧分不出（见 fix-plan M-12、reports/FIX-11 §3）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

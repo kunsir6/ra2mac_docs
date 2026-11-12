@@ -7079,3 +7079,37 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
 改前基线日志逐字相同 → 被屏蔽 6 轮的前置失败，非本轮引入）。
 队列 v112 → v113：M-18 / M-20 done，新增 M-21；`known-red.tsv` 的 `render` 行改写。
 报告 `reports/FIX-10-阴影掩码四桶与结构自证帧.md`。
+
+---
+
+## 2026-11-12 第 10 轮：被 known-red 掩盖的新回归 + `render` 转 PASS
+
+**主题**：三态判定只保护「不许新增红」，不保护「已知红的原因被换掉」。
+
+### 做了什么
+
+1. **S-11（`d69980d`）**：开工基线仍是 `8/3/0`，与上轮逐字一致，但 interaction 的失败文案
+   已经从 `structure footprint hit mismatch` 换成 `original ESC menu state/resources`。
+   `ffdd7c5`（BUILD-03）把 6 档从零等待改成 5 档×1.5 = 281.25 拍/秒，interaction 里
+   `gameSpeedSliderRight` 与 `expectedGameSpeedPacing` 末位仍钉 `0`，support-power 仍按
+   uncapped 两支要求 6 档速率为 0。三处一起改到 281。
+   **关键点**：这条在冒烟里排在 footprint 命中之前，不清掉它 M-12 根本测不到。
+2. **M-21（`bf5fd7c`）**：`render` 第 1 轮就红，十轮没清掉。根因是单位：
+   探针推 `eventTick + AnimationRate`（帧），渲染侧 `delay = runtimeRuleFramesToTicks(3,30) = 6` 拍，
+   `eventAge/delay` 恒 0 → 永远第 0 帧。改按拍推进后 `anim=yes/frames=11`。
+   产品渲染路径零改动，`render` **首次转 PASS**。
+3. **M-12（`0e72a10`，只计量）**：四层 spans 读数 `sprite=140/foreground=0/visible=0`，
+   `inSprite=yes/inVisible=no` —— 整栋楼零可见像素，不是「该像素被挡」。
+   问题改写为「空 span 表同时表示『没参加重放』与『全被挡住』，pick 侧分不出」。
+
+### 验证
+
+回归 **PASS=9 KNOWN-RED=2 RED-NEW=0**（基线 8/3/0 → 收口 9/2/0，`20261112-121717`）。
+队列 v113 → v114：M-21 done、新增 S-11 done；`known-red.tsv` 删 `render` 行、改写 `interaction` 行。
+报告 `reports/FIX-11-被known-red掩盖的新回归.md`。
+
+### 决策
+
+- `known-red.tsv` 每行再记一截**失败前缀**，前缀变化时单独报 `RED-NEW(cause-changed)`。
+  否则「原因是新来的、条目标记是旧的」这种红永远不报警（本轮就吃了一记）。
+- 凡「帧 / 拍 / 毫秒」同处一段，变量名带单位后缀。

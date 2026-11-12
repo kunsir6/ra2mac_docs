@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 113,
-  "updated": "2026-11-12T08:50:00+08:00",
+  "version": 114,
+  "updated": "2026-11-12T12:22:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2521,12 +2521,21 @@
     "value": "A"
   },
   {    "id": "M-21",
-  "status": "pending",
-  "title": "render 矿喷发动画未被判为「已画」",
-  "detail": "oreGrowthSpawnerAnimationDrawn=false frames=11，而 ran/changed/ring=1/overlay 全绿。被阴影门禁屏蔽 6 轮，第 9 轮把门禁拆开后才露出（改前基线日志逐字相同，非当轮引入）。frames=11 说明帧号在推进，先看置位处（RuntimeShell.cpp ~34960 上游）分清「动画层数为 0」与「层在但压暗像素为 0」。",
-  "verify": "render 越过矿喷发断言，或把它拆成两个可分辨的桶。",
+  "status": "done",
+  "title": "render 矿喷发动画未被判为「已画」（已完成：探针把帧当拍用）",
+  "detail": "根因是单位错：探针把 tick 推到 eventTick + AnimationRate（帧），而渲染侧 delay = runtimeRuleFramesToTicks(3,30) = 6 拍，于是 eventAge=3 < delay，eventAge/delay 恒为 0，永远选第 0 帧。改为按拍推进后 anim=yes/frames=11。产品渲染路径零改动。commit bf5fd7c。",
+  "verify": "Resource growth probe: spawners=5 ... anim=yes/frames=11（render 整条 PASS）",
   "complexity": "中等",
   "value": "A"
+  }  ,
+  {
+    "id": "S-11",
+    "status": "done",
+    "title": "速度阶梯改成 281 后，两张断言表仍钉旧的 0 哨兵",
+    "detail": "ffdd7c5（BUILD-03）把 6 档从零等待改成 5 档×1.5=281.25 拍/秒，但 interaction 的 gameSpeedSliderRight 与 expectedGameSpeedPacing 末位仍是 0，support-power 也仍按 uncapped 两支要求 6 档速率为 0。该红藏在 interaction 已有的 known-red 行里，regress 不报 RED-NEW；且 ESC 菜单断言排在 footprint 命中之前，导致 M-12 测不到。commit d69980d。",
+    "verify": "interaction 越过 ESC 菜单段、回到 structure footprint hit mismatch",
+    "complexity": "简单",
+    "value": "S"
   }  ],
   "decisions": {
     "date": "2026-11-11",
@@ -2556,6 +2565,22 @@
         "topic": "最终交付形态（架构）",
         "decision": "出两份 thin 产物：Intel 机器出 x86_64，arm 机器出 arm64；不做 universal fat binary",
         "effect": "源码仍是一份、两组编译参数（CMAKE_OSX_ARCHITECTURES）。交付目录 dist/ 下按架构命名；两个产物实测菜单位图 SHA-256 完全相同。Intel 产物最终验收应在真 Intel 机器上做。"
+      }
+    ]
+  },
+  "decisions_20261112": {
+    "date": "2026-11-12",
+    "source": "第 10 轮（FIX-11）",
+    "items": [
+      {
+        "topic": "known-red 只按条目标记，会掩盖新回归",
+        "decision": "known-red.tsv 每行再记一截失败前缀；regress 比对到前缀变化时报一条 RED-NEW(cause-changed)",
+        "effect": "本轮 interaction 换了失败原因（ESC 菜单 ← structure footprint）却仍显示 KNOWN-RED，RED-NEW=0 是假的安全感。待 regress.sh 实现。"
+      },
+      {
+        "topic": "断言里的时间单位",
+        "decision": "凡「帧 / 拍 / 毫秒」同处一段，变量名带单位后缀（...FrameDelay / ...TickDelay）",
+        "effect": "M-21 卡 10 轮的根因就是 AnimationRate（帧）被当拍用，两个词在相邻行出现却无人核。"
       }
     ]
   }
