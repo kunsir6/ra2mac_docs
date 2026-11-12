@@ -13,10 +13,11 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 19:30（第 11 轮开工：基线 **`9/2/0`**，`20261112-190119`，与第 10 轮收口一致。
+> 最近更新：2026-11-12 19:50（第 11 轮收口：`9/2/0` → **`10/1/0`**，零新回归。
 > 本轮主题：**把「空 span 表两种语义」钉死**。M-12 加四桶计量后当场定性——不是可见性门错杀，
 > 也不是谁挡住谁，而是**被采样的建筑整栋落在 map viewport 之外**（`drawsOffView=1 / visiblePixels=0`），
-> 拿它去断言「点得到」构造性不可满足，与 M-18 同一条纪律。
+> 拿它去断言「点得到」构造性不可满足，与 M-18 同一条纪律。**`interaction` 转 PASS**，
+> 唯一 known-red 只剩 `command`（C-02 两栖卸载，复杂）。
 >
 > 第 10 轮收口：`8/3/0` → **`9/2/0`**，零新回归。
 > **`render` 十轮来首次转 PASS**（M-21 是探针把「帧」当「拍」，产品零改动）；
@@ -47,7 +48,8 @@
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 | S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 已完成（`5ce280b`） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §3 |
 
-> **简单区现状（第 10 轮核对）**：S-01~S-10 全部已完成或已废弃，只剩 S-08（与 M-03 同源，须合并做）。
+> **简单区现状（第 11 轮核对）**：S-01~S-11 全部已完成或已废弃，S-08（与 M-03 同源，须合并做）之外
+> 只剩本轮新登记的 S-12（known-red 失败前缀门禁），下一轮可直接作简单批的起手项。
 > 第 10 轮新登记 S-11，性质是「别人改了产品语义、断言没跟上」，属典型简单批（两文件、根因由断言输出直接指认）。
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
@@ -68,7 +70,7 @@
 | M-09 | `build` 建筑健康条比选择框高 2px | 健康条 `actual=61x33`，断言 `expected=61x31`（宽一致、分段 14/14 正常、无限血已正确隐藏） | **已定性：公式旧**。断言按「水平条」算高度（`+1`），实际血条贴冠顶**斜边**排布，包围盒 = 斜边竖直跨度(30) + 冠顶间隙(3) = 33 | 中：清掉 build 第 2 个阻塞点 | 1 处公式 + 常量共享 | **A** | 中等 | 已完成（`0e99bc1`；build 停在 M-11） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-10 | interaction 南向相机极值裸露 | 8 个钳制极值里只有 `S` 一项 `tile=398/625..458/655:no`：最南一行在视口底(640)以下被切 15px；`corners` 同时判红；void 全 0 | **已定性：实现是对的**。物理地图边缘的 reveal 预留被有意做成 −halfTile（相机提前半格停，把锯齿黑边留在客户区外）；错的是「极值 cell 必须完整可见」这条断言，与 `physicalMapEdgeCovered` 直接矛盾。钳到 0 后 void 立刻 0.012/856px，反证策略必要性 | 中：清掉 interaction 第 2 个阻塞点 | 允许溢出量 = 该方向负预留 | **A** | 中等 | 已完成（`469cfa8`；interaction 停在 M-12） | `reports/FIX-04-两条断言的几何口径.md` |
 | M-11 | `build` 悬停血条找不到单位 | 血条断言转绿后，`build` 停在新阻塞 `no unit available for hover health bar`：夹具世界里只有建筑与地形，没有可悬停的单位 | **已定性：夹具缺口**。默认图 `Units=0`；且必须用 `addRuntimeObjectInstance` 生成（手搓结构体会绕过 pose/`hasRenderPosition`，像素画得出来但命中回不到自己），落点还要保证「自身包围盒中心命中回自己」 | 中：清掉 `build` 第 3 个阻塞点 | 注入 1 台己方 MTNK + 环型找落点 + 探针后按 id 摘掉 | **A** | 简单 | 已完成（`0ce035a`；build 停在 M-14） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
-| M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 再一档计量（该像素上所有 spans 命中者的 depthVis 清单）→ 定性 → 单点修 | **A** | 中等 | 待修复（已计量收窄两层，`799c9b6` + `0e72a10`；**故意不动命中逻辑**）。第 10 轮读数：`spansSprite=140 spansForeground=0 spansVisible=0 inSprite=yes inVisible=no` —— **整栋楼零可见像素**，不是该像素被挡；14 个对象里也没有第二个候选。问题改写为「空 span 表同时表示『没参加重放』与『全被挡住』，pick 侧分不出」。下一轮先在 `extractRuntimeBuildingVisibleHitSpans` 里按 id 记 `draws`/`rect∩viewport`/`visibleOwner` 像素数分桶 | `reports/FIX-11-被known-red掩盖的新回归.md` §3 |
+| M-12 | interaction 建筑「画得出、点不到」 | `structure footprint hit mismatch`。**原描述（命中框 vs 地基口径）已被计量推翻**：cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等、bounds 覆盖 footprint，5 组谓词只剩 `rightClickMatches`，且目标为 `nullptr`（不是打到别的建筑） | **已收窄未定性**：命中点 (1043,73) 上只有 `CABUNK02` 一个候选，`structureSpriteHitSpans` 含该像素但 depth-visible spans 不含，被 `buildingPixelVisible` 拦下后整条对象被 `continue`，该像素无人顶替。剩两种可能：①真被别的对象挡住（应返回挡它的那个）②深度重放把这只 bunker 前墙误判不可见（可见性门错杀）。两者改法相反，不能猜 | 中：清掉 interaction 最后一个阻塞点，直接改善建筑点选手感 | 断言前对焦样本建筑（21 行，纯冒烟） | **A** | 中等 | **已完成（`0b1f9e7` 计量 + `b855223` 修复，该条转 PASS）**。**已定性：不是产品缺陷，是取景问题**。四桶读数 `#8 CABUNK02 drawsInView=0 drawsOffView=1 visiblePixels=0 depthPixels=0`，该帧 `viewport=0,0,808,446`，而样本包围盒 `(983,58,1103,118)` —— 整栋落在视口右侧之外；`depthOnlyPixels=0` 同时排除「进过深度被压过」。上一段雷达场景把镜头停在地图几何中心，采样建筑与镜头互不约束，于是断言在要求一个屏幕上不存在的像素。`findProjectedObjectAtPoint` 未动（视口外返回 nullptr 是正确行为） | `reports/FIX-12-命中样本落在视口外.md` |
 | M-13 | 真实遭遇战开局取证通道（U-18 + EVO-03 合流） | `--skip-skirmish-menu` 进的是战役图 `2peaks.map`（`Units:0 / Structures:10 / Players:1`），出图里没有基地车与己方建筑，游戏内 HUD 整块没有可信对照物 | skip 路径没有走遭遇战 bootstrap，而是直接吃 `DefaultMap`；`--skirmish-build-smoke-test` 报 `modeRules=no alliesAllowed=no` 也说明它没经过大厅配置 | 高：它是 U-19/U-20/U-22 的前置，不打通则整个 HUD 对账无法判定 | 中等偏高：要么让 skip 路径构造标准遭遇战 setup，要么换默认多人图 + 补 owner 注入；两条都要动启动路径 | **A** | 中等（与 M-07 同源，落地时优先合并） | 待修复（UI-01 登记） | `reports/UI-01-正式版观感对账.md` §3.2 |
 | M-14 | `build` 移动帧选择框不覆盖可见身体 | 推进到第 4 个阻塞：`DLPH=43x25/43x25 aligned=no`（尺寸相同却不同过）、`SQD=92x51/100x41 aligned=no`（移动帧 sprite 变矮变宽）；MTNK/DEST/ZEP/ENGINEER 全绿 | 未明，两种成因必须切开：①尺寸谓词（`selectionBounds` 是否该锁固定尺寸）②锚点谓词（潜航 `renderCenter.y - center.y == tileHeight/2`、`pointInRectInclusive(bounds, selectionCenter)`）。DLPH 尺寸相等即指向 ② | 中：清掉 `build` 第 4 个阻塞点 | 先加只读计量（三个谓词分别计数）再定性 | **A** | 中等 | 已完成（`d2f36b3`；根因是断言公式，非产品） | `reports/FIX-06-选择框与命中框的两条口径.md` §1 |
 | M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
@@ -115,11 +117,20 @@
   且该帧 `viewport=0,0,808,446`，而建筑投影包围盒是 `(983,58,1103,118)` —— **整栋落在视口右侧之外**。
   「空 span 表两种语义」的两种候选（没参加重放 / 全被挡住）**都不成立**，`depthOnlyPixels=0` 也排除了
   「进了深度又被压过」。同一冒烟上一段把镜头停在雷达场景的几何中心，采样建筑因此在视口外。
-- **M-12 → 已修复**（test：对焦后再断言）：断言前先把样本建筑 `centerRuntimeCameraOnCell` 进视口，
-  再用同一套谓词。产品 pick 路径**零改动**（`findProjectedObjectAtPoint` 未动）。
+- **M-12 → 已修复**（`b855223` test）：断言前先把样本建筑 `centerRuntimeCameraOnCell` 进视口，
+  `ensureRuntimeCameraForViewport` + `invalidateRuntimeObjectProjectionCache` 后重建投影，再用同一套谓词。
+  产品 pick 路径**零改动**（`findProjectedObjectAtPoint` 未动）——视口外返回 nullptr 是正确行为。
+  对焦后同一条 trace 的视口由 `(0,0,808,446)` 变为 `(0,142,726,637)`，说明该帧视口随相机/地图边界裁剪，
+  「视口外」与「镜头停在哪儿」是同一条问题。
 - **S-12 → 待修复**（本轮登记，来自 FIX-11 的流程欠账）：known-red 只保证「红」，不保证「红的是同一件事」。
+  简单区再也不是空的——下一轮可直接当简单批做。
 
-回归：（收口后填）
+回归：`PASS=9 KNOWN-RED=2` → **`PASS=10 KNOWN-RED=1`**，`RED-NEW=0`（`20261112-191034`）。
+唯一 known-red 是 `command`（C-02 两栖卸载，复杂，需单独成轮）。
+
+移出本批：无。本轮没有启动第二条中等问题——简单区开工时为空（S-01~S-11 全完成），
+唯一在册的简单项 S-12 是本轮**新登记**的，登记与实现不同轮，避免把「门禁本身」和「门禁读数」
+混在同一次提交里。
 
 下一轮起手：**S-12**（known-red 失败前缀门禁），其次 **C-02**（command 两栖卸载，复杂，单独成轮）。
 
