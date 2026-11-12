@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 111,
-  "updated": "2026-11-12T08:08:00+08:00",
+  "version": 112,
+  "updated": "2026-11-12T08:50:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2036,7 +2036,7 @@
     {
       "id": "EVO-08",
       "title": "compat 实现 CP1252 解码：零售 Text= 的智能标点不再变控制字符",
-      "status": "pending",
+      "status": "done",
       "phase": "EVO 进化（能玩之后）",
       "tier": "T0",
       "detail": "EVO-02 定性：codePageSupported 只认 UTF-8/CP_ACP/CP_OEMCP，CP1252 请求直接返回 0；零售 evamd.ini 的 Text=Establishing battlefield control\\x85standby. 里 0x85 是省略号，UTF-8 严格解码失败后请求 1252 又被拒，widenRuntimeSubtitleText 退化为逐字节 widen，0x85 变成 U+0085 控制字符。做法：compat 内实现 CP1252 单字节映射（0x80..0x9F 区间 27 个非 ASCII 码位，其余按 Latin-1），codePageSupported 接受 1252，MultiByteToWideChar / WideCharToMultiByte 按码页分支；补 selftest 断言 0x85→U+2026、0x92→U+2019、0x96→U+2013、0xE9→U+00E9。不要动共享层的 widenRuntimeSubtitleText（它已正确声明意图）。",
@@ -2069,7 +2069,7 @@
     {
       "id": "EVO-10",
       "title": "interaction 夹具注入 1 个己方建筑（清掉 repair cursor 缺口）",
-      "status": "pending",
+      "status": "done",
       "phase": "EVO 进化（能玩之后）",
       "tier": "T0",
       "detail": "interaction smoke 的修理光标段要求 kind==Structure && owner==economy.owner，而地图 10 个建筑全 Neutral，于是永远找不到对象。在夹具里加一个 Americans 的建筑（带可见 footprint 与出口），让该段继续往下推进。",
@@ -2085,7 +2085,7 @@
     {
       "id": "EVO-11",
       "title": "render 阴影只读计量：structures=0 是相机问题还是阴影帧解析问题",
-      "status": "pending",
+      "status": "done",
       "phase": "EVO 进化（能玩之后）",
       "tier": "T1",
       "detail": "2peaks 有 10 个建筑，但 structureShadowsDrawn=0（shp=5 正常、voxel=0）。只读打印 7 个 shadow 候选的 art id / kind / owner / 是否命中阴影帧 / 屏幕矩形，判断是建筑没进视口（夹具/相机）还是阴影帧解析失败（美术/剧场字母）。",
@@ -2101,7 +2101,7 @@
     {
       "id": "EVO-12",
       "title": "result 记分动画只读计量：确认 reuseCachedFrame 与平台相关嫌疑",
-      "status": "pending",
+      "status": "done",
       "phase": "EVO 进化（能玩之后）",
       "tier": "T1",
       "detail": "断言要求在无 tick、无 repaint 请求时连画两帧，记分区至少 1000 像素不同；实测两帧全同，走了 reuseCachedFrame。只读打印 runtimeResultScoreIsAnimated 的三个谓词（skirmishMatchFinished / campaignMode / bannerVisible）、reuseCachedFrame、presentationStartedAtMs 与 runtimeUiClockNow 的差值、两帧 changed 像素数。",
@@ -2453,7 +2453,7 @@
  {
   "id": "M-15",
   "title": "build 冒烟夹具补己方生产基地（兵营 + 战车工厂）",
-  "status": "pending",
+  "status": "done",
   "phase": "问题修复",
   "detail": "已定性为 fixture-gap：build 冒烟在「队列一个单位」这步找不到任何 canQueue 的 Unit/Infantry，原因是 2peaks 世界里 Structures:10 全为 Neutral，没有任何 Factory=InfantryType/UnitType 的己方建筑，runtimeOwnerHasCompatibleFactory 恒 false。修法：用 addRuntimeObjectInstance 注入 1 栋己方兵营（GAPILE）与 1 栋己方战车工厂（GAWEAP），落点避开既有建筑地基，注入后调refreshRuntimeObjectOccupancyAfterLocalChange。与 M-11 注入 MTNK 同一条产品创建路径，不要手搓结构体。",
   "verify": "bash regress.sh 中 build 条不再报 no unit/infantry catalog item；若队列/取消/集结点断言又暴露新阻塞点，按 M-11/M-14 的做法登记新条目而不在本批硬啃。",
@@ -2499,7 +2499,27 @@
   ],
   "note": "定性计量 06c8ea2；报告 reports/FIX-08-时钟纪元与建筑零投影.md §2。下一轮起手。"
  }
-  ],
+,
+  {
+    "id": "M-19",
+    "title": "自然地图上的 NATBNK 没有 temperate 美术（资产缺口）",
+    "status": "pending",
+    "phase": "问题修复",
+    "detail": "CONCORD_SHADOW_TRACE 计量：NATBNK 的 body 与 shadow frame 都是 0x0、掩码非零像素 0；日志同时报 Structure sprites: 2 loaded, 0 missing，即加载成功但帧为空。artmd.ini [NATBNK] NewTheater=yes，而导出集只有 mix_exports/art/snow/natbnk.shp 与 natbnk_b.shp，2peaks.map 是 TEMPERATE。任何「建筑可见/可点/有影子」的断言在这张图上都不可满足，属 env-gap。修法二选一：补 temperate 变体，或让冒烟换一张带可加载建筑的图。",
+    "verify": "render/build 冒烟里不再出现 body=0x0 的结构；structureNoArt 归零或明确登记为资产缺口。",
+    "complexity": "简单",
+    "value": "A"
+  },
+  {
+    "id": "M-20",
+    "title": "离屏帧被记成空掩码（drawRuntimeVoxelShadowMask 返回值语义重叠）",
+    "status": "pending",
+    "phase": "问题修复",
+    "detail": "drawRuntimeVoxelShadowMask 在 !rectIntersects(imageRect, viewport) 与 clippedStartX >= clippedEndX 两处直接 return true，darkenedPixels 保持 0，调用方看到的是「掩码解析成功但没压暗」——与真正的空掩码在统计上不可区分。CAOILD 的 trace 已实测 intersects=0 走的就是这条。做法：给该函数加一个「是否落在视口内」的输出位，调用方据此把离屏与空掩码分开计数；并在 recordRuntimeWorldObjectShadowResult 里打印 type/instance/rect/intersects 钉死记录侧调用集。",
+    "verify": "render 汇总能区分 offscreen 与 emptyMask 两个桶，且两者相加能对上 structureCand。",
+    "complexity": "中等",
+    "value": "A"
+  }  ],
   "decisions": {
     "date": "2026-11-11",
     "source": "用户四点决策回复",

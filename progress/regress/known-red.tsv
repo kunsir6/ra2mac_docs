@@ -5,5 +5,5 @@
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 interaction	几何三项（cells=4/4、hash 相同、preview/hit/footprint 三矩形逐边相等）已全部通过，M-12 收窄到右键命中：命中点 (1043,73) 上只有 CABUNK02，sprite spans 含该像素但 depth-visible spans 不含，被 buildingPixelVisible 拦下后无人顶替（见 fix-plan M-12）	code-red:needs-metering
-render	自然地图阴影 candidates=7 drawn=5 但 structures=0；已定性为建筑零投影（structureCand=2 structureEmpty=2：进了通道、掩码「解析成功」却压暗 0 像素），产品缺陷，待拆掩码侧（见 fix-plan M-18）	code-red
+render	自然地图阴影 candidates=7 drawn=5 但 structures=0；第 8 轮三桶计量后 structureNoArt=0（记录侧候选不是 0x0 空体建筑，资产缺口解释被否），真因指向 drawRuntimeVoxelShadowMask 的两处 return true（离屏/裁剪也报「掩码有效」），见 fix-plan M-18 / M-20	code-red
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red

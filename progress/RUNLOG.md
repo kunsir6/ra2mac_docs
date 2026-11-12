@@ -6998,3 +6998,42 @@ ninja 过；回归 PASS=6 KNOWN-RED=5 RED-NEW=0；build 报
 回归 **PASS=7 KNOWN-RED=4 → 8 KNOWN-RED=3，RED-NEW=0**。`known-red.tsv` 删 `result` 行，
 `render` 行由 `code-red:needs-metering` 改为 `code-red`（真因已钉死，不再需要计量）。
 队列 v110 → v111（M-17 done、新增 M-18）。报告 `reports/FIX-08-时钟纪元与建筑零投影.md`。
+
+## 2026-11-12 第 8 轮：M-18 三桶计量（一次被自己的计数器否决的定性）
+
+### 开工核对：简单区已清空
+
+S-01~S-09 全部已完成或废弃，只剩 S-08（与 M-03 同源须合并）。三条 known-red 分属
+M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复杂）。
+本轮因此按「一条中等单独成轮」执行，取 M-18。
+
+### M-18：量出三种成因，然后否掉其中最像的那一种
+
+加 `CONCORD_SHADOW_TRACE=1` 只读追踪（12 行预算），打印 body/frame 尺寸、掩码非零
+像素数、阴影帧屏幕矩形、viewport 与 `intersects`。实跑 `--render-smoke-test`：
+
+- `NATBNK`（Tank Bunker）`body=0x0 frame=0x0 nonzero=0`，但日志同时报
+  `Structure sprites: 2 loaded, 0 missing` —— **loaded 不等于有内容**。
+  `artmd.ini [NATBNK] NewTheater=yes`，导出集只有 `art/snow/natbnk.shp`，图为 TEMPERATE
+  → 真资产缺口，登记 **M-19**。
+- `CAOILD` 在 320×240 视口外（`intersects=0`）时同样 `return true` + 0 像素
+  —— `drawRuntimeVoxelShadowMask` 的返回值同时兼作「掩码有效」与「画了」，
+  离屏与空掩码不可区分，登记 **M-20**。
+
+差点就此写成「资产缺口」关掉 M-18。加第三桶 `structureShadowEmptyBodies` 后发现
+`structureNoArt=0` 而 `structureEmpty=2`：**被记录的两个候选不是空体建筑**，
+追踪打印的绘制调用与统计记录的候选不是同一批（`drawRuntimeWorldObjectShadow` 有多个
+直接调用者，各持 stats）。「资产缺口」解释因此不成立，M-18 维持「掩码在但画不出」。
+
+### 自我否决
+
+实现过一版门禁分级（`emptyBodies == candidates` 判资产缺口并放行），能让 `render`
+立刻转绿；但它的前提正是被 `structureNoArt=0` 否掉的那条，绿只是把红色换了个位置。
+已回退，只留计量。门禁转绿必须能说清它验证了什么。
+
+### 验证
+
+回归 **PASS=8 KNOWN-RED=3 RED-NEW=0**（基线 8/3/0，判定未变、零新回归）。
+队列 v111 → v112：M-15 / EVO-08 / EVO-10 / EVO-11 / EVO-12 补登记 done（此前日志已绿但队列未回写），
+新增 M-19 / M-20。`known-red.tsv` 的 `render` 行按新计量改写。报告
+`reports/FIX-09-建筑零投影的三桶计量.md`。
