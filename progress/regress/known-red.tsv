@@ -8,4 +8,4 @@
 #              留空 = 该条放弃文案门禁，只判"红"。改产品语义/改断言文案时必须同步改这一列。
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red	shore unload left tanks aboard
+command	第 13 轮已修掉原阻塞（单位船卸载是逐人推进，旧冒烟按「一次点击全员下船」断言）；现阻塞后移到混编段：12 名步兵登 LCRF 只上 10 名，2 名停在 15,15 不进舱，原因未定	code-red:needs-metering	twelve infantry did not board

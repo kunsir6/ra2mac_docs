@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 117,
-  "updated": "2026-11-12T21:20:00+08:00",
+  "version": 118,
+  "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2569,11 +2569,20 @@
     },
     {
       "id": "M-02",
-      "status": "measuring",
+      "status": "done:not-a-defect",
       "title": "框选按包围盒判，含精灵帧透明留白",
       "detail": "原写「框选用世界坐标、投影用表面坐标」，第 13 轮已证伪：拖拽框与命中共用 leftPointer.start/current，runtimeRightPointerNative* 是恒等转换，实测 picked(4)==bbox(4)。真实形态是包围盒含精灵帧透明留白（移动帧还会变矮变宽），读数 band=8,8 513,632 bbox=4 center=3 bboxOnly=1，样本 #9003 包围盒只有 10px 进框、中心在框外。下一步先给单位侧补可见像素范围计量（建筑侧已有 extractRuntimeBuildingVisibleHitSpans，单位侧没有），再在「判中心」与「按可见跨度」两种改法里选一个。",
       "verify": "框外单位不被选中（反向断言）+ 框内可见像素必被选中；interaction 冒烟走真实 DOWN/MOVE/UP 消息",
       "complexity": "中等",
+      "value": "A"
+    },
+    {
+      "id": "C-02b",
+      "status": "measuring",
+      "title": "十二名步兵登 LCRF 只上十名，两人停在舱门口",
+      "detail": "第 14 轮把 C-02 的原断言口径修掉后（单位船卸载逐人推进，旧冒烟按一次点击全员下船断言），坦克段全绿，失败点后移到混装段：aboard=10/12 pending=2 status=moved #5 to 15,15。boat 在 16,16，两个步兵停在邻格 15,15 不进舱，40 秒模拟内不推进。待判定：舱门口 subcell 被同伴占（入口排队策略）还是 hullClearance 把 1.0 的邻格判成太近（几何阈值），两者改法相反。",
+      "verify": "12 名步兵全部进入 LCRF；且反向用例（舱门口被占）仍拒绝",
+      "complexity": "复杂（模拟层入口排队）",
       "value": "A"
     }
   ],
@@ -2638,6 +2647,23 @@
         "topic": "台账里的根因也是待验假设",
         "decision": "条目根因写「未证」直到有读数；读数与描述冲突时改描述，不改产品去迁就描述",
         "effect": "M-02 的「两套坐标未对齐」与 M-12/M-14 的「aligned=no / hit mismatch」同一类：一句话症状把多谓词压扁，实测每次都推翻原描述。"
+      }
+    ]
+  }
+,
+  "decisions_20261112_r14": {
+    "date": "2026-11-12",
+    "source": "第 14 轮（FIX-15）",
+    "items": [
+      {
+        "topic": "「一次操作 = 一条同步结果」是夹具最常见的错",
+        "decision": "凡卸载/装船/装卸类断言，默认按拍等到达成条件（有上限），不做同步断言",
+        "effect": "C-02 红了十几轮的根因就是它：单位船卸载一趟只放一个（源码注释写着等真实机身让位），冒烟却要求点击后立刻空仓。同一条 commit 里装船侧的 pendingTransportTargets.empty() 也是同一类错（pending 空只代表订单受理）。"
+      },
+      {
+        "topic": "命中框与画面框的差必须写成常量关系",
+        "decision": "凡「命中框 vs 画面」类疑点，第一步先量两边四边差值，再谈语义",
+        "effect": "M-02 两次被证伪：先否掉坐标错位，再否掉透明留白——真答案是 bounds = spriteBounds + 3px（InflateRect）。保留一条反向断言防幽灵框回归。"
       }
     ]
   }
