@@ -7037,3 +7037,45 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
 队列 v111 → v112：M-15 / EVO-08 / EVO-10 / EVO-11 / EVO-12 补登记 done（此前日志已绿但队列未回写），
 新增 M-19 / M-20。`known-red.tsv` 的 `render` 行按新计量改写。报告
 `reports/FIX-09-建筑零投影的三桶计量.md`。
+
+---
+
+## 2026-11-12 第 9 轮：把「掩码有效」与「真的画了」分开（S-10 / M-20 / M-18）
+
+### 一句话
+
+**建筑投影从来不是产品缺陷，是门禁在自己的帧里看不见建筑。**
+
+### M-20：返回值拆成四桶
+
+`drawRuntimeVoxelShadowMask` 的 `bool` 兼作「掩码有效」与「已画」。新增可选 out 参数
+`RuntimeShadowMaskOutcome{None, Empty, OffScreen, ClippedOut, Drawn}`，四个 `return` 前分别置位；
+结构阴影由 3 桶改 4 桶（`structureOff` / `structureClip`）。自然地图帧读数：
+`structureEmpty=2` → `structureOff=2 / structureClip=0 / structureEmpty=0`。
+
+### M-18：定性翻案
+
+`render` 的自然地图帧同时要求两件互斥的事：ore 探针把相机居中到一排资源格上，而挑格判据
+`mapFactBlocksProbeCell` 正是「没有 overlay 的地基」（等价于这里没盖东西）；阴影门禁又要求
+这同一帧 `structureShadowsDrawn>0`。建筑必然在视口外，这条断言构造性不可满足。
+
+改法：主帧只保留「管线在跑」（candidates/drawn/pixels/shp），建筑投影单起一帧，逐栋对焦、
+独立 DIB 与独立 cache，搜到第一栋真的压暗像素为止（缺剧场美术的建筑合法不投影，
+用「第一栋」会把 M-19 的资产缺口重新混进管线判据）。首栋 `CAAIRP` 即
+`candidates=7 drawn=4 pixels=13551`。
+
+### 教训
+
+1. **计量要打在跟汇总同一个点**：上一轮的 `[shadow-trace]` 打在绘制处、预算跨帧共享，
+   于是出现「追踪说 authoredEmpty=1、汇总说 structureNoArt=0」的矛盾读数——两者不是同一批对象。
+   本轮把追踪移到 `recordRuntimeWorldObjectShadowResult`，独立预算。
+2. **相机 worldOffset 是赋值不是累加**：首版写成 `+=`，十栋建筑全部 `candidates=0`
+   （整图被推出视口），且不报任何错。`runtimeProjectCellXY` 返回未减偏移的点。
+
+### 验证
+
+回归 **PASS=8 KNOWN-RED=3 RED-NEW=0**（基线 8/3/0，零新回归，`20261112-101458`）。
+`render` 仍红，阻塞点从阴影门禁后移到**矿喷发动画**（M-21，`anim=no/frames=11`，
+改前基线日志逐字相同 → 被屏蔽 6 轮的前置失败，非本轮引入）。
+队列 v112 → v113：M-18 / M-20 done，新增 M-21；`known-red.tsv` 的 `render` 行改写。
+报告 `reports/FIX-10-阴影掩码四桶与结构自证帧.md`。

@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 112,
+  "version": 113,
   "updated": "2026-11-12T08:50:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2490,7 +2490,7 @@
  {
   "id": "M-18",
   "title": "建筑完全不投影（render 的真红）",
-  "status": "pending",
+  "status": "done",
   "phase": "问题修复",
   "detail": "自然地图阴影 candidates=7 drawn=5 shp=5 但 structures=0。注意 drawn=5 而四个 kind 计数器全 0 是算术上不可能的读数——地形树木的软阴影也记进 shadowsDrawn 却没 kind 接住，所以那一行不能当证据。补只读拆分后 structureCand=2 structureEmpty=2：两栋可见建筑都进了地面阴影通道、授权掩码都「解析成功」（shpMask=true）、却压暗 0 像素。shpMask 为假时会退到软阴影兜底必然压暗，故只剩「掩码本身是空的」一种可能 → 建筑根本没有影子，产品缺陷。下一层待拆：shadowImage 宽高/非零像素数/span 数，以及结构阴影中心与 viewport 的关系；再决定是 SHP 阴影帧取错帧（解析）还是 span 生成问题。",
   "verify": "render 条 structures>0 且 structureEmpty=0；回归保持 PASS>=8 且 RED-NEW=0。",
@@ -2513,12 +2513,20 @@
   {
     "id": "M-20",
     "title": "离屏帧被记成空掩码（drawRuntimeVoxelShadowMask 返回值语义重叠）",
-    "status": "pending",
+    "status": "done",
     "phase": "问题修复",
     "detail": "drawRuntimeVoxelShadowMask 在 !rectIntersects(imageRect, viewport) 与 clippedStartX >= clippedEndX 两处直接 return true，darkenedPixels 保持 0，调用方看到的是「掩码解析成功但没压暗」——与真正的空掩码在统计上不可区分。CAOILD 的 trace 已实测 intersects=0 走的就是这条。做法：给该函数加一个「是否落在视口内」的输出位，调用方据此把离屏与空掩码分开计数；并在 recordRuntimeWorldObjectShadowResult 里打印 type/instance/rect/intersects 钉死记录侧调用集。",
     "verify": "render 汇总能区分 offscreen 与 emptyMask 两个桶，且两者相加能对上 structureCand。",
     "complexity": "中等",
     "value": "A"
+  },
+  {    "id": "M-21",
+  "status": "pending",
+  "title": "render 矿喷发动画未被判为「已画」",
+  "detail": "oreGrowthSpawnerAnimationDrawn=false frames=11，而 ran/changed/ring=1/overlay 全绿。被阴影门禁屏蔽 6 轮，第 9 轮把门禁拆开后才露出（改前基线日志逐字相同，非当轮引入）。frames=11 说明帧号在推进，先看置位处（RuntimeShell.cpp ~34960 上游）分清「动画层数为 0」与「层在但压暗像素为 0」。",
+  "verify": "render 越过矿喷发断言，或把它拆成两个可分辨的桶。",
+  "complexity": "中等",
+  "value": "A"
   }  ],
   "decisions": {
     "date": "2026-11-11",
