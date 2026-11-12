@@ -7113,3 +7113,32 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
 - `known-red.tsv` 每行再记一截**失败前缀**，前缀变化时单独报 `RED-NEW(cause-changed)`。
   否则「原因是新来的、条目标记是旧的」这种红永远不报警（本轮就吃了一记）。
 - 凡「帧 / 拍 / 毫秒」同处一段，变量名带单位后缀。
+
+---
+
+## 2026-11-12 第 11 轮 —— M-12「建筑画得出、点不到」收口
+
+### 做了什么
+
+- **M-12 四桶计量**（`0b1f9e7`）：`CONCORD_HIT_SPAN_TRACE=1` 下对每个空 span 参与者打印
+  `participating/drawsInView/drawsOffView/visiblePixels/depthPixels`，汇总行给
+  `unownedPixels/depthOnlyPixels/visibleOwners/emptyParticipants`。
+- **读数定性**：`#8 CABUNK02 drawsInView=0 drawsOffView=1 visiblePixels=0 depthPixels=0`，
+  该帧 `viewport=0,0,808,446`，样本包围盒 `(983,58,1103,118)` —— **整栋在视口右侧之外**；
+  `depthOnlyPixels=0` 排除「进过深度被压过」。所谓「空 span 表两种语义」两种候选**都不成立**。
+- **修法**（`b855223`，纯冒烟）：断言前 `centerRuntimeCameraOnCell` 样本建筑 + `ensureRuntimeCameraForViewport`
+  + 重建投影。产品 pick 路径零改动（视口外返回 nullptr 是正确行为）。
+- 新登记 **S-12**（known-red 只保证「红」不保证「红的是同一件事」），按 FIX-11 的流程欠账立项。
+
+### 验证
+
+回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（基线 9/2/0 → 收口 10/1/0，`20261112-191034`）。
+`interaction` 十二轮来首次转 PASS；唯一 known-red 是 `command`（C-02 两栖卸载，复杂）。
+队列 v114 → v115：M-12 done、新增 S-12 pending；`known-red.tsv` 删 `interaction` 行。
+报告 `reports/FIX-12-命中样本落在视口外.md`。
+
+### 决策
+
+- 关于「可见像素」的断言，**必须先让对象进视口**（M-18 与 M-12 两次同族）。取景问题不许当产品缺陷查。
+- `visiblePixels=0` 至少三种成因同形：没进光栅 / 进了深度被压过 / 光栅了但被视口裁掉。
+  只有 `depthPixels` 能把第三种与前两种分开，所以计量必须成对打「visible / depth」而不是只打 span。

@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 114,
-  "updated": "2026-11-12T12:22:00+08:00",
+  "version": 115,
+  "updated": "2026-11-12T19:50:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2536,7 +2536,26 @@
     "verify": "interaction 越过 ESC 菜单段、回到 structure footprint hit mismatch",
     "complexity": "简单",
     "value": "S"
-  }  ],
+  },
+    {
+      "id": "M-12",
+      "status": "done",
+      "title": "interaction「建筑画得出、点不到」（已完成：样本建筑被采到视口外）",
+      "detail": "四桶计量（CONCORD_HIT_SPAN_TRACE=1）给出 #8 CABUNK02 drawsInView=0 drawsOffView=1 visiblePixels=0 depthPixels=0，该帧视口 (0,0,808,446) 而样本包围盒 (983,58,1103,118)，整栋在视口右侧之外；全帧 depthOnlyPixels=0 同时排除「进过深度被压过」。根因是取景：上一段雷达场景把镜头停在地图几何中心，采样建筑与镜头互不约束，而 pick 是可见性过滤的，视口外像素不存在。修法：断言前 centerRuntimeCameraOnCell 样本 + ensureRuntimeCameraForViewport + 重建投影。产品 pick 路径零改动。commit 0b1f9e7（计量）+ b855223（修复）。",
+      "verify": "Hit footprint: object #8 CABUNK02 cells=4/4 consistent=yes visibleStructurePixelsHit=yes；interaction 整条 PASS",
+      "complexity": "中等",
+      "value": "A"
+    },
+    {
+      "id": "S-12",
+      "status": "pending",
+      "title": "known-red 只保证「红」，不保证「红的是同一件事」",
+      "detail": "S-11 那次：interaction 本来就红，速度表回归把红点从 footprint 前移到 ESC 菜单，三态判定仍报 KNOWN-RED，机器完全瞎，只有人读日志才发现。改法：known-red.tsv 第 4 列存失败前缀，regress.sh 对已登记行做字符串包含比对，不一致即判 RED-NEW 并把两侧前缀打进报告。",
+      "verify": "人为把 known-red 前缀改成不匹配的串，regress 应报 RED-NEW",
+      "complexity": "简单",
+      "value": "A"
+    }
+  ],
   "decisions": {
     "date": "2026-11-11",
     "source": "用户四点决策回复",

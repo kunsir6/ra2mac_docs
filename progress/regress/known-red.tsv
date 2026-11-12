@@ -4,5 +4,4 @@
 #              / code-red:needs-metering（疑为产品缺陷，先加只读计量再定性）
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-interaction	ESC 菜单段已过（S-11 修掉被掩盖的速度表回归）。当前停在 structure footprint hit mismatch：spansSprite=140/foreground=0/visible=0，整栋 CABUNK02 在深度重放里零可见像素，不是该像素被挡；空 span 表同时表示「没参加重放」与「全被挡住」，pick 侧分不出（见 fix-plan M-12、reports/FIX-11 §3）	code-red:needs-metering
 command	两栖船靠岸二次动作后 transportPassengerIds 仍非空；纯合成夹具、两次同点失败、与平台无关	code-red
