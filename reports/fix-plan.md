@@ -13,9 +13,11 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 08:05（第 7 轮收口：**`result` 转 PASS**——M-17 定性为「两个时钟纪元相减」，
-> 产品零改动；S-06 拆出 `structureCand=2/structureEmpty=2`，把 `render` 从「口径可疑」钉成
-> **建筑零投影的产品缺陷**并单独立项 M-18。回归 7/4/0 → **8/3/0**，零新回归）
+> 最近更新：2026-11-12 08:45（第 8 轮收口：基线 **8/3/0** → **8/3/0**，零新回归。
+> 核对结果——**简单区已清空**：S-01~S-09 全部完成或废弃，仅 S-08 与 M-03 同源须合并；
+> 故本轮按「一条中等单独成轮」取 M-18。计量得到一个否定性结论：`structureNoArt=0`
+> 证明「资产缺口」解释不成立，M-18 维持「掩码在但画不出」；新登记 M-19（temperate NATBNK
+> 美术缺失）与 M-20（离屏帧被记成空掩码）。中途那版能让 `render` 变绿的门禁分级已自我回退）
 
 ---
 
@@ -32,6 +34,11 @@
 | S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 已废弃（并入 M-17；缓存命中假设已被证伪，真因是时钟纪元） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
 | S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复（与 M-03 同源，落地时合并） | `reports/ON-2-前排任务现状对账.md` |
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
+| S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 待修复 | — |
+
+> **简单区现状（第 8 轮核对）**：S-01~S-09 全部已完成或已废弃，只剩 S-08（与 M-03 同源，须合并做）
+> 和本轮新登记的 S-10（日志误报，C 级）。**可打包的简单批已经用尽**——前 7 轮把「夹具/探针口径」
+> 这一类便宜活清完了，后续每轮起手应从「中等」里取一条，按单条中等成轮执行。
 
 ## 二、待修复 —— 中等
 
@@ -54,7 +61,9 @@
 | M-15 | `build` 队列单位时目录全不可排队 | M-14 断言转绿后暴露：`no unit/infantry catalog item`，找不到任一 `canQueue` 的 Unit/Infantry | **已定性：夹具缺口**。计量：total=46 unit=15 infantry=13 structure=18 credits=199200 power=200/0，全部 `reason="missing InfantryType"/"missing UnitType"`——钱/电/科技都放行，卡在 `runtimeOwnerHasCompatibleFactory`，即世界里没有己方生产基地（2peaks 的 `Structures:10` 全 Neutral）。与 M-11 同类 | 中：清掉 `build` 当前阻塞点 | 注入 1 栋己方兵营 + 1 栋己方战车工厂（`addRuntimeObjectInstance` + `refreshRuntimeObjectOccupancyAfterLocalChange`），落点避地基；改完要重跑整条 build（后面还有队列重排/取消/集结点断言） | **A** | 简单 | 已完成（`52bd380`；build 越过了队列/生产这一段） | `reports/FIX-07-build冒烟转绿.md` §1 |
 | M-16 | `build` 低电探针被自己的前置挡死 | `sidebar low-power integration probe state is not low power`，探针一进门就要求 `runtimeEconomyLowPower`，而零售图没有耗电建筑（powerUsed 恒 0），净电永远为正 | **已定性：前置无人保证**。`runtimeEconomyLowPower` 判 `produced - used < 0`，探针走不到断言本体，属夹具职责缺位而非产品缺陷 | 高：它是 `build` 转 PASS 的最后一道门 | 冒烟侧临时抬高 powerUsed 再还原（3 行） | **S** | 简单 | 已完成（`c90ec0e`；**build 整条转 PASS**） | `reports/FIX-07-build冒烟转绿.md` §2 |
 | M-17 | `result` 记分动画两次 paint 出同一张画面 | `original score animation stalled behind paused-frame cache`；计量 `changed=0 tick=300/300 frames=6/6 saved=yes`，三个子条件正常，只有画面没变 | **已定性：两个时钟纪元相减**。记分页取 `runtimeUiClockNow()`（macOS = `CLOCK_MONOTONIC`），而探针用 `GetTickCount64()` 写起点；两个纪元在 macOS 上不同 → `now - start` 恒为巨大值 → `runtimeUiScoreElapsed` 两次都钳到末帧 → 两张图逐像素相同。已排除缓存（门里带 `!runtimeResultScoreIsAnimated`） | 中：结算页动画是用户可见的一段 | 探针改用 `runtimeUiClockNow` 作基准（产品零改动） | **B** | 简单 | 已完成（`4cdc891`，**该条转 PASS**） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
-| M-18 | 建筑完全不投影（`render` 的真红） | 自然地图阴影 `candidates=7 drawn=5 shp=5` 但 `structures=0`；补只读拆分后 `structureCand=2 structureEmpty=2`——两栋可见建筑都进了地面阴影通道、授权掩码都「解析成功」，却一个像素都没压暗 | **已定性为产品缺陷（掩码空）**：`drawRuntimeShpShadowFrame` 返回真但一个 span 都没落。`shpMask` 为假时会退到软阴影兜底必然压暗，所以只剩「掩码本身是空的」一种可能。下一层待拆：`shadowImage` 宽高/非零像素数/span 数，以及结构阴影中心与 viewport 的关系 | 高：建筑没有影子是画面硬伤（对建筑群整体真实感影响最直接） | 中：先补掩码侧计量，再决定是解析问题（SHP 阴影帧取错帧）还是 span 生成问题；改动集中在 `drawRuntimeShpShadowFrame` / `drawRuntimeVoxelShadowMask` | **A** | 中等 | 待修复（第 7 轮计量定性，`06c8ea2`） | `reports/FIX-08-时钟纪元与建筑零投影.md` §2 |
+| M-18 | 建筑完全不投影（`render` 的真红） | 自然地图阴影 `candidates=7 drawn=5 shp=5` 但 `structures=0`；`structureCand=2 structureEmpty=2`——两个候选进了地面阴影通道、掩码「解析成功」，却一个像素都没压暗 | **仍未定性，但排除了一条**：第 8 轮加 `CONCORD_SHADOW_TRACE` + 第三桶 `structureNoArt` 后，测得自然地图上确实存在 0×0 的 `NATBNK`（`NewTheater` 只有 `art/snow` 变体，图为 TEMPERATE），但 `structureNoArt=0` 而 `structureEmpty=2`，**记录侧那两个候选不是空体建筑**，故「资产缺口」解释不成立。剩下的可疑路径：①帧矩形与 viewport 不相交/裁剪到零宽时 `drawRuntimeVoxelShadowMask` 也 `return true` + 0 像素 ②span 生成空 | 高：建筑没有影子是画面硬伤 | 下一步很便宜：在 `recordRuntimeWorldObjectShadowResult` 里打印 type/instance/rect/intersects（追踪要打在记录点才能与汇总对上），一次构建即可裁定 ①/② | **A** | 中等 | 待修复（第 8 轮三桶计量，`c66d2f6`；`structureNoArt=0` 否掉了资产缺口解释） | `reports/FIX-09-建筑零投影的三桶计量.md` |
+| M-19 | 自然地图上的 `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0 nonzero=0 globalH=126`，`Structure sprites: 2 loaded, 0 missing` 却什么都画不出来；`render` 的 trace 里反复出现同一实例 | **已定性：资产缺口**。`artmd.ini [NATBNK] NewTheater=yes`，导出集只有 `mix_exports/art/snow/natbnk.shp`（与 `_b`），`2peaks.map` 是 TEMPERATE | 中：任何「建筑可见/可点/有影子」的断言在该图上是不可满足的，先把这个洞标出来 | 资产侧：补 temperate 变体，或让冒烟换一张带可加载建筑的图 | **A** | 简单 | 待修复（第 8 轮登记） | `reports/FIX-09-建筑零投影的三桶计量.md` §2 |
+| M-20 | 离屏帧被记成「空掩码」 | `drawRuntimeVoxelShadowMask` 在 `!rectIntersects(imageRect, viewport)` 与 `clippedStartX >= clippedEndX` 两处直接 `return true`，`darkenedPixels` 保持 0，调用方看到的是「掩码解析成功但没压暗」 | **待验**：返回值同时承担「掩码有效」与「画了」两种语义，离屏/裁剪路径在统计上与真正的空掩码不可区分；`CAOILD` trace 已实测 `intersects=0` 走的就是这条 | 中：它可能是 M-18 的真因，也可能只是让 M-18 的读数失真的旁证 | 小：`drawRuntimeVoxelShadowMask` 增一个「是否真的落在视口内」的输出位，调用方据此分开计数 | **A** | 中等 | 待修复（第 8 轮登记，先做再动掩码） | `reports/FIX-09-建筑零投影的三桶计量.md` §2 |
 
 ## 三、待修复 —— 复杂（单独成轮）
 
@@ -81,7 +90,37 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 7 轮）打包清单
+## 五、本轮（2026-11-12 第 8 轮）打包清单
+
+主题：**一次被自己的计数器否决的定性**。简单区已清空（见 §一 说明），本轮按「一条中等单独成轮」
+取 M-18（`render` 建筑零投影）——先拆掩码侧四元组，结果把上一轮的结论拆出了一个新的候选成因，
+也拆出了一个差点写错的结论。
+
+- **M-18 → 仍未定性，但排除了一条**（`c66d2f6`）：`CONCORD_SHADOW_TRACE=1` 打印
+  body/frame 尺寸、掩码非零像素、阴影帧屏幕矩形与 `intersects`。发现两件事：
+  ① 自然地图上确有 0×0 的 `NATBNK`（`NewTheater` 只有 `art/snow`，图为 TEMPERATE）——真资产缺口；
+  ② 但新增第三桶后 `structureNoArt=0` 而 `structureEmpty=2`，**记录在这两个桶里的候选不是空体建筑**，
+  追踪打印的绘制调用与统计记录的不是同一批 → 「资产缺口」解释不成立。
+- **中途的自我否决**：曾实现过一版门禁分级（`emptyBodies == candidates` 时判资产缺口并放行），
+  能让 `render` 立刻变绿，但它的前提正是被 `structureNoArt=0` 否掉的那条，绿只是把红色换了个位置。
+  **已回退门禁，只留计量**；判据纪律：门禁转绿必须能说清它验证了什么。
+- **新登记**：M-19（temperate `NATBNK` 美术缺失，资产缺口，简单）、M-20（离屏帧被记成空掩码，
+  中等，`drawRuntimeVoxelShadowMask` 的两处 `return true` 同时兼作「有效」与「已画」）。
+
+回归：`PASS=8 KNOWN-RED=3` → **`PASS=8 KNOWN-RED=3`**，`RED-NEW=0`（本轮不改判定，只加计量）。
+
+移出本批：无（本轮只有一条中等，未启动第二条）。**未提交他人改动**：收敛时工作区里出现了
+`src/ui/hud/RuntimeBuildReadyBanner.{h,inl}`、`RuntimeSessionProduction.cpp`、`RuntimeProductionHostState.h`
+的改动（08:29 生成，内容是建造就绪角标，与 M-18 无关），判定为并发进程的在建工作，
+本轮只按路径显式提交自己的三个文件，未触碰它们。
+
+报告：`reports/FIX-09-建筑零投影的三桶计量.md`。
+
+下一轮起手：**M-20 / M-18 合并做**——先在 `recordRuntimeWorldObjectShadowResult` 里打印
+type/instance/rect/intersects（计量必须打在记录点，才能与汇总对上），一次构建即可裁定
+「离屏被记成空掩码」还是「span 生成空」。
+
+## 六、第 7 轮（2026-11-12）打包清单（存档）
 
 主题：**把 `code-red:needs-metering` 清零口径**。剩下两条标着「疑为产品缺陷、先加只读计量」的
 条目（`result` / `render`）都只红一句话，本轮把两句话都拆开：一条证明是夹具的时钟纪元错，
