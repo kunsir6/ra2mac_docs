@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 115,
+  "version": 116,
   "updated": "2026-11-12T19:50:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2548,12 +2548,24 @@
     },
     {
       "id": "S-12",
-      "status": "pending",
+      "status": "done",
       "title": "known-red 只保证「红」，不保证「红的是同一件事」",
       "detail": "S-11 那次：interaction 本来就红，速度表回归把红点从 footprint 前移到 ESC 菜单，三态判定仍报 KNOWN-RED，机器完全瞎，只有人读日志才发现。改法：known-red.tsv 第 4 列存失败前缀，regress.sh 对已登记行做字符串包含比对，不一致即判 RED-NEW 并把两侧前缀打进报告。",
       "verify": "人为把 known-red 前缀改成不匹配的串，regress 应报 RED-NEW",
       "complexity": "简单",
-      "value": "A"
+      "value": "A",
+      "done_at": "2026-11-12 第 12 轮",
+      "commit": "50d3a85",
+      "result": "known-red.tsv 扩到四列（第 4 列失败前缀），regress.sh 对已登记 id 做包含比对，对不上判 RED-NEW(cause-changed) 并计入退出码；空前缀开跑前告警。自测两向通过。"
+    },
+    {
+      "id": "S-13",
+      "status": "pending",
+      "title": "结构守卫基线列着 U-15 已删的两个文件",
+      "detail": "tools/structure/structure-baseline.json 仍是人工审过的旧清单，U-15 删文件后没回写；守卫不在构建链里，本机也没有它的 --inventory/--trace 产物，所以从没跑过、没人发现。第一步是查清产物由谁生成，别先改 json。",
+      "verify": "守卫能跑通且 baseline 与当前源码树一致（无 stale 条目）",
+      "complexity": "简单（阻塞在产物）",
+      "value": "C"
     }
   ],
   "decisions": {
