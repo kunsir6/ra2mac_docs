@@ -13,7 +13,14 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-12 21:15（第 13 轮收口）；
+> 最近更新：2026-11-12 21:35（第 14 轮收口）；
+> 第 14 轮：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（三条 `test:`）。
+> **M-02 结案为非缺陷**：命中框 = 画面框外扩 3px（`InflateRect(+3)`），而 `spriteBounds` 已被
+> `RuntimeUnitSelectionAlignmentSmoke` 逐像素证明等于真实绘制框；样本 `#9003` 的画面在框内真有 7px。
+> **C-02 阻塞点后移**：单位船卸载是逐人推进（一次点击只放一辆），旧断言「一次点击全员下船」
+> 结构上不可能成立；修掉后卡在 12 名步兵登船 10/12。报告 `reports/FIX-15-框选结案与两栖卸载真阻塞点.md`。
+>
+> 第 13 轮收口：`10/1/0` → **`10/1/0`**，零新回归，产品代码零改动。
 > 第 13 轮：基线 `10/1/0`（`20261112-201018`）→ 收口 **`10/1/0`**，零新回归，产品代码零改动。
 > 主题：**框选断言原来在同义反复**——它自己重实现了一遍「包围盒 ∩ 矩形」再 applySelection，
 > 产品拖选路径零覆盖。改为三条真实消息（DOWN/MOVE/UP）穿过 `runtimeWindowProc` 后，
@@ -59,7 +66,7 @@
 | S-05 | campaign gate 按现定义永不绿 | 40 任务里 13 个 `Map=` 为空 + Bink 视频缺失，断言要求全量覆盖 | 断言口径错：把「资产缺口」当成「产品缺陷」判红 | 中：清掉 1 条 known-red（该条已判 env-gap） | 改白名单 + 保留缺口计数打印 | **A** | 简单 | 已完成（第 2 轮 cd2e841，**该条转 PASS**） | `reports/FIX-03-回归门禁口径三连.md` |
 | S-06 | render 阴影只读计量 | `structuresShadowsDrawn=0`，但 SHP 解析正常（shp=5），分不清是相机可见性还是阴影帧解析 | 未区分「不在视口」与「解析失败」 | 中：为 S-07 定性提供唯一判据 | 加 3 个只读计数 | **B** | 简单 | 已完成（`06c8ea2`，计量已出结论，**修复拆到 M-18**） | `reports/FIX-08-时钟纪元与建筑零投影.md` §2 |
 | S-07 | result 记分动画只读计量 | 暂停态第二次 WM_PAINT 走 `reuseCachedFrame`，记分不前进 | 疑似平台相关（Windows 侧历史绿），需先证明缓存命中 | 中：同上，先计量再定性 | 加缓存命中计数 | **B** | 简单 | 已废弃（并入 M-17；缓存命中假设已被证伪，真因是时钟纪元） | `reports/FIX-08-时钟纪元与建筑零投影.md` §1 |
-| S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | 无计量 | 中：为「脏区驱动」提供基线数字 | 加 tick 内画面变更计数 | **B** | 简单 | 待修复（与 M-03 同源，落地时合并） | `reports/ON-2-前排任务现状对账.md` |
+| S-08 | EVO-06 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改了画面 | **第 14 轮已定位到行**：主循环 `if (tickAdvanced) state.repaintRequested = true;` + `continuousRuntimeFrame = world loaded && !IsIconic` → 进图后每帧整窗 `InvalidateRect`；`reuseCachedFrame` 因为 `repaintRequested` 恒真而永远走不到 | 中：为「脏区驱动」提供基线数字 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` 周期输出 | **B** | 简单 | 待修复（方案见 FIX-15 §3；与 M-03 同源，先计量后动提交条件） | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` |
 | S-09 | FPS 叠加层默认常显（U-17） | 每次提交帧后无条件画左下 96×22 `FPS: 60` 面板，正式版没有这个面板 | 该面板只为自测而加，`drawRuntimeFpsDisplay` 的三个调用点没有任何开关；`RuntimeMainFrameContract` 只断言面板**矩形**存在，不断言「画了」 | 高：正式版观感的第一眼硬伤，纯视觉、无模拟耦合 | 加 1 个偏好位 + 3 处调用点门控（`--show-fps` / `[Options] ShowFps`） | **S** | 简单 | 已完成（`c1ccfe6`） | `reports/FIX-05-夹具缺口与FPS叠加层.md` |
 | S-10 | 启动日志把零售自带的重复建筑 id 报成异常 | 每次启动 `core` 都打印 `Duplicate building id ignored by capability index: [NAPSYA]` | 零售 `rulesmd.ini` 的 `[BuildingTypes]` 里 `NAPSYA` 确实出现两次（185 / 241），`rebuildTypeIndex` 按「重复即告警」处理，但「先到先得」正是零售语义（两处指向同一 section），不是数据损坏。告警缺 item 下标，也没区分 `Corrupt` 与 `Duplicate` 两种性质 | 低中：日志噪声，且会掩埋真正的解析重复 | 1 处消息分级（带 item 下标 + 降为 data-note） | **C** | 简单 | 已完成（`5ce280b`） | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §3 |
 
@@ -79,8 +86,8 @@
 ## 二、待修复 —— 中等
 |---|---|---|---|---|---|---|---|---|---|
 | M-01 | EVO-08 compat 实现 CP1252 解码 | 零售 `Text=` 的智能标点（0x85/0x91…）被逐字节 widen 成控制字符，`build` 条常驻红 | compat 只有 UTF-8 分支，CP1252 直接返回 0 | 高：影响所有零售文本（含 EVA 字幕） | 编码表 + 请求路由 | **A** | 中等 | 已完成（FIX-02） | `reports/FIX-02-CP1252解码.md` |
-| M-02 | ON-4-07 box selection 与投影不一致 | **原描述（框选用世界坐标、投影用表面坐标）已被计量证伪**：拖拽框与命中判定共用 `leftPointer.start/current` 同一对数字，`runtimeRightPointerNative*` 在这层是恒等转换，且实测 `picked(4) == bbox(4)`——真错位会让两侧系统性偏向一边，不会恰好相等 | **已计量、收窄为 bbox 语义**：产品按「包围盒 ∩ 拖拽框」选中，而包围盒含精灵帧透明留白（移动帧还会变矮变宽，M-14 的 `SQD 92x51/100x41` 同族）。读数 `band=8,8 513,632 bbox=4 center=3 bboxOnly=1`，`#9003` 包围盒 `(503,481)-(561,523)` 只有 10px 进框、中心在框外 → 「框在它旁边却把它选走了」 | 中高：操作手感 | 下一步需先给**单位侧**补「可见像素范围」计量（建筑侧已有 `extractRuntimeBuildingVisibleHitSpans`，单位侧没有）。两种改法代价相反：A 改判中心 1 行、但可能比零售更严；B 按可见跨度判、与 pick 口径统一但要在呈现层加一层重放 | **A** | 中等 | 已计量（第 13 轮 `07e6a71`；框选断言已改走消息循环，读数见报告 §3） | `reports/FIX-14-框选断言穿过消息循环.md` |
-| M-03 | ON-2-06 世界 idle 空转重绘 | 静止时也每 tick 全量重绘，CPU/功耗浪费 | 无脏区判定 | 中：功耗与风扇 | 脏区集合 + 提交条件 | **B** | 中等 | 待修复 | `reports/ON-4-04-性能基线.md` |
+| M-02 | ON-4-07 box selection 与投影不一致 | **两次证伪后结案为非缺陷**。①第 13 轮：「世界坐标 vs 表面坐标」不成立（拖拽框与命中共用 `leftPointer.start/current`，`picked==bbox`）；②第 14 轮：「包围盒含透明留白」也不成立——`bounds` 就是 `spriteBounds` 外扩 3px（`runtimeUnitSelectionBoundsForSprite` = `InflateRect(+3,+3)`），而 `spriteBounds` 已被`RuntimeUnitSelectionAlignmentSmoke` 对全类型×姿势×朝向×tileWidth 逐像素证明等于真实绘制框 | **已废弃（非缺陷）** | 无收益：擦边容差 3px 是零售同款手感；样本 `#9003` 的 `artInBand=7px`，车体真的在框里 | 无 | — | 简单 | 已废弃 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` |
+| M-03 | ON-2-06 世界 idle 空转重绘 | 静止时也每 tick 全量重绘，CPU/功耗浪费 | 同上：`tickAdvanced` 直接置 `repaintRequested`，缓存复用被判据本身短路 | 中：功耗与风扇 | **A 方案（场景签名门）**：每拍算廉价签名（tick+相机+对象位置/朝向/帧号+选中集+资源+遮罩版本），不变就不置 `repaintRequested` + 每 30 帧强制重绘兜底；**B 方案（像素差量门）**有自抑制风险（推动画的是重绘本身），只能配 `tickAdvanced` 一起判 | **B** | 复杂（呈现层提交条件） | 待修复（方案已写，单独成轮；漏字段的后果是冻帧，必须先有 S-08 读数） | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` |
 | M-04 | ON-2-02b 提交节奏对齐显示刷新 | 帧提交与 60Hz 不同步，偶发丢帧/撕裂 | 用定时器而非 display link | 中 | 需接 CVDisplayLink | **B** | 中等 | 待修复 | `reports/ON-2-02a-呈现节奏计量与主人帧修复.md` |
 | M-05 | EVO-13 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 待修复 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | EVO-04 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + zip 收集 | **C** | 中等 | 待修复 | — |
@@ -105,7 +112,7 @@
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|
 | C-01 | EVO-15 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]`，导致 cursor rect 全失效、`isActive`/`isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 高：改主循环 + 回归全部输入断言 | **A** | 复杂 | 待修复 | 见 `MEMORY` 中「本项目不调 sendEvent」条目 |
-| C-02 | EVO-09 两栖卸载卸不下坦克 | 船靠岸二次动作后 `transportPassengerIds` 仍非空 | 纯合成夹具、两次同点失败，疑共享模拟缺陷，需 Windows 基线对照 | 中 | 高：需对照基线 | **B** | 复杂 | 待修复 | `reports/EVO-02-红基线分诊.md` |
+| C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 14 轮定性**：单位船卸载是逐人推进（`unloadRuntimeUnitTransportMotion` 一趟只放一个后 `break`，剩下等下一拍机身让位），旧冒烟按「一次点击全员下船」同步断言，结构上不可能成立 → 断言口径错，不是产品缺陷。改成按拍等待后坦克段全绿，**阻塞后移到混编段：12 名步兵登 LCRF 只上 10 名**（2 名停在 15,15 不进舱，原因未定） | 高：两栖玩法可用性 | 下一步在 `runtimeTransportBoardingAccessBodyClear` / `beginRuntimeTransportGroundTransfer` 的拒绝分支按 id 记「第一个人为什么被拒」：舱门口 subcell 被同伴占（入口排队策略）还是 `hullClearance` 把 1.0 邻格判成太近（几何阈值）——改法相反 | **B** | 复杂（模拟层入口排队） | 阻塞点后移（`3e51fd0`；known-red 前缀已同步为新文案） | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -126,7 +133,35 @@
 
 ---
 
-## 五、本轮（2026-11-12 第 13 轮）打包清单
+## 五、本轮（2026-11-12 第 14 轮）打包清单
+
+主题：**把两条「读一句话就动手」的旧结论拆到底**。基线 `10/1/0` → 收口 `10/1/0`，`RED-NEW=0`，
+产品行为零改动。报告 `reports/FIX-15-框选结案与两栖卸载真阻塞点.md`。
+
+- **M-02 → 已废弃（非缺陷）**（`e7cbfa8`，简单，test:）：补上「画面矩形」这一维后读数
+  `artOutside=0 artOnly=0`，样本 `#9003` 的 `art=(506,484,558,520)`、`artInBand=7px`；
+  而 `bounds=(503,481,561,523)` 四边各差 3 —— `bounds` 就是 `runtimeUnitSelectionBoundsForSprite`
+  的 `InflateRect(+3)`，`spriteBounds` 已被 `RuntimeUnitSelectionAlignmentSmoke` 逐像素证明
+  等于真实绘制框。结论：擦边容差，不是坐标错位、也不是幽灵框。留一条反向断言防「幽灵框」回归。
+- **C-02 → 阻塞点后移**（`3e51fd0`，复杂，test:）：单位船卸载逐人推进（一趟只放一个后 `break`），
+  旧冒烟按「一次点击全员下船」同步断言 → 结构上永不成立。改成按拍等待后**坦克段全绿**
+  （含深水拒卸/跨水/save-load/生命老兵度保持），失败点落到混编段装船 `10/12`（2 人停在 15,15）。
+  `known-red.tsv` 前缀同步改为 `twelve infantry did not board`。
+- **S-08 / M-03 → 方案已写、本轮不动手**：机制钉到行（`tickAdvanced → repaintRequested` +
+  `continuousRuntimeFrame` → 每帧整窗 `InvalidateRect`，`reuseCachedFrame` 永不到达）。
+  两条候选路线（场景签名门 / 像素差量门）与各自的坑写在报告 §3；按「呈现层改动单独成轮」留到下一轮，
+  顺序是先 S-08 出读数再动提交条件（漏字段的代价是冻帧）。
+- **简单批为什么仍是空的**：S-01~S-12 已清；在册简单项只剩 S-08（与 M-03 同源，单独做是空计数器）
+  与 S-13（阻塞在守卫 `--inventory/--trace` 产物）。不为凑批量拆中等项。
+
+移出本批：C-02 的「步兵登船 10/12」——已定性为独立问题（入口排队 vs 几何阈值，改法相反），
+登记为下一轮单独计量，不在本轮硬啃。
+
+下一轮起手：**C-02 第二步**（在 `runtimeTransportBoardingAccessBodyClear` /
+`beginRuntimeTransportGroundTransfer` 拒绝分支按 id 记账，先钉「第一个人为什么被拒」）→
+**S-08 计量**（接进 `RuntimeFrameDiagnostics` 周期输出）→ 再谈 **M-03 门**。
+
+## 五-旧、第 13 轮（2026-11-12）打包清单（存档）
 
 主题：**一条十二轮没被质疑过的断言，其实从来没跑过产品路径**。基线 `10/1/0`（`20261112-201018`），
 收口同结果，零新回归，**产品代码零改动**（只改冒烟）。报告 `reports/FIX-14-框选断言穿过消息循环.md`。
