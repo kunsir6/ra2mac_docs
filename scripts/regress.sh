@@ -8,9 +8,14 @@
 #
 # 判定三态（不允许把红说成绿）：
 #   PASS       退出码 0
-#   KNOWN-RED  退出码非 0，且 id 已登记在 progress/regress/known-red.tsv（附原因）
+#   KNOWN-RED  退出码非 0，id 已登记在 known-red.tsv，且失败文案仍以登记的前缀开头
 #   RED-NEW    退出码非 0，且未登记 —— 这才是"你刚弄坏了什么"
-# 退出码 = RED-NEW 条数。
+#   RED-NEW(cause-changed)  已登记，但失败文案换了 —— 同样是"你刚弄坏了什么"，
+#               只不过它藏在一条本来就红的用例里（S-11 就这么漏过一轮）。
+# 退出码 = RED-NEW 条数（含 cause-changed）。
+#
+# known-red.tsv 四列：id <TAB> 原因 <TAB> status <TAB> 失败前缀
+#   第 4 列为空 = 该条放弃文案门禁（只判"红"），登记时尽量别留空。
 #
 # 设计约束（都是踩过的坑）：
 #   * 不用 grep/sed：本机两者是 shim，多模式会静默返回空。纯 bash 字符串匹配。
@@ -94,13 +99,22 @@ echo
 TSV=$OUT/results.tsv
 printf 'id\tstate\tsecs\tevidence\treason\n' > "$TSV"
 
-known_reason() {
-  local want=$1 line id reason rest
+KNOWN_REASON_TEXT=""
+KNOWN_PREFIX_TEXT=""
+
+# 命中已登记的 id 时把原因/前缀写进上面两个全局量（不用 $(...) 取值，
+# 命令替换会 fork 子 shell，全局量带不回来）。
+known_lookup() {
+  local want=$1 line id reason status prefix rest
   [ -f "$KNOWN_RED" ] || return 1
-  while IFS=$'\t' read -r id reason rest; do
+  while IFS=$'\t' read -r id reason status prefix rest; do
     [ -z "${id:-}" ] && continue
     case "$id" in \#*) continue ;; esac
-    if [ "$id" = "$want" ]; then printf '%s' "$reason"; return 0; fi
+    if [ "$id" = "$want" ]; then
+      KNOWN_REASON_TEXT=${reason:-}
+      KNOWN_PREFIX_TEXT=${prefix:-}
+      return 0
+    fi
   done < "$KNOWN_RED"
   return 1
 }
@@ -121,29 +135,65 @@ pick_evidence() {
 
 PASS_N=0; KNOWN_N=0; NEW_N=0
 
+# 开跑前把台账自身的问题摊开：缺前缀的行等于放弃文案门禁，宁可先在屏幕上说出来。
+known_red_preflight() {
+  local line id reason status prefix rest n=0 bare=0
+  [ -f "$KNOWN_RED" ] || { echo "   警告    没有 known-red.tsv，任何非零退出码都会判 RED-NEW"; return 0; }
+  while IFS=$'\t' read -r id reason status prefix rest; do
+    [ -z "${id:-}" ] && continue
+    case "$id" in \#*) continue ;; esac
+    n=$((n+1))
+    if [ -z "${prefix:-}" ]; then
+      bare=$((bare+1))
+      echo "   警告    known-red 行「${id}」没有失败前缀（第 4 列），该条只判红不判原因"
+    fi
+  done < "$KNOWN_RED"
+  echo "   known-red $n 条，其中 $bare 条无前缀门禁"
+}
+known_red_preflight
+echo
+
 run_case() {
   local id=$1 tmo=$2 envs=$3 args=$4
   if [ -n "$ONLY" ]; then
     case "$ONLY" in *",$id,"*) ;; *) return 0 ;; esac
   fi
-  local log=$OUT/$id.log start end secs rc state reason ev
+  local log=$OUT/$id.log start end secs rc state reason evfull ev
   start=$(date +%s)
   # shellcheck disable=SC2086
   ( cd "$DATA" && env $envs timeout "$tmo" "$BIN" $args ) > "$log" 2>&1
   rc=$?
   end=$(date +%s); secs=$((end - start))
+  # 失败行先取出来：既要显示，也要拿它跟前缀比对（比对必须用未截断的原文）。
+  evfull=$(pick_evidence "$log")
   reason=""
   if [ $rc -eq 0 ]; then
     state="PASS"; PASS_N=$((PASS_N+1))
-  elif reason=$(known_reason "$id"); then
-    state="KNOWN-RED"; KNOWN_N=$((KNOWN_N+1))
+  elif known_lookup "$id"; then
+    reason=$KNOWN_REASON_TEXT
+    if [ -n "$KNOWN_PREFIX_TEXT" ] && [ -n "$evfull" ]; then
+      case "$evfull" in
+        *"$KNOWN_PREFIX_TEXT"*)
+          state="KNOWN-RED"; KNOWN_N=$((KNOWN_N+1))
+          ;;
+        *)
+          # 登记说红在这里，实际红在别处 —— 按新回归处理，别让 known-red 吞掉它。
+          state="RED-NEW(cause-changed)"; NEW_N=$((NEW_N+1))
+          reason="失败原因已变：登记前缀「${KNOWN_PREFIX_TEXT}」未出现在本轮失败行；登记原因「${reason}」"
+          ;;
+      esac
+    else
+      state="KNOWN-RED"; KNOWN_N=$((KNOWN_N+1))
+      [ -z "$KNOWN_PREFIX_TEXT" ] && reason="${reason}（未登记失败前缀，本行只判红）"
+    fi
   else
     state="RED-NEW"; NEW_N=$((NEW_N+1))
     [ $rc -eq 124 ] && reason="超时 ${tmo}s"
   fi
-  ev=$(pick_evidence "$log")
+  ev=$evfull
   [ ${#ev} -gt 160 ] && ev="${ev:0:160}…"
-  printf '  %-12s %-9s %3ss  %s\n' "$id" "$state" "$secs" "$ev"
+  printf '  %-12s %-22s %3ss  %s\n' "$id" "$state" "$secs" "$ev"
+  [ -n "$reason" ] && printf '  %-12s %-22s        ↳ %s\n' "" "" "$reason"
   printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$state" "$secs" "$(printf '%s' "$ev" | tr '\t|' '  ')" "$(printf '%s' "$reason" | tr '\t|' '  ')" >> "$TSV"
 }
 
@@ -178,5 +228,8 @@ MD=$OUT/report.md
 } > "$MD"
 
 echo "   报告 $MD"
-[ $NEW_N -gt 0 ] && echo "   $NEW_N 条 NEW-RED：先看 $OUT/<id>.log，确认后要么修，要么登记进 known-red.tsv"
+if [ $NEW_N -gt 0 ]; then
+  echo "   $NEW_N 条 NEW-RED：先看 $OUT/<id>.log，确认后要么修，要么登记进 known-red.tsv"
+  echo "   （状态带 cause-changed 的表示「这条本来就红，但红的原因换了」——同样按新回归处理）"
+fi
 exit $NEW_N
