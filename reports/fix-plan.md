@@ -159,7 +159,14 @@
 
 下一轮起手：**C-02 第二步**（在 `runtimeTransportBoardingAccessBodyClear` /
 `beginRuntimeTransportGroundTransfer` 拒绝分支按 id 记账，先钉「第一个人为什么被拒」）→
-**S-08 计量**（接进 `RuntimeFrameDiagnostics` 周期输出）→ 再谈 **M-03 门**。
+**S-08 计量**→ 再谈 **M-03 门**。
+
+**S-08 的前置条件（本轮查清、不能跳）**：现有 11 条回到里没有任何一条**静止场景连拍多帧**的入口
+（`result` 的记分动画在动、`render` 每帧都在换探针位、`interaction` 只画几帧就断言），
+而 S-08 要的正是「同一静止画面连拍 N 帧、其中多少帧像素完全一致」。
+所以 S-08 的落地顺序是：先加一个 `CONCORD_IDLE_REDRAW_TRACE=1` 的静止连拍入口（进图后不输入、
+连拍 120 帧、对后台缓冲按 97 dword 采样哈希），再把这个比例接进 `RuntimeFrameDiagnostics`。
+没有这一步，写出来的只是「一个没人读的计数器」——这也是前几轮一直没动它的原因。
 
 ## 五-旧、第 13 轮（2026-11-12）打包清单（存档）
 
