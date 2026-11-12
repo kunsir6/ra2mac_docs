@@ -7189,3 +7189,36 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
 - 「自测自己算期望值再直调最终应用函数」= 假门，与 U-12 绿灯、L10N-03 红叉同族。
   断言必须能抓到链路断掉，而不只是抓到函数返回。
 - 台账里的根因也是待验假设：读数与描述冲突时改描述，不改产品去迁就描述。
+
+## 2026-11-12 21:35 · M-02 · done:not-a-defect（第 14 轮）
+
+- 补上「画面矩形」维度：`bounds` 四边各比 `art` 大 3px —— 就是
+  `runtimeUnitSelectionBoundsForSprite` 的 `InflateRect(+3,+3)`；
+  而 `spriteBounds` 已被 `RuntimeUnitSelectionAlignmentSmoke` 对全类型×姿势×朝向×tileWidth
+  逐像素证明 == `renderedBounds`（真实绘制框）。
+- 读数 `bbox=4 center=3 bboxOnly=1 artOutside=0 artOnly=0`；样本 `#9003`
+  `bounds=(503,481,561,523) art=(506,484,558,520) artInBand=7px` → 车体真有 7px 在框里。
+- 结论：擦边容差，不是坐标错位、也不是透明留白。台账改「已废弃（非缺陷）」。
+- 留一条反向断言：任何被选中的单位，画面矩形必须真进框（防「固定尺寸幽灵框」回归）。
+
+## 2026-11-12 21:35 · C-02 · 阻塞点后移
+
+- `unloadRuntimeUnitTransportMotion` 一趟只放一个后 `break`（注释：等真实机身让位，
+  不靠固定延迟），`advanceRuntimeTransportUnloading` 每拍再调。旧冒烟在
+  `executeRuntimeSecondaryAction` 之后**同步**断言空仓 → 结构上不可能成立。
+- 改成按拍推进到空仓（上限 `hz*20`）后，坦克段全绿（深水拒卸/跨水/save-load/生命老兵度全过）。
+- 同步发现装船侧同一类错：`board()` 以 `pendingTransportTargets.empty()` 当完成，
+  而它只代表订单受理。改成等「每个人都在乘客表里」。
+- 新阻塞：12 名步兵登 LCRF 只上 10 名，2 人停在 15,15（舱门口）40 秒不推进。
+  known-red 前缀同步改为 `twelve infantry did not board`，status 改 `code-red:needs-metering`。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261112-203839`），零新回归。
+产品行为零改动（`ConcordRTS` 两条 `test:`：`e7cbfa8` / `3e51fd0`）。队列 v117 → v118。
+
+### 决策（追加）
+
+- 「一次操作 = 一条同步结果」是夹具最常见的错。装卸类断言一律按拍等到达成条件。
+- S-08/M-03 是呈现层提交条件，本轮只写方案不动手：漏字段的代价是**冻帧**，
+  必须先有读数（先 S-08，再 M-03 门）。
