@@ -7817,3 +7817,53 @@ dist 发布包 120 秒**零增长**。回归 `10/1/0` 与基线逐条一致（`2
 ### 下轮起手
 M-23：给 `deployRuntimeComputerAiMcvs` 的返回值加三来源文案（ids/cell/item/planned/requested/owner），
 一次运行裁定「AI 没 MCV / 没落点 / 请求被拒」。**S-17 仍不许接门禁**（第 2 道门还红）。
+
+---
+
+## 第 30 轮（2026-11-14 01:01~02:00）审计轮：清单体检 + 重复代码盘账
+
+### 轮型判定
+§6.7 每 5 轮强制审计，上次 AUDIT 为第 25 轮，本轮正好第 5 轮 → **审计轮**。
+（前置检查：无 attempts≥3 条目、近 5 轮净增 −333 未触发腐烂预算、近 5 轮 test:0 / fix:2 比例闸可解除、
+skirmish-mode-rules 主线 2 轮未到 4 轮限——都不成立，落在审计。）
+
+### 指标
+| 指标 | 值 |
+|---|---|
+| 近 5 轮净增 | **−333**（R26 −126 / R27 −337 / R28 0 / R28b +19 / R29 +111） |
+| 最大文件 | RuntimeShell 90,459（0）｜RuntimeMapRenderer 42,578（−90）｜RuntimeSessionWorld 30,794（+2） |
+| 断言/产品 | 近 5 轮 0 断言 / +130 行产品；近 60 提交 test:32 / fix:17 = 1.88×（未恶化未收敛） |
+| TODO/FIXME/HACK | 0 / 0 / 0 |
+
+### 清单体检（改了什么）
+- queue **46 → 35 条**、55 KB → 45 KB。归档 11 条 → `progress/queue-archive-202611b.json`：
+  6 条已结案超出 10 条窗口（M-21/S-11/M-12/S-12/C-02b/C-02c），5 条被取代
+  （EVO-09→C-02 主线、U-18→M-13、U-22→M-22/23/24 覆盖、ON-4-07 即已完成的 M-02、ON-4-03→合入 M-03）。
+- 修 2 条状态矛盾（按 fix-plan 为准）：`C-02g` measuring→done、`C-02i` measuring→blocked（+ deferred 指针）。
+- 修数据 bug：`queue.json` 的 `root`/`repo` 指向 `/Users/zhenglk/ai-project/ra2mac`（不存在，少个 s）。
+- 12 条 pending 的 `root_cause`/`cost` 是空串 → 按 §一.4 **不许进排序**，`roi` 显式写「待估（禁排序）」。
+- 29 个报告引用零悬空；attempts 与 RUNLOG 逐条对得上；`ledger-check.sh` 五项全绿。
+
+### 重复代码盘账（本轮最贵的产出）
+125 组 25 行重复块，三分：
+1. **产品侧 1 对真债**：`MapPreviewExporter.cpp` 整段复制 `RuntimeTmpCodec.cpp` 的 TMP 块解码循环
+   （`rowWidth=4` / `xStart=(blockWidth-rowWidth)/2` / base-extra 双路赋值）。改一处必漏另一处 → 轮 32 清偿。
+2. **冻结夹具 78 组 = 有意重复，禁止当死代码删**：`*Old*` / `*Oracle*` / `*original*` 共 4,046 行，
+   四个文件都有 `#include` 与可达调用点（`RuntimeShell.cpp:62020` 在 command 冒烟链上）。已写进 AUDIT-30 存档防误删。
+3. **冒烟骨架 36 组**：CameraKey / KeyboardIngress / KeyboardRouter 三份共享 4 组完全相同的 WndProc 装配块 —— 可抽取。
+
+### 主线账目（关键结论）
+skirmish-mode-rules 子项 = M-22(done) / M-23 / M-24 / S-17，**已满 4 条上限**，已用 2 轮。
+这不是「还有空间」，是「剩 2 轮窗口必须整体收口」。C-02 仍 blocked，不许再开。
+
+### 回归
+**本轮未跑新回归**：`build-product-arm` 自 01:00 起被并发进程占用（ninja 正在编 RuntimeShell.cpp，
+其工作区另有 6 文件 +324 行未提交改动），跑现有二进制会把他人 WIP 的判定算到本轮头上。
+引用最近真实基线：`PASS=10 / KNOWN-RED=1 / RED-NEW=0`（`20261113-235638`，command 前缀不变）。
+
+### 提交
+文档 `docs:`（fix-plan + AUDIT-30）/ `queue:`（v135 + archive + 本日志）。源码仓库**零提交**（并发 WIP 未触碰）。
+
+### 下轮起手
+M-23 六字段一次定性（skirmish 第 3 轮）；同轮写出 M-24 与 S-17 的二选一结论。
+轮 32 建议清偿（TMP 解码复制段 + 冒烟骨架）。轮 33 清 12 条 queue-only 条目，可顺带把 `ledger-check.sh` 接成 regress 第 0 步。
