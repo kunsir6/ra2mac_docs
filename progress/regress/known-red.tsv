@@ -8,4 +8,4 @@
 #              留空 = 该条放弃文案门禁，只判"红"。改产品语义/改断言文案时必须同步改这一列。
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-command	第 19 轮修掉整仓步兵卸载（C-02c：出舱者现在有半径 2 外侧终点，12 名全部下船）；现阻塞后移到混编段：载入 IFV 的整车下船，一次动作后 IFV 仍未出舱（ifv=null、boatCargo=3），该夹具在 23,23 周边零 unload trace，说明根本没进候选格循环	code-red:needs-metering	loaded IFV lost its soldier/gunner
+command	第 20 轮修掉混编段（旧断言赌船货顺序，改按拍等待后 IFV 正常出舱、乘员仍在车内）；现阻塞后移到生物反应堆段：AI action 62 五个步兵 800 拍内未全部进入反应堆（RuntimeBioReactorSmoke.inl:285-291）。该路径不走 runtimeTransportTransferBodiesClear，且全程零 transport trace，与本轮两条改动无关；该段自第 13 轮起从未被执行到	code-red:needs-metering	bioreactor: AI did not complete five real arrivals

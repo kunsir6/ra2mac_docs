@@ -7369,3 +7369,32 @@ boarding:transfer-refused ×4 / access:body ×4
   （`cell` 距船体 ≤1.5、`exits` 互不重合）当护栏，比事后补断言便宜。
 - 每次转绿一段就暴露下一段，说明 `command` 这条 smoke 里还埋着多处「一次点击 = 一步到位」，
   下轮起手先量「动作前 manifest 大小」，不要先改产品。
+
+## 2026-11-13 第 20 轮
+
+### 主题
+
+混编段整车下船（C-02d）。基线 `10/1/0` → 收口 `10/1/0`，零新回归。
+
+### 动作
+
+- `2c3616c` test：卸载顶部守卫补 `unload:host-busy`（alive/health/airborne/renderMoveActive/mission/cargo）。
+- `107b06b` test：混编段改按拍推进到 IFV 出舱（600 拍上限），断言本体一条没放。
+
+### 读数
+
+- `cargoBeforeAction=4 / boatMovingBefore=0 / 无 host-busy`：上一轮的两种解释（船没停稳、3 件是初始值）双双不成立。
+- 真形态：一趟只放一件，且船货顺序 = boarding 到达顺序，IFV 不保证第一 → 旧断言在赌排队次序。
+- 混编段转绿后，阻塞点后移到生物反应堆段（`bioreactor: AI did not complete five real arrivals`）。
+  该路径走 `cellDistanceToObjectFootprint`、零 transport trace，与本轮改动无关。登记 C-02e。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-130833`）。
+`command` 失败前缀随阻塞点改为 `bioreactor: AI did not complete five real arrivals`。
+
+### 决策（追加）
+
+- 「动作后立刻断言某件货已出舱」必须同时给出「动作前件数」；否则「没卸」与「卸了别的」同形。
+- `command` 是一条从未执行完的段落链：每转绿一段就露出下一段。下轮先列清段落清单再动手，
+  避免一段一轮地磨。
