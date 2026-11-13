@@ -7550,3 +7550,58 @@ boarding:transfer-refused ×4 / access:body ×4
   就是瞬移。判定要用「这个身体归谁负责」，不要用「目标格在哪」——目标格会被兜底改写。
 - 连续五轮的 `command` 阻塞点形态一致：每转绿一段就露出下一段，且下一段全是「第一次运行」。
   下一步仍然先量后改，不为了整条转绿去猜。
+
+## 第 25 轮（2026-11-13）清单治理达标 + C-02 主线整体收口
+
+**轮型：收口轮**（C-02 已用 11 轮 / 9 子项，超红线两倍）+ 逾期审计（RUNLOG 从未有过 AUDIT 记录）。
+基线 `10/1/0`（`20261113-144158`）→ 收口 `10/1/0`，产品代码零改动。
+
+### 清单治理（本轮唯一「产品级」改动）
+
+- `queue.json` 383,923 B / 2,839 行 / 152 tasks / 47 字段 / 168 rules 键
+  → 47,649 B / 663 行 / 40 tasks / 13 字段 / 5 类 rules。
+  全量快照 `progress/queue-archive-202611.json`（375 KB，可追溯）。
+- `rules` 168 键原文迁 `reports/queue-rules-archive.md`，主清单只留 5 类 × ≤3 行（构建/提交/判定/并发/清单治理）。
+- `fix-plan.md` 164 → 126 行，条目正文（第 1~24 轮）迁 `reports/archive/fix-plan-202611.md`。
+- 队列 ID → 计划 ID 映射写进 `thread`（11 对重复账合并），17 条空 thread 补齐。
+- **S-14 落地**：`scripts/ledger-check.sh` 五项门禁，当前全绿。规则四终于有人去量。
+
+### C-02 主线收口（判 blocked）
+
+11 轮 9 子项：真产品缺陷 3 处（C-02b 登船互锁 / C-02e 进门格被兜底换掉 / C-02h 离场被当取消入场），
+夹具与断言口径 5 处，产出密度约 27%。形态一致：每转绿一段就露出下一段，且全是「自第 13 轮起从未执行到」的段落。
+**判 blocked，不开第 10 个子项**；C-02i 移 `progress/deferred.md`，写三条重开条件。
+`command` 的 known-red 保留（带失败前缀门禁），作为「已知产品行为差异」的显式记录。
+**代价写在明处**：尤里奴隶矿工目前不产生收入。
+
+### C-02i 死因（只读，两条静态排除）
+
+- 排除「`context.credits` 不回写」：`HouseEconomyContext::credits` 是 `int&`，直指 `state.economy.credits`。
+- 排除「`cargoValue<=0` 被当空返」：`cargoValue += value` 与 `++cargoUnits` 同分支同步，`value<=0` 时提前 return 且不增 units。
+- 剩余候选：①`runtimeSlaveMinerWorkerAtRefinery` 的复合谓词（`!renderMoveActive` + 承诺格与身体格距离都 == 0）从未成立；
+  ②交付分支跑过但 cargo 被清零后循环重来。
+- 缺一条读数（`advanceRuntimeSlaveMinerWorkerTask` 入口，每 120 拍一行）——一次运行即可裁定，这就是重开条件。
+
+### 清单体检
+
+悬空报告引用 19 条（全是索引里的 `FIX-NN-*.md` 通配符）→ 全换真实文件名，剩 0；
+状态与报告矛盾 0；队列内重复 id 0；两本账重复 ID 11 对（已用 thread 合并）；
+`attempts` 历史全 0（本轮起新条目必填，历史不追认）。
+
+### 质量四数
+
+净增产品代码 0；`RuntimeShell.cpp` 90,459 / `RuntimeMapRenderer.cpp` 42,668 / `RuntimeSessionWorld.cpp` 30,805（均不变）；
+新增断言 0（八.3 比例闸：近 40 提交 test:28 / fix:9，本轮按闸禁新增断言）；`TODO=0 FIXME=0 XXX=2`（持平）。
+
+### 提交
+
+- `69e15a9` docs：fix-plan 重写 + rules 归档 + ledger-check.sh + FIX-26 + AUDIT-25 + 索引真实文件名
+- 本条 RUNLOG 随 queue commit 落地
+- 源码仓库本轮零提交
+
+### 决策（追加）
+
+- **红线要靠事前的子项数约束，不能靠事后的「感觉太久了」**：C-02 拆了 9 个 ID，每次归零，
+  止损线 4 轮从未触发。本轮起 `thread` 是必填字段，就是为了让「这条线用了几轮」随时可查。
+- **体检要查「看起来像链接的东西」**：19 处通配符在人工阅读时毫无违和，机器一查全是悬空。
+- **收口轮的价值不在修，在止损**：本轮产品代码零改动，但它结束了 11 轮的单主线消耗。
