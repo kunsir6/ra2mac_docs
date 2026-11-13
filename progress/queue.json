@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 130,
- "updated": "2026-11-13T14:43:39",
+ "version": 131,
+ "updated": "2026-11-13T20:05:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -632,26 +632,33 @@
    "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
    "report": "7b9f576",
    "thread": "未归类"
+  },
+  {
+   "id": "S-15",
+   "title": "smoke 侧奴隶矿工探针一起清掉，并删掉环境变量本身",
+   "detail": "第 26 轮只清了产品侧八处（净增 −126 行），RuntimeSlaveMinerSmoke.inl 还有 6 处同名打印仍由 CONCORD_SLAVE_EMERGENCE_TRACE 门控，导致这个环境变量删一半、留着像「还能查」。一并清掉后全仓 grep 应为 0。",
+   "root_cause": "第 24 轮一次性取证留下的探针，C-02 已判 blocked，结论在 FIX-25。",
+   "value": "低：清负债，避免把假入口留在代码里",
+   "cost": "改 smoke 侧打印 + 重跑 command/build/render 三条 smoke",
+   "roi": "C",
+   "complexity": "简单",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "全仓 grep CONCORD_SLAVE_EMERGENCE_TRACE 为 0；regress 仍 10/1/0 且 command 失败前缀不变",
+   "report": "reports/FIX-27-删掉跨轮存活的探针.md",
+   "thread": "C-02"
   }
  ],
  "decisions": {
   "note": "只留最近 2 轮决策；历史 9 轮见 queue-archive-202611.json 的 decisions_* 段。",
   "recent": [
    {
-    "round": 24,
+    "round": 26,
     "date": "2026-11-13",
     "lines": [
-     "读数必须先具备否定能力：怀疑「最像」的位置时先加会沉默的读数，沉默本身是结论。",
-     "入场恢复 ≠ 离场：为失败入场准备的「把人挪出地基」不能用在离场上，判定用「身体归谁负责」。",
-     "整体改格的读数放在 setRuntimeObjectCell（所有改格必经），一次命中把范围收成一个函数。"
-    ]
-   },
-   {
-    "round": 23,
-    "date": "2026-11-13",
-    "lines": [
-     "一格四子格：拿格子坐标判渲染位置必然差 0.25，要么取整体素格要么用几何距离。",
-     "夹具侧通用改法：期望值取几何（地基格清单 / 距离 / 集合成员），不取夹具自己造的常量。"
+     "清偿轮的边界是「只删不改」：探针旁边的判定逻辑一行没碰，否则回归红了无法二分。",
+     "删掉读取端不等于删掉开关：探针分产品侧/smoke 侧两处，只清一半会让环境变量变成更坏的假入口（登记 S-15）。",
+     "「验收条件无法观察」本身就是一条前置任务：M-13 在 macOS 上只能起真窗口，没有会话状态出口时不许开工。"
     ]
    }
   ]
