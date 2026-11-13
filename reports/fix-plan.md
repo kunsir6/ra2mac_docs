@@ -14,19 +14,20 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 33 轮，2026-11-14）收口摘要 —— 清偿轮（换赛道）**
-> 1. 轮型：**清偿轮**。三项独立触发：§八.3 比例闸（近 60 提交 test:33 / fix:16 ≈ 2.06×）、
->    §六.6 换赛道（`skirmish-option-semantics` 已 2 轮零产品行为变化）、§六.6 优先级首位。
-> 2. 上轮结论：M-29 是断言纠正（NAPOWR 样本是探针编的），`ownerFactory` 转绿、`unholy` 段仍红。
-> 3. 本轮变化：删掉 `MapPreviewExporter.cpp` 里与 `RuntimeTmpCodec` **分叉**的 TMP 解码器
->    （−647/+8，`b2ebc4c`）。四函数比对：三个逐字相同，主函数已漂 8 处（偏移字段 vs flags 位）。
-> 4. 代价：预览产物的 z-data/extra 解码立场随 codec 变化 = **一次行为变更**，且**没做产物级 A/B**
->    （本机无 loose `isotem.pal`）→ 登记 S-19，不当作已验证。
-> 5. 质量四数：净增 **−638**；90,476（不变）/ 42,578 / 30,794；断言 0 / 产品 0；TODO 0 → 0。
-> 6. 回归 `10/1/0`（`20261114-044630`），`command` 前缀不变，零新回归。
-> 7. 清单：162 行、45KB/34 条、rules 5 类、`ledger-check.sh` 六项全绿；1:1 替换（S-19 ↔ ON-3-02→deferred）。
-> 8. 下轮起手：S-19 的 PPM 逐字节 A/B（不做完这条，"删了 647 行且行为不变"不成立）；
->    11 条未估值条目处置（**不许第三次顺延**）。
+> **本轮（第 34 轮，2026-11-14）收口摘要 —— 修复轮（仪器 + 清单治理）**
+> 1. 轮型：**修复轮**。无 brake / 无腐烂预算 / 最高 attempts=2 / 距审计 4 轮。但 §八.3 比例闸仍在
+>    （近 5 轮 test:3 fix:1 = 3.0×）→ **禁新增断言**，只能改产品行为或清偿。
+> 2. 上轮结论：S-19 的「30 分钟」估值是没勘察就写的（MIX 无按名抽取工具、旧二进制要另建构建树）。
+> 3. 本轮变化：S-08 仪器接入（`cf1903b`，+30 行）——`reuseCachedFrame` 早就算出来并传进诊断函数，
+>    但只用来把绘制阶段记 0，**从来没人累加**；现在记「复用帧/重绘帧/最长连续复用帧」并落 `latest.txt`。
+> 4. 未完成：三个数只在真实会话退出时落盘，而真实开局通道（M-13）未绿 → S-08 记 **measuring**，
+>    不当已完成。M-03 继续不启动（没有基线就改判定 = 冻屏风险）。
+> 5. 清单：缺估值条目实测 **16 条**（审计那 11 条漏了 8 条镜像 + 新增 4 条），本轮全部处置完；
+>    `ledger-check.sh` 加第 7 项 `entry-fields`（负向测过会报 `1 M-25`）。
+> 6. 质量四数：净增 **+30**；90,476（+0）/ 42,578 / 30,794；断言 0 / 产品 0；TODO 0 → 0。
+> 7. 回归 `10/1/0`（`20261114-055524`），零新回归；清单 7 项全绿（167 行 / 51KB / 35 条 / 5 类）。
+> 8. 下轮起手：**第 35 轮是审计轮**（距 AUDIT-30 满 5 轮）。若审计后仍拿不到真实会话，按 §六.6
+>    转清偿/可观测性，不许再把 S-08 挂一轮。
 
 ---
 
@@ -34,11 +35,11 @@
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | attempts | 状态 | 验收条件 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
+| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | `tickAdvanced` 直接置 `repaintRequested`；**`reuseCachedFrame` 早已算出并传进 `recordRuntimeCompletedFrameDiagnostics`，但只用于把绘制阶段记 0，从未累加** | 中：M-03 的唯一基线 | 已接入（+30 行） | **B** | 简单 | 1 | **measuring**（`cf1903b`）：三个数只在真实会话退出时落盘，而 M-13 未绿 → 本轮只验证到编译+回归 | `performance/latest.txt` 出现「复用帧/重绘帧/最长连续复用帧」三行且与实际相符 | `reports/FIX-35-帧诊断记复用与重绘.md` §一 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，剩 `unholy` 段 = MCV 发放，仍红） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞改为「整链路 `unholy` 段」**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` §八 |
-| S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | 低：抽 1 个 pal + 编 1 份旧二进制 + 跑 2 次导出（约 30 分钟） | **A** | 简单 | 0 | 待修复 | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
+| S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 
 ## 二、待修复 —— 中等
 
@@ -119,11 +120,13 @@
 
 **M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）**｜S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）
 
-**第 30 轮审计遗留（不进本表，只在 queue 里挂着）**：原 12 条 queue-only 条目（`ON-5-01`/`ON-5-02b`/`ON-4-02d`/
-`ON-3-01b`/`ON-3-02`/`ON-2-04b`/`ARM-03`/`EVO-07`/`U-19`/`U-20`/`U-21`/`U-23`）缺根因与成本，按 §一.4 不排进排序。
-**第 33 轮已处置 1 条**：`ON-3-02` → `progress/deferred.md`（`CGWindowListCreateImage` 在 macOS 26 SDK 已
-unavailable，替代路径要 TCC 授权，属"缺信息/缺授权"而非缺工时）。剩 **11 条**，窗口顺延至第 34 轮——
-顺延理由写进 `reports/FIX-34-*.md` §六，**不许再顺延第三次**。清单见 `reports/AUDIT-30.md` §二.1。
+**第 30 轮审计遗留**：原 12 条 queue-only 条目缺根因与成本。**第 34 轮已全部清零**——但实测是
+**16 条**而不是 11 条：审计那 11 条漏了 8 条「fix-plan 条目的队列侧镜像」（`ON-2-06≈S-08`、
+`ON-2-02b≈M-04`、`EVO-03≈M-07`、`EVO-04≈M-06`、`EVO-05≈C-03`、`EVO-13≈M-05`、`EVO-14≈C-04`、
+`EVO-15≈C-01`），第 32 轮并发会话又新登记了 `M-25~M-28`、`EVO-06`。
+处置：7 条补估值留 pending / 4 条 UI 对账降 blocked（死因=真实开局取证通道未绿，离屏空白不能当证据）/
+8 条镜像估值指向 fix-plan / `ON-3-02` 已移 deferred。**防复发**：`ledger-check.sh` 第 7 项
+`entry-fields`（缺 6 个字段任一即 `LEDGER-BREACH`，已负向测过会报 `1 M-25`）。
 
 ---
 
@@ -131,6 +134,7 @@ unavailable，替代路径要 TCC 授权，属"缺信息/缺授权"而非缺工�
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 34 | 2026-11-14 | 帧诊断记「复用/重绘」；11 条缺估值条目实测是 16 条 | `reports/FIX-35-帧诊断记复用与重绘.md` |
 | 33 | 2026-11-14 | 地图预览自带第二份 TMP 解码器（清偿：−638 行，待 A/B） | `reports/FIX-34-地图预览自带第二份TMP解码器.md` |
 | 32 | 2026-11-14 | UnholyAlliance 的验收样本（NAPOWR）是探针自己编的；`ownerFactory` 转绿 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 | 31 | 2026-11-14 | 电脑开局 MCV 是「转向后落地」，不是没展开；35/35 全绿 + 主线收口 | `reports/FIX-32-电脑开局MCV是转向后落地.md` |
