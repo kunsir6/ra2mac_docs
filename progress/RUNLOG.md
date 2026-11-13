@@ -7729,3 +7729,50 @@ attempts 记 1。新主线「遭遇战模式规则」= M-22 → S-17 → M-13，
 
 M-22：先用 `MixArchive::findEntryByName` **只读**打出 9 个名字在 `mix_exports/*/*.mix` 里的命中表（一次运行、不改行为），
 再谈改加载；判据是同一实验在**无松散文件**时也能翻面，且 regress 不退化。
+
+---
+
+## 第 28b 轮（2026-11-13 22:59~23:35）追加修复：挂机 37 GB 内存爆炸
+
+### 触发
+
+用户报「游戏卡死了，是不是全屏后容易这样」。首查现场：进程仍活（来自 `dist/尤里红警.app`），
+主线程采样落在 `runRuntimeSkirmishMenu → MsgWaitForMultipleObjectsEx`，**不是死锁**；
+但 Physical footprint **36.1G → 37.1G / 18 秒（57 MB/s）**，DefaultMallocZone
+**330 万次活分配 / 37.1 GB**，`swapped_out = 37.0 G` —— 整机被 swap 拖死。
+
+### 根因
+
+`pumpEvents()` 把 `syncGlobalCursorForPointer()` 放在 `@autoreleasepool` **外面**。该函数每轮调
+`[NSCursor currentSystemCursor]`（SLSCopyRegisteredCursorImages + CGBlt_copyBytes）与
+`[NSWindow windowNumberAtPoint:]`（SkyLight 解析窗口 plist），产出的 autoreleased 对象全部挂到
+线程根 pool；而本项目从不跑 `[NSApp run]`，根 pool 永不 drain → 每轮泄漏几十~几百 KB。
+
+### 改法与验证
+
+一行位置调整（+20 行注释说明为什么必须在 pool 内），`505024d`。四组真窗口挂机对照：
+
+| 场景 | 20s | 60s | 120s | 240s |
+|---|---|---|---|---|
+| 修复前 | 533.8M | 1.1G | — | — |
+| 修复后（build） | 321.9M | 397.9M | — | — |
+| 修复后（4 分钟） | 323.9M | — | 552.8M | 582.3M |
+| **修复后（dist/.app）** | **99.3M** | — | **99.3M** | — |
+
+修复前是 13.6 MB/s 线性；修复后前 100 秒 2.3 MB/s（启动预热）→ 后 120 秒 0.25 MB/s（收敛）；
+dist 发布包 120 秒**零增长**。回归 `10/1/0` 与基线逐条一致（`20261113-232017`）。
+
+### 打包
+
+`lipo` 合并 arm64 + x86_64（双架构 minos=12.0），`pack-dist.sh` 全门禁通过
+（图标 diff 96.2、冒烟 rc=0、plist source=505024d）。
+
+### 结论修正
+
+「全屏更容易」是**放大器**不是原因：全屏 surface 更大、切换期 pump 超时放宽到 20ms（循环更密）。
+窗口模式同样漏，只是慢些。下一轮别再往全屏代码里找。
+
+### 新硬约束（已写入 MEMORY）
+
+任何在每帧/每轮循环里调 AppKit / CoreFoundation 的地方，必须确认自己在 `@autoreleasepool` 内。
+本项目没有 `[NSApp run]`，漏一个调用就是几十 MB/s，症状是「整机卡死」而不是「程序崩溃」。
