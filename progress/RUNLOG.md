@@ -7222,3 +7222,38 @@ M-18（render，中等）/ M-12（interaction，中等）/ C-02（command，复�
 - 「一次操作 = 一条同步结果」是夹具最常见的错。装卸类断言一律按拍等到达成条件。
 - S-08/M-03 是呈现层提交条件，本轮只写方案不动手：漏字段的代价是**冻帧**，
   必须先有读数（先 S-08，再 M-03 门）。
+
+## 2026-11-13 10:55 · C-02 · 根因定位到 bodies 门（四人同格互锁）
+
+- 上一轮留的问题句是「12 名步兵登 LCRF 只上 10 名，2 人停在 15,15，原因未定」。
+  这句话把四种失败压成一个数字（候选格不合格 / 接近身体不空 / 转移三道门 / 转移时长为空）。
+- 关键发现：`advanceRuntimeUnitTransportBoarding` 把
+  `beginRuntimeTransportGroundTransfer(...)` 的返回值 **`(void)` 丢掉**，
+  于是「转移被拒」与「还没走到」在调用方完全同形，日志只剩 `status=moved`。
+- 接住返回值 + 给五个 access 拒绝点与四道 transfer 门各一个原因位
+  （`CONCORD_TRANSPORT_TRACE=1`，同 id+原因只打一次）后，一次运行即读数：
+
+```
+transfer:bodies id=9  at=15,15 hull=16,16
+transfer:bodies id=12 at=15,15 hull=16,16
+transfer:bodies id=11 at=15,15 hull=16,16
+transfer:bodies id=10 at=15,15 hull=16,16
+boarding:transfer-refused ×4 / access:body ×4
+```
+
+- 定性：**四人同拍停在同一格 (15,15)**，`runtimeTransportTransferBodiesClear` 的
+  foot-to-foot 最小间距 0.5 让每个人都在别人的扫掠走廊里 → 互锁；先到的 10 人是在格子
+  未挤满时逐个进的。不是运力、不是寻路、不是地形层、不是子格耗尽（那些会是别的桶）。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-100031`），零新回归，
+`command` 失败前缀未变（不是 cause-changed）。产品行为零改动（`94fbc71` 一条 `test:`）。
+队列 v118 → v119。
+
+### 决策（追加）
+
+- 凡「转移/进入/装载」类函数，调用方必须接住布尔返回值并在拒绝点留原因位：
+  丢掉返回值等于把「被拒」和「还没到」抹成同一件事。
+- 同格多人场景先量是否同格、再谈容量；同格互锁要显式给排序规则，
+  不能指望身体互斥自己解开。

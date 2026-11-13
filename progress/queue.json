@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 118,
+  "version": 119,
   "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2664,6 +2664,22 @@
         "topic": "命中框与画面框的差必须写成常量关系",
         "decision": "凡「命中框 vs 画面」类疑点，第一步先量两边四边差值，再谈语义",
         "effect": "M-02 两次被证伪：先否掉坐标错位，再否掉透明留白——真答案是 bounds = spriteBounds + 3px（InflateRect）。保留一条反向断言防幽灵框回归。"
+      }
+    ]
+  },
+  "decisions_20261113_r15": {
+    "date": "2026-11-13",
+    "source": "第 15 轮（FIX-16）",
+    "items": [
+      {
+        "topic": "把 `(void)` 丢掉的返回值当成「没有信息」",
+        "decision": "凡「转移/进入/装载」类函数，调用方必须接住布尔返回值并在拒绝点留原因位（环境变量门控，同 id+原因只打一次）",
+        "effect": "`advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值直接丢弃，于是「转移被拒」与「还没走到」在日志里完全同形（都只是 status=moved）。接住后一次运行就拿到 `transfer:bodies` 这条确定原因。"
+      },
+      {
+        "topic": "同格多人会互相锁死，而不是排队",
+        "decision": "凡「同格多人」场景（登船/卸载/门口），先量是否同格、再谈容量；同格互锁要显式给排序规则，不能指望身体互斥自己解开",
+        "effect": "C-02 的 12 上 10 不是运力问题：4 人同拍停在 (15,15)，foot-to-foot 阈值 0.5 让每个人都在别人的扫掠走廊里，谁也不能先动。"
       }
     ]
   }
