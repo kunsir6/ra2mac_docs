@@ -1,5 +1,5 @@
 {
- "note": "第 30 轮审计批归档（只读追溯）：已结案超出窗口 + 被取代/合并的条目。与 queue-archive-202611.json（第 25 轮全量快照）互补。 第 31 轮：M-24 移出主清单（→ progress/deferred.md），本体归档于此。",
+ "note": "第 30 轮审计批归档（只读追溯）：已结案超出窗口 + 被取代/合并的条目。与 queue-archive-202611.json（第 25 轮全量快照）互补。 第 31 轮：M-24 移出主清单（→ progress/deferred.md），本体归档于此。 第 35 轮：C-02h（done，C-02 主线已整体 blocked）归档，1:1 替换新增的 M-30。",
  "tasks": [
   {
    "id": "M-21",
@@ -262,6 +262,21 @@
    "status": "deferred",
    "verify": "同一 config 下删掉松散文件后兼容哈希不变",
    "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
+  },
+  {
+   "id": "C-02h",
+   "title": "奴隶矿工出舱 blocked 档：内部工人瞬移 3 格——已修（离场不再被当成取消入场）",
+   "detail": "第 24 轮修掉（产品缺陷）。四次读数、两次自我否定：①reconcileRuntimeSubcells 的 NeedsMoveOut 重定位（直接改格+清渲染位+半径 6 搜索）看起来最像，加 why=reconcile-relocate 后一条没打，否定；②在 setRuntimeObjectCell 加「跨 >1 格」读数，命中 tick=344 from=9,8 to=6,6 resetRender=0；③在 recoverRuntimeCancelledStructureEntry 入口加读数，命中 prevKind=1(Move) prevTarget=9,8 allowedOccupied=1；④在无矿分支三处加读数，看到 tick=1 exit=6,6 issued=1 path=0。根因：runtimeCancelledStructureEntryNeedsRecovery 只对 Returning/Stored 豁免奴隶矿工，而墙圈关着时无矿分支签发的离场 Move 目标格 (6,6) 不可达 → path=0 即刻「完成」→ 被当成失败入场 → 半径 6 搜索把站在自己炼油厂地基里的矿工直接搬到空地（无插值）。改法：按任务归属豁免（任务 refineryId 就是这个 host 就不恢复），不按「目标格在地基外」（试过不成立，恢复时 prevTarget 已被兜底改回自己脚下），也没有放宽成「所有步兵」。读数 blocked closed/reopened exit=ok，ore / no ore 两档仍绿。另留 7 条 env-gated 只读计量。",
+   "root_cause": "",
+   "value": "",
+   "cost": "",
+   "roi": "",
+   "complexity": "中等（先量后改）",
+   "attempts": 0,
+   "status": "done",
+   "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
+   "report": "ra2mac_docs/reports/FIX-25-奴隶矿工离场不该被当成取消入场.md",
+   "thread": "C-02"
   }
  ]
 }
