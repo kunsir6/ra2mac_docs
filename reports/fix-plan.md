@@ -14,14 +14,17 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 27 轮，2026-11-13）收口摘要**
-> 1. 轮型：**清偿轮**（§8.3 比例闸未解：近 5 轮 test:3 / fix:1；上一轮清偿只清了一半，smoke 侧探针还在）。
-> 2. 上轮结论：产品侧八处 slave 探针已删（−126 行），smoke 侧 6 处留着 = 假入口（S-15）。
-> 3. 本轮变化：五族一次性 env 探针清零（slave / mcv / hit-span / shadow / transport），**净增 −319 行**，零新增断言。
->    回归 `10/1/0` 与基线逐条一致，`command` 前缀不变。
-> 4. 事故与代价：S-16 第一次提交把 `if (remainingPath.empty())` 的唯一条语句删漏，**构建当场失败**，
->    已 `revert` 后重做（多花一次 4 分钟构建）。教训：删「某 if 的唯一条语句」必须同时处理该 if。
-> 5. 下轮起手：修复轮 —— `--skip-skirmish-menu` 的会话状态出口（M-13/M-07 共用的门）；比例闸要求本轮仍不许新增断言。
+> **本轮（第 28 轮，2026-11-13）收口摘要 —— 诊断/重排轮**
+> 1. 轮型：**诊断/重排轮**。触发：§七.1 根因假设被实测推翻（M-13「没有会话状态出口」不成立）。
+> 2. 上轮结论：五族一次性 env 探针清零（净增 −319），回归 `10/1/0`；比例闸本轮起解除（近 5 轮 test:1 / fix:1）。
+> 3. 本轮变化：**产品代码零改动、源码零提交**。查清「真遭遇战取证通道」三件套（`--skirmish-build-smoke-test`
+>    入口、`Skirmish start:` 状态出口、己方工厂/CY 断言）**早已存在且从未跑过**；它一跑就红在 30 谓词门，
+>    而门下 20 项 `no` 的共因是**模式规则只认松散文件、9 个 `MP*MD.ini` 只存在于 MIX 归档**。
+> 4. 判定性实验：放两个最小松散 `MPFreeForAllMD.ini`/`MPMeatMD.ini` → `alliesAllowed=no → yes`，其余一字未动；
+>    实验文件已删除。**结论：用户选 Duel/Megawealth/MeatGrind/… 这 9 个模式时规则一条都不生效。**
+> 5. 重排：新增 **M-22（A 级，前置）** 与 **S-17（进 regress 的第 12 条，依赖 M-22）**；M-13 阻塞改挂 M-22、
+>    attempts 记 1。新主线「遭遇战模式规则」= M-22 → S-17 → M-13，本轮起计 1 轮 / 1 子项。
+> 6. 下轮起手：M-22 —— 先用 `MixArchive::findEntryByName` **只读**打出 9 个名字在归档里的命中表，再谈改加载。
 
 ---
 
@@ -32,6 +35,7 @@
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
+| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 它先是红的（30 谓词门），一登记就会长期挂着；先修再进门禁 | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + `known-red` 口径（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**依赖 M-22**） | regress 输出 `PASS=11 KNOWN-RED=1`（12 条，无新增红） | `reports/FIX-29-真实遭遇战通道已存在.md` §5 |
 
 ## 二、待修复 —— 中等
 
@@ -42,7 +46,8 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | `--skip-skirmish-menu` 进的是战役图（`Units:0 / Structures:10 / Players:1`），没有基地车与己方建筑 | 第 26 轮定位：skip 只置 `showMainMenu/showSkirmishMenu=false`（`RuntimeMain.cpp:829-832`），**不构造 `playerSlots`**；真遭遇战走 `applyRuntimeSkirmishSelection`（`RuntimeSkirmishSetup.cpp:31-44`），所以 `initializeRuntimeSkirmishStart` 落进「无 slot 单人兜底」分支 | 高：U-19/U-20/U-22 的前置 | 先加无窗口会话状态出口（打印 `skirmishStatus`/己方单位数），再合成两人 setup | **A** | 中等 | 0 | 待修复（**阻塞在取证通道**：macOS 上 skip 只能起真窗口，无状态出口） | skip 进图后己方有 MCV、`Players≥2`、HUD 有资金与电力 | `reports/UI-01-正式版观感对账.md` §3.2 ／ `FIX-27` §4 |
+| M-13 | 真实遭遇战开局取证通道 | 已不需要新建：**入口/状态出口/断言全都已存在**（`--skirmish-build-smoke-test` + `Skirmish start:` 行 + 己方工厂与 `GACNST` 断言），只是被 option-semantics 门挡在后面 | 第 28 轮推翻旧假设：不是「skip 不构造 playerSlots / 无状态出口」，是 M-22（模式规则读不到）让那扇门永远关着 | 高：U-19/U-20/U-22 的前置 | 低：M-22 修完 + 冒烟跑绿即可 | **A** | 中等 | 1 | 待修复（**阻塞改为 M-22**；旧「阻塞在取证通道」表述已作废） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
+| M-22 | 9 个游戏模式的规则从未生效 | 选 Duel / Megawealth / MeatGrind / NavalWar / Unholy / TeamGame / Cooperative / FreeForAll 时规则一条不生效，等同普通 Battle | `resolveRuntimeModeRulesOverridePath`（`RuntimeSessionNavigation.cpp:161`）只查 5 个**松散**路径，而 9 个 `MP*MD.ini` 只在 `expandmd01.mix`（加密索引）里；松散层唯一存在的是模式索引 `mpmodesmd.ini` | **S**：用户可见——9 个模式从静默无效变为生效；同时解开 M-13/S-17 | 中低：单点函数加「松散层 miss → 归档按名读」回退，`MixArchive` 已实现加密索引 | **S** | 中等 | 0 | 待修复（**本轮升为第一优先**） | 放最小松散 `MPFreeForAllMD.ini` 即可让 `alliesAllowed` 翻面（已验证）；修后同一实验在**无松散文件**时也应翻面 | `reports/FIX-29-真实遭遇战通道已存在.md` §3 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -99,6 +104,7 @@ S-16 两栖转移探针清零（`404afb5` revert + 重做 commit，−105 行）
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 28 | 2026-11-13 | 真遭遇战取证通道早已存在；20 项 `no` 的共因是模式规则读不到（重排） | `reports/FIX-29-真实遭遇战通道已存在.md` |
 | 27 | 2026-11-13 | 五族一次性探针清零（清偿：净增 −319 行） | `reports/FIX-28-探针清零第二批.md` |
 | 26 | 2026-11-13 | 删掉跨轮存活的探针（清偿：净增 −126 行） | `reports/FIX-27-删掉跨轮存活的探针.md` |
 | 25 | 2026-11-13 | 清单治理达标 + C-02 主线收口（判 blocked） | `reports/FIX-26-C-02主线收口与清单治理.md` |
