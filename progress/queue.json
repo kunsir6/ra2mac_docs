@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 131,
- "updated": "2026-11-13T20:05:00",
+ "version": 132,
+ "updated": "2026-11-13T20:10:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -636,16 +636,31 @@
   {
    "id": "S-15",
    "title": "smoke 侧奴隶矿工探针一起清掉，并删掉环境变量本身",
-   "detail": "第 26 轮只清了产品侧八处（净增 −126 行），RuntimeSlaveMinerSmoke.inl 还有 6 处同名打印仍由 CONCORD_SLAVE_EMERGENCE_TRACE 门控，导致这个环境变量删一半、留着像「还能查」。一并清掉后全仓 grep 应为 0。",
+   "detail": "第 26 轮只清了产品侧八处（净增 −126 行），RuntimeSlaveMinerSmoke.inl 还有 6 处同名打印仍由 CONCORD_SLAVE_EMERGENCE_TRACE 门控，导致这个环境变量删一半、留着像「还能查」。一并清掉后全仓 grep 应为 0。 第 27 轮已清：6 处打印全删（含 step() 的 first-sighting dump 与两处相位打印），改为 describeWorker 把 tick/id/cell/render/moving/phase/status 写进四条 fail 文案。",
    "root_cause": "第 24 轮一次性取证留下的探针，C-02 已判 blocked，结论在 FIX-25。",
    "value": "低：清负债，避免把假入口留在代码里",
    "cost": "改 smoke 侧打印 + 重跑 command/build/render 三条 smoke",
    "roi": "C",
    "complexity": "简单",
-   "attempts": 0,
-   "status": "pending",
+   "attempts": 1,
+   "status": "done",
    "verify": "全仓 grep CONCORD_SLAVE_EMERGENCE_TRACE 为 0；regress 仍 10/1/0 且 command 失败前缀不变",
-   "report": "reports/FIX-27-删掉跨轮存活的探针.md",
+   "report": "reports/FIX-28-探针清零第二批.md",
+   "thread": "C-02"
+  },
+  {
+   "id": "S-16",
+   "title": "两栖转移的 env 探针（C-02 线最后一族）",
+   "detail": "RuntimeSessionNavigation.cpp 的 runtimeTransportTraceEnabled / traceTransportBoarding / traceRuntimeTransportUnload / runtimeTransportTraceTick 与 21 条调用语句，是第 15~22 轮逐段取证留下的。第 27 轮已删（−105 行），并收掉三处因此变成空壳的结构。",
+   "root_cause": "C-02 主线第 25 轮判 blocked，取现结论已写死在 FIX-26，这族探针没有第二次用途。",
+   "value": "低：清负债；顺带把「if 的唯一条语句被删」这类语法风险集中暴露一次。",
+   "cost": "单文件 105 行删除 + 一次构建 + 一次回归",
+   "roi": "C",
+   "complexity": "简单",
+   "attempts": 1,
+   "status": "done",
+   "verify": "全仓 grep traceRuntimeTransport 为 0；构建通过；regress 10/1/0 且 command 前缀不变",
+   "report": "reports/FIX-28-探针清零第二批.md",
    "thread": "C-02"
   }
  ],
@@ -659,6 +674,15 @@
      "清偿轮的边界是「只删不改」：探针旁边的判定逻辑一行没碰，否则回归红了无法二分。",
      "删掉读取端不等于删掉开关：探针分产品侧/smoke 侧两处，只清一半会让环境变量变成更坏的假入口（登记 S-15）。",
      "「验收条件无法观察」本身就是一条前置任务：M-13 在 macOS 上只能起真窗口，没有会话状态出口时不许开工。"
+    ]
+   },
+   {
+    "round": 27,
+    "date": "2026-11-13",
+    "lines": [
+     "批量删语句前先判它是不是某个 if/for 的唯一 body——S-16 第一次提交因此把 if 删成空壳，构建当场失败（已 revert 重做）。",
+     "探针的正确终局是「证据进失败文案」而不是「默认静默的环境变量」：默认静默等于只有知道变量名的人查得到。",
+     "同一批删除要一次构建一次回归：本轮两族分两次构建（第二次是返工），多花 4 分钟。"
     ]
    }
   ]
