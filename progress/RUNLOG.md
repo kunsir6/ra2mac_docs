@@ -7512,3 +7512,41 @@ boarding:transfer-refused ×4 / access:body ×4
   夹具侧的通用改法是「期望值取几何（地基/集合成员/距离），不取常量」。
   这条链上真正的产品缺陷只有两处（C-02b 登船互锁、C-02e 建筑进门格）。
 - 三档（`ore` / `no ore` / `blocked`）**不许混改**：前两档转绿后立即锁定，C-02h 只能动 `blocked` 路径。
+
+---
+
+## 2026-11-13 第 24 轮：入场恢复不该吃掉离场（FIX-25）
+
+- 起手基线 `10/1/0`（`20261113-135721`），前缀与登记一致。
+- C-02h（blocked 档工人从 `9,8` 一步到 `6,6`）经**四次读数、两次自我否定**收窄：
+  ①`reconcileRuntimeSubcells` 的 `NeedsMoveOut` 重定位（直接改格 + 清渲染位 + 半径 6 搜索）
+  看起来最像，加 `why=reconcile-relocate` 后一条没打 —— **否定**；
+  ②改在 `setRuntimeObjectCell`（所有整体改格都必经）加「跨 >1 格」读数，命中
+  `tick=344 from=9,8 to=6,6 resetRender=0`；③在 `recoverRuntimeCancelledStructureEntry`
+  入口加读数，命中 `prevKind=1(Move) prevTarget=9,8 allowedOccupied=1`；
+  ④在无矿分支三处加读数，看到 `tick=1 exit=6,6 issued=1 path=0`。
+- 根因：`runtimeCancelledStructureEntryNeedsRecovery` 只对 `Returning`/`Stored` 豁免奴隶矿工。
+  墙圈关着时无矿分支签发的**离场** Move 目标格 `(6,6)` 不可达 → `path=0` 即刻「完成」→
+  被当成失败入场 → 半径 6 搜索把站在自己炼油厂地基里的矿工直接搬到空地。
+- 改法（`7b9f576` fix）：按**任务归属**豁免（任务的 `refineryId` 就是这个 host 就不恢复），
+  不按「目标格在地基外」——后者试过不成立，恢复时 `prevTarget` 已被兜底改回自己脚下。
+  没有放宽成「所有步兵」。
+- 读数：`blocked ... closed/reopened exit=ok`，`ore` / `no ore` 两档仍绿（三档未混改）。
+- 新阻塞 **C-02i**：`runRuntimeSlaveMinerSmokeProbe` 后续段
+  `digging=1 carrying=1 cargo=4 credits=0`，自第 13 轮起从未执行到。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-143359`）。
+`command` 失败前缀随阻塞点改为 `slave miner: workers did not dig, carry full loads and deposit credits`
+（中间一次 `RED-NEW(cause-changed)` 是同步第 4 列之前的必然结果，已当场改齐）。
+
+### 决策（追加）
+
+- **读数要先能「否定」**：本轮前两步都是先排除一个「看起来最像」的嫌疑，再让读数把它否掉。
+  两条读数（`reconcile-relocate` 一条没打、`set-cell-jump` 命中）合起来才把范围从
+  「所有改格的地方」收到「一个函数」。
+- **「入场」与「离场」是两套语义**：为失败入场准备的恢复（把人从地基里挪出来）用在离场上
+  就是瞬移。判定要用「这个身体归谁负责」，不要用「目标格在哪」——目标格会被兜底改写。
+- 连续五轮的 `command` 阻塞点形态一致：每转绿一段就露出下一段，且下一段全是「第一次运行」。
+  下一步仍然先量后改，不为了整条转绿去猜。
