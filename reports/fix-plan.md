@@ -13,13 +13,23 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 12:14（第 16 轮开工）；
+> 最近更新：2026-11-13 12:50（第 16 轮收口）；
+> 第 16 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，`RED-NEW=0`（`command` 的失败文案按新阻塞点
+> 同步改第 4 列，属计划内的 cause-changed）。**登船互锁修好了**：12 名步兵 `aboard=10/12 → 12/12`。
+> 根因不是运力、寻路、地形层或子格，而是 `runtimeTransportTransferBodiesClear` 的 foot-to-foot
+> 最小间距 0.5：一格四子格，四人同格时彼此扫掠段起点距离只有 0.002~0.10，且四人同拍都在往板上挤
+> → 谁也不能先动。**计划里的 A 方案（每拍只放一人）被读数否决**——单独一个动仍被站着/挤着的同伴挡住；
+> 改成「同船步兵同伴不算路障」（载具与外部单位仍严格互斥，坦克段 `aboard=4`/`exits` 不重合照旧绿）。
+> 源码 `498ae37` fix + `c7a1f2f` test。**新登记 C-02c**：整仓步兵卸载按拍推进 600 拍仍不放空
+> （原生问题，登船入舱会清 `pendingTransportTargets`，本轮豁免对它不生效）。报告
+> `reports/FIX-17-登船互锁解除与卸载新阻塞.md`。
+>
 > 第 16 轮开工：基线 **`10/1/0`**（`20261113-121025`，与第 15 轮收口逐条一致，`command` 前缀
 > `twelve infantry did not board` 未漂移）。简单区仍为空（S-08 缺静止连拍入口、S-13 卡守卫产物、
 > M-19 属资产侧），按「不为凑批量拆中等项」的既有纪律，本轮只做唯一 remaining known-red
 > **C-02**，取 A 方案（复杂，单独成轮，先写方案再动手）。
 >
-> 最近更新（上一轮）：2026-11-13 10:55（第 15 轮收口）；
+> 上一轮收口：2026-11-13 10:55（第 15 轮收口）；
 > 第 15 轮：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
 > **C-02 根因收窄**：给登船路径加 `CONCORD_TRANSPORT_TRACE=1` 原因位后，卡点不是寻路/地形/子格，
 > 也不是容量，而是**四个人同拍停在 (15,15) 同格互相锁死**——`runtimeTransportTransferBodiesClear`
@@ -128,7 +138,8 @@
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|
 | C-01 | EVO-15 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]`，导致 cursor rect 全失效、`isActive`/`isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 高：改主循环 + 回归全部输入断言 | **A** | 复杂 | 待修复 | 见 `MEMORY` 中「本项目不调 sendEvent」条目 |
-| C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | 根因已定位（`94fbc71` 只读计量）；**第 16 轮取 A 方案，分两步**：①`runtimeTransportTransferBodiesClear` 加「被谁挡住」只读位（other id/kind/线段距离）钉死是同伴而非外部单位；②同 host 整船转移每拍只放一人（`pendingTransportTargets` 按 host 分组、instanceId 定序），并补「同格四人有限拍内全进舱」断言。坦克段 `aboard=4` / `exits` 互不重合必须同时绿 | `reports/FIX-16-登船互锁的四道门计量.md` |
+| C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | **第 16 轮已修复（C-02a 部分）**：`498ae37` fix + `c7a1f2f` test。A 方案（每拍只放一人）被读数否决；真修法是「同船步兵同伴不算路障」（载具/外部单位仍严格互斥）。`aboard=10/12 → 12/12`。**剩余阻塞另立 C-02c** | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` |
+| C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **未定性**：这段此前被登船红挡住（第 16 轮第一次执行到）。已排除「本轮引入」——登船入舱会 `erase(pendingTransportTargets)`，被卸下的兵没有待登船意图，同伴豁免对它不生效。剩两种可能：①舱门口子格被河岸/水面判据挡住 ②卸载候选格几何不可达 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | 先加卸载侧只读位（候选格/子格/使 `runtimeTransportTransferBodiesClear` 失败的那一侧），再定性 | **A** | 复杂（模拟层卸载排队） | 待修复（第 16 轮登记） | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` §4 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -149,7 +160,31 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 15 轮）打包清单
+## 五、本轮（2026-11-13 第 16 轮）打包清单
+
+主题：**把「计划里的 A 方案」用一档读数否掉，换成真能解开死锁的那条边界**。
+基线 `10/1/0` → 收口 `10/1/0`，`RED-NEW=0`。报告 `reports/FIX-17-登船互锁解除与卸载新阻塞.md`。
+
+- **C-02a 登船互锁 → 已修复（`498ae37` fix）**：`runtimeTransportTransferBodiesClear` 加「被谁挡住」
+  只读位（id/kind/格子/线段距离 + `selfPending/otherPending/moving`）后，读数 `otherPending==host`
+  且 `moving=1` 证明是**四名同船排队者同拍互挤**，不是「有人站着挡路」。
+  **A 方案（每拍只放一人）当场被否决**：单独一个动时扫掠段起点仍落在同伴身体里（0.002~0.10 < 0.5）。
+  改为豁免「同为步兵 + 同船排队」的同伴；载具、非本船乘客、敌方单位仍严格互斥。
+  `aboard=10/12 → 12/12`，坦克段 `aboard=4` / `exits` 不重合全绿。
+- **C-02 的卸载断言 → 已修（`c7a1f2f` test）**：第 176 行「按一下就整仓放空」在结构上不可能成立
+  （卸载逐人推进），照坦克段第 121~137 行的写法改成按拍推进到放空。
+- **C-02c 整仓卸载 → 新登记（复杂）**：改成按拍后 600 拍仍未放空，`moved #7 to 15,15`。
+  已排除「本轮引入」（登船入舱会 `erase(pendingTransportTargets)`，豁免对卸载不成立）。
+- **简单批为什么仍是空的**：S-08 缺「静止连拍」入口、S-13 卡守卫 `--inventory/--trace` 产物、
+  M-19 属资产侧。继续按「不为凑批量拆中等项」执行。
+- **没做的事写在明处**：C-02c 只登记不动手——它要的卸载侧只读位（9 个候选格逐个记拒绝原因）
+  是另一条独立链路，按「复杂项单独成轮、先写方案」留到下一轮。
+
+下一轮起手：**C-02c**（卸载候选格九格逐项计量 → 判「舱门口被水面/岸线判据挡住」还是
+「候选格几何不可达」）；其次 **S-08**（先造 `CONCORD_IDLE_REDRAW_TRACE` 静止连拍入口，再谈 M-03 门）。
+剩余 known-red 仍只有 1 条（`command`，前缀已改为 `full infantry hold did not unload`）。
+
+## 五-旧、第 15 轮（2026-11-13）打包清单（存档）
 
 主题：**把「12 人只上 10 人」拆到具体那道门**。基线 `10/1/0` → 收口 `10/1/0`，`RED-NEW=0`，
 产品行为零改动。报告 `reports/FIX-16-登船互锁的四道门计量.md`。
