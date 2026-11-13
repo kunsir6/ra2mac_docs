@@ -14,17 +14,16 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 28 轮，2026-11-13）收口摘要 —— 诊断/重排轮**
-> 1. 轮型：**诊断/重排轮**。触发：§七.1 根因假设被实测推翻（M-13「没有会话状态出口」不成立）。
-> 2. 上轮结论：五族一次性 env 探针清零（净增 −319），回归 `10/1/0`；比例闸本轮起解除（近 5 轮 test:1 / fix:1）。
-> 3. 本轮变化：**产品代码零改动、源码零提交**。查清「真遭遇战取证通道」三件套（`--skirmish-build-smoke-test`
->    入口、`Skirmish start:` 状态出口、己方工厂/CY 断言）**早已存在且从未跑过**；它一跑就红在 30 谓词门，
->    而门下 20 项 `no` 的共因是**模式规则只认松散文件、9 个 `MP*MD.ini` 只存在于 MIX 归档**。
-> 4. 判定性实验：放两个最小松散 `MPFreeForAllMD.ini`/`MPMeatMD.ini` → `alliesAllowed=no → yes`，其余一字未动；
->    实验文件已删除。**结论：用户选 Duel/Megawealth/MeatGrind/… 这 9 个模式时规则一条都不生效。**
-> 5. 重排：新增 **M-22（A 级，前置）** 与 **S-17（进 regress 的第 12 条，依赖 M-22）**；M-13 阻塞改挂 M-22、
->    attempts 记 1。新主线「遭遇战模式规则」= M-22 → S-17 → M-13，本轮起计 1 轮 / 1 子项。
-> 6. 下轮起手：M-22 —— 先用 `MixArchive::findEntryByName` **只读**打出 9 个名字在归档里的命中表，再谈改加载。
+> **本轮（第 29 轮，2026-11-13）收口摘要 —— 修复轮**
+> 1. 轮型：**修复轮**。主线「遭遇战模式规则」第 2 轮 / 第 2 子项（M-22 → M-23 → S-17 → M-13），未到 ≤4 限。
+> 2. 上轮结论：真遭遇战通道早已存在，20 项 `no` 的共因是模式规则读不到（M-22 升为第一优先）。
+> 3. 本轮变化：**M-22 已完成**（`2c7f1ea`）——模式规则松散层 miss 时按名从 `expandmd01.mix` 等归档读，
+>    两个消费点（模式加载 / 规则叠加）同时改；`skirmishModeRulesLoaded` 从恒 false 变为 true。
+> 4. 读数：模式冒烟阻塞点从「第一道门（规则没加载，文案读起来像开局失败）」后移到
+>    「AI 开局 MCV 不展开」，且 **35/35 例一字不差** → 单一新根因，登记 **M-23**（中等，只登记未动手）。
+> 5. 回归 `10/1/0` 逐条一致，`command` 前缀不变。净增 +111。**S-17 仍不许接门禁**（第 2 道门还红）。
+> 6. 下轮起手：M-23 —— 先给 `deployRuntimeComputerAiMcvs` 加「三来源」失败文案（ids/cell/requested），
+>    一次运行裁定「AI 没 MCV / 没落点 / 请求被拒」，再谈改产品。
 
 ---
 
@@ -35,7 +34,7 @@
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
-| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 它先是红的（30 谓词门），一登记就会长期挂着；先修再进门禁 | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + `known-red` 口径（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**依赖 M-22**） | regress 输出 `PASS=11 KNOWN-RED=1`（12 条，无新增红） | `reports/FIX-29-真实遭遇战通道已存在.md` §5 |
+| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 它先后被两道门挡着：M-22（规则没加载，已修）与 M-23（AI 开局 MCV 不展开，仍红）；先修再进门禁 | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + `known-red` 口径（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**依赖 M-23**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-31-游戏模式规则从归档读取.md` §7 |
 
 ## 二、待修复 —— 中等
 
@@ -46,8 +45,9 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | 已不需要新建：**入口/状态出口/断言全都已存在**（`--skirmish-build-smoke-test` + `Skirmish start:` 行 + 己方工厂与 `GACNST` 断言），只是被 option-semantics 门挡在后面 | 第 28 轮推翻旧假设：不是「skip 不构造 playerSlots / 无状态出口」，是 M-22（模式规则读不到）让那扇门永远关着 | 高：U-19/U-20/U-22 的前置 | 低：M-22 修完 + 冒烟跑绿即可 | **A** | 中等 | 1 | 待修复（**阻塞改为 M-22**；旧「阻塞在取证通道」表述已作废） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
-| M-22 | 9 个游戏模式的规则从未生效 | 选 Duel / Megawealth / MeatGrind / NavalWar / Unholy / TeamGame / Cooperative / FreeForAll 时规则一条不生效，等同普通 Battle | `resolveRuntimeModeRulesOverridePath`（`RuntimeSessionNavigation.cpp:161`）只查 5 个**松散**路径，而 9 个 `MP*MD.ini` 只在 `expandmd01.mix`（加密索引）里；松散层唯一存在的是模式索引 `mpmodesmd.ini` | **S**：用户可见——9 个模式从静默无效变为生效；同时解开 M-13/S-17 | 中低：单点函数加「松散层 miss → 归档按名读」回退，`MixArchive` 已实现加密索引 | **S** | 中等 | 0 | 待修复（**本轮升为第一优先**） | 放最小松散 `MPFreeForAllMD.ini` 即可让 `alliesAllowed` 翻面（已验证）；修后同一实验在**无松散文件**时也应翻面 | `reports/FIX-29-真实遭遇战通道已存在.md` §3 |
+| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被两道门挡着：M-22（已修）、M-23（AI 开局 MCV 不展开） | 第 29 轮读数：模式规则已从归档读出，阻塞点后移到 `deployRuntimeComputerAiMcvs` | 高：U-19/U-20/U-22 的前置 | 低：M-23 修完 + 冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为 M-23**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
+| M-23 | 遭遇战冒烟 AI 开局 MCV 不展开 | `deployRuntimeComputerAiMcvs` 返回 false，7 模式 × 3 阵营 + 7 夹阵营 × 2 模式**共 35 例一字不差** | 单一原因，三候选：①AI 阵营没拿到 MCV / owner 认不出 ②`findRuntimeMcvDeployCell` 无落点 ③`requestRuntimeMcvDeployment` 被规则拒（人类那条走 `deployRuntimeMcv`，绕过请求门） | 高：模式规则修好后的下一道门；不修则 S-17/M-13 永远接不上 | 低：先给返回值加三来源文案（一行），再一次运行定性 | **A** | 中等 | 0 | 待修复（第 29 轮登记） | 该行打出 `ids=/cell=/item=/planned=/requested=/owner=` 且其中恰有一项为空/假 | `reports/FIX-31-游戏模式规则从归档读取.md` §5 |
+| M-24 | 录像兼容哈希漏算归档侧模式规则 | 有松散 `MP*MD.ini` 的机器与没有的机器算出的 `runtimeMatchReplayCompatibility` 不同（前者按文件字节、后者直接跳过） | `RuntimeMatchReplayRuntime.inl:50` 只在松散路径非空时 `mixFile()`，归档命中后该分支不执行 | 中：多人/录像兼容性判定的可信度 | 中：改成按模式规则**文本**入哈希 + 逼升 `ReplaySimulation` 版本号 | **B** | 中等 | 0 | 待修复（本轮识别、未动） | 同一 config 下删掉松散文件后兼容哈希不变 | `reports/FIX-31-游戏模式规则从归档读取.md` §7 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -96,7 +96,7 @@
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool；dist/.app 挂 120s 内存零增长）｜S-16 两栖转移探针清零（`404afb5` revert + 重做 commit，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`，失败文案自带现场）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜C-02d 混编段按拍等待（`107b06b`）｜C-02c 两栖卸载外侧终点（`4f13ccc`）
+S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool；dist/.app 挂 120s 内存零增长）｜**M-22 游戏模式规则从归档读取**（`2c7f1ea`，松散 miss 时按名读 `expandmd01.mix`；模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做 commit，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`，失败文案自带现场）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜已归档两条（C-02d/C-02c，见归档）
 
 ---
 
@@ -104,6 +104,7 @@ S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autorelease
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 29 | 2026-11-13 | 游戏模式规则从归档读取（模式从静默无效到生效） | `reports/FIX-31-游戏模式规则从归档读取.md` |
 | 28b | 2026-11-13 | 挂机 37GB 内存爆炸：光标同步在 autoreleasepool 外（用户报障追加轮） | `reports/FIX-30-挂机内存泄漏-autoreleasepool.md` |
 | 28 | 2026-11-13 | 真遭遇战取证通道早已存在；20 项 `no` 的共因是模式规则读不到（重排） | `reports/FIX-29-真实遭遇战通道已存在.md` |
 | 27 | 2026-11-13 | 五族一次性探针清零（清偿：净增 −319 行） | `reports/FIX-28-探针清零第二批.md` |
