@@ -44,3 +44,16 @@
 - 奴隶矿工「移动式」分支（`SMIN` 折叠/展开时的货物继承）已由 C-02f/`RuntimeSlaveMinerSmoke` 后半段覆盖，
   但**交付读数为 0** 使该段从未被执行到，所以「折叠后货物不丢」目前只有序列化往返的证据，没有端到端证据。
 - 两栖运输的**全水域**场景（`C-02c` 的「全水时退回就地停靠」分支）只有代码路径，没有夹具覆盖。
+
+## ON-3-02：`--onscreen-capture`（第 33 轮移出，等价替换 S-19 的入口）
+
+- **现象**：想要一条"屏幕上真的是这幅画"的证据，用 `CGWindowListCreateImage` 抓本进程窗口。
+- **死因（已排除什么）**：`CGWindowListCreateImage` 在 macOS 26 SDK 已标 **unavailable**（不只是 deprecated），
+  编译直接报错（`CGWindow.h:271`）。替代路径只剩两条，都不缺工时而是缺前置：
+  ① `screencapture -l <windowNumber>` 子进程（需 TCC 屏幕录制授权）；② ScreenCaptureKit（macOS 14+，异步 + 同样要授权）。
+- **还缺什么**：本机 Accessibility/屏幕录制授权未批（见 MEMORY「本机 Accessibility 未授权」），
+  合成输入与抓屏都被系统丢弃，所以这条**不是写代码能推进的**。
+- **重开条件**：用户侧一次性授予屏幕录制权限，且 `screencapture -l` 能稳定抓到本项目窗口一帧；
+  届时先做 `--onscreen-capture` 的最小实现（子进程 + 与同帧 BMP 比对平均通道差 <2），再接回五界面自证。
+- **代价（未做带来的）**：`attest` 那条 smoke 只能证明"我们交给了系统的那份位图"，不能证明"屏幕合成结果"。
+  这条差距在 ON-3-01b（五界面上屏自证）里同样存在，但不阻塞任何判定。

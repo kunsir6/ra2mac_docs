@@ -7939,3 +7939,35 @@ fix-plan 162 行不变；queue 35 条/13 字段，v138；`ledger-check.sh` 六�
 ### 下轮起手
 一条读数裁定 `unholy` 的 MCV 发放段（`additionalMcvs` 数量 / techLevel 之一为假）。
 `skirmish-option-semantics` 已 2 轮无产品行为变化 → **第 33 轮按 §六.6 换赛道**。
+
+---
+
+## 第 33 轮（2026-11-14）清偿轮（换赛道）
+
+### 轮型与主目标
+三项独立触发：§八.3 比例闸（近 60 提交 test:33/fix:16 ≈ 2.06×）、§六.6 换赛道
+（`skirmish-option-semantics` 连续 2 轮零产品变化）、§六.6 优先级首位。
+主目标：删掉 `MapPreviewExporter.cpp` 里与 `RuntimeTmpCodec` 分叉的 TMP 解码器。
+
+### 做了什么
+`b2ebc4c` refactor(preview)：−647/+8（7,479 → 6,840 行）。
+逐函数比对证明它是分叉副本而非复制品（3/4 逐字相同，主函数漂 8 处）；
+本地结构体改类型别名、解码入口收成两行包装、5 个只服务旧副本的辅助函数一并删；
+`concord_rules_dump` 补 `RuntimeTmpCodec.cpp`（此前只靠副本才链得上）。
+
+### 未做的（写清）
+- 预览产物级 A/B 没做：`--export-map-tmp-preview` 卡在 `isotem.pal`（只在归档里）→ 登记 **S-19**。
+- 三份键盘冒烟的 WndProc 骨架去重：不与主目标同根因，按§四.1 不打包。
+- 11 条未估值 queue 条目只处置 1 条（ON-3-02 → deferred），窗口顺延第 34 轮。
+
+### 质量四数与回归
+净增 **−638**；90,476（不变）/ 42,578 / 30,794；断言 0 / 产品 0；TODO 0 → 0。
+回归 `10/1/0`（`20261114-044630`），command 前缀不变，零新回归。
+
+### 清单
+fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿；queue v139。
+1:1 等价替换：新增 S-19 ↔ 移出 ON-3-02。
+
+### 下轮起手
+先做 S-19（抽 `isotem.pal` → 编旧二进制 → PPM 逐字节比），再做 11 条未估值条目处置。
+仍禁新增断言、禁开 `skirmish-option-semantics` 子项。
