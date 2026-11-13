@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 124,
-  "updated": "2026-11-13T13:10:03+08:00",
+  "version": 125,
+  "updated": "2026-11-13T13:29:33+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2602,11 +2602,20 @@
     },
     {
       "id": "C-02e",
-      "status": "measuring",
-      "title": "生物反应堆段：5 名步兵 800 拍未全部真实进入",
-      "detail": "第 20 轮 C-02d 转绿后 command 的阻塞点后移到 RuntimeBioReactorSmoke.inl:277-291：AI action 62 下达后 800 拍内没有 5 名步兵全部到达。已排除本轮改动——该路径用 runtimeCellDistanceToObjectFootprint(...)==0.0 判到达，不走 runtimeTransportTransferBodiesClear，整段零 transport trace。三种情形待分流：①pendingTransportTargets 清空但计数停在 4（进了又没进，查 completeRuntimeTransportEntry 的反应堆分支）②pending 非空且 blockedTicks 增长（被地基/身体挡住）③五人从未开始移动（issueRuntimeTeamScriptStep 只排 intent 没派路）。起手一次读数即可定性：800 拍后打 power、pending 大小、五人 cell/mission/behavior.state/blockedTicks。",
+      "status": "done",
+      "title": "生物反应堆段：5 名步兵 800 拍未全部进入——已修（进门格不再被兜底目标换掉）",
+      "detail": "第 21 轮修掉。三次采样逐步收窄：①终态 pending=2 power=450 aboard=3，两人 moveTarget 分别是对方所站的格子、path=0 pathReq=1 blocked 停在 1；②打出地基格清单（2x2 (12,12)(13,12)(12,13)(13,13)）与每人当前 entryCell（都是 12,12），确认行为里的 moveTarget（12,11/11,11）是陈旧值；③按拍采样显示 after-issue 五人目标全对（path=1），第 1 拍进第一人，第 20 拍目标已互换。根因：applyRuntimeMovePathResult 的 blocked-goal 豁免名单里 runtimeUnitTransportApproachAllowsBodyDetour 要求 host->kind == WorldObjectKind::Unit，建筑吸收器被漏掉 → 地基格被 goalAdjusted 换成门外邻格；而重算进门格的分支只活在「路径走完」里，两人一步都走不出去 → 死锁不自愈。修法：新增 runtimeBuildingAbsorberEntryKeepsGoal（同构条件 + moveTarget 在地基内），载具规则不动。读数 pending=0 power=650 aboard=5。commit d6654eb（fix）+ 8dfc9f4（test，环境变量门控的按拍采样）。顺带确认「五人抢同一地基格」不是缺陷（坦克碉堡段亦然），进人本身按拍串行。",
       "verify": "800 拍内 5 名步兵 cell 全部落在反应堆 footprint 内，且 power 增益按合同生效",
       "complexity": "中等（先量后改，可能升为复杂）",
+      "value": "A"
+    },
+    {
+      "id": "C-02f",
+      "status": "measuring",
+      "title": "MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆",
+      "detail": "第 21 轮 C-02e 转绿后暴露。RuntimeShell.cpp:63082 → RuntimeMcvRepackSmoke.inl:145：Americans/GACNST/AMCV 第一个阵营即失败——dispatchRuntimeSecondaryActionFromUi 之后 finishRepacking 跑完，findObjectById(yardId) 仍在，或选中车辆的 type/owner/runtimeObjectCanMove/cell 任一不符。与 pendingTransportTargets 无关，属自第 13 轮起从未执行到的旧问题。一次读数分流：finishRepacking 后打 yard 是否还在 / selected.size / kind+type+owner / canMove / cell / pendingOccupyTargets.size()，分清 ①拆包根本没发生（查 finishRepacking 的计时前提与 runtimeMissionIsRepacking）②拆了但 canMove=false（查拆包后 mission/deployed 与移动档位）③类型或所有者没继承。",
+      "verify": "四个阵营（含被占领的 GACNST 换成 Russians）拆包后都得到可移动、已选中的对应 MCV，且伤害/星级/箱子加成保留",
+      "complexity": "中等（先量后改）",
       "value": "A"
     }
   ],
@@ -2718,6 +2727,22 @@
         "topic": "候选格循环的拒绝点必须逐条留名",
         "decision": "卸载候选格循环里每个 `continue` 都对应一个独立拒绝原因（passable/level/subcell/clearance/transition/bodies/no-exit），不要合并成一句「找不到格子」",
         "effect": "这样「船停的位置不对」与「目标格被人占着」在日志里立刻可分，否则两者同形。"
+      }
+    ]
+  },
+  "decisions_20261113_r21": {
+    "date": "2026-11-13",
+    "source": "第 21 轮（FIX-22）",
+    "items": [
+      {
+        "topic": "寻路器的「兜底目标」会静默改写精确格子语义",
+        "decision": "凡靠精确格子判到达的语义（进门/占位/出货/卸货），都必须显式声明「目标不许被换」；新增这类语义时要检查 applyRuntimeMovePathResult 的豁免名单",
+        "effect": "生物反应堆段两人被换成门外邻格，且恰好换成对方所在的格子，形态是「两人互堵死 800 拍不动」，从日志表面完全看不出是寻路器改的目标。"
+      },
+      {
+        "topic": "读数必须带时间维度才能区分「本来错」与「被改错」",
+        "decision": "定性路径类问题时，至少采三个时刻：排队后、首拍、阻塞稳态",
+        "effect": "after-issue 显示五人目标全对且 path=1，把「findRuntimeEngineerEntryCell 挑错格」这个最像的候选一次否掉，省掉一整轮改错方向。"
       }
     ]
   }

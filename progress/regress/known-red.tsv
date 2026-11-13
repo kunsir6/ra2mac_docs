@@ -8,4 +8,4 @@
 #              留空 = 该条放弃文案门禁，只判"红"。改产品语义/改断言文案时必须同步改这一列。
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-command	第 20 轮修掉混编段（旧断言赌船货顺序，改按拍等待后 IFV 正常出舱、乘员仍在车内）；现阻塞后移到生物反应堆段：AI action 62 五个步兵 800 拍内未全部进入反应堆（RuntimeBioReactorSmoke.inl:285-291）。该路径不走 runtimeTransportTransferBodiesClear，且全程零 transport trace，与本轮两条改动无关；该段自第 13 轮起从未被执行到	code-red:needs-metering	bioreactor: AI did not complete five real arrivals
+command	第 21 轮修掉生物反应堆段（建筑吸收器的进门格被寻路器的 goalAdjusted 换成门外邻格，两人互换后者互堵死；补 runtimeBuildingAbsorberEntryKeepsGoal 后 5 人全部真实进入）。现阻塞后移到 MCV repack 段：RuntimeMcvRepackSmoke.inl:145「拆包后没在旧地基上生成可移动的已选中车辆」。该段自第 13 轮起从未被执行到，且与 pendingTransportTargets 无关，属暴露出来的旧问题	code-red:needs-metering	MCV repack: click did not create a selected movable vehicle
