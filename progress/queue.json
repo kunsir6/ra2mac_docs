@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 133,
- "updated": "2026-11-13T23:20:00",
+ "version": 134,
+ "updated": "2026-11-13T23:45:00",
  "root": "/Users/zhenglk/ai-project/ra2mac",
  "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
  "rules": {
@@ -465,7 +465,7 @@
    "attempts": 0,
    "status": "measuring",
    "verify": "三档下所有奴隶矿工都从建筑内按拍走出，中途不出现「直接出现在周边地面」的位移，且数量等于 slavesNumber",
-   "report": "c5d2b6c",
+   "report": "ra2mac_docs/reports/FIX-24-奴隶矿工出舱的子格偏移.md",
    "thread": "C-02"
   },
   {
@@ -540,7 +540,7 @@
    "attempts": 0,
    "status": "done",
    "verify": "人为把 known-red 前缀改成不匹配的串，regress 应报 RED-NEW",
-   "report": "50d3a85",
+   "report": "ra2mac_docs/reports/FIX-13-known-red失败前缀门禁.md",
    "thread": "未归类"
   },
   {
@@ -630,7 +630,7 @@
    "attempts": 0,
    "status": "done",
    "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
-   "report": "7b9f576",
+   "report": "ra2mac_docs/reports/FIX-25-奴隶矿工离场不该被当成取消入场.md",
    "thread": "未归类"
   },
   {
@@ -645,7 +645,7 @@
    "attempts": 1,
    "status": "done",
    "verify": "全仓 grep CONCORD_SLAVE_EMERGENCE_TRACE 为 0；regress 仍 10/1/0 且 command 失败前缀不变",
-   "report": "reports/FIX-28-探针清零第二批.md",
+   "report": "ra2mac_docs/reports/FIX-28-探针清零第二批.md",
    "thread": "C-02"
   },
   {
@@ -660,36 +660,66 @@
    "attempts": 1,
    "status": "done",
    "verify": "全仓 grep traceRuntimeTransport 为 0；构建通过；regress 10/1/0 且 command 前缀不变",
-   "report": "reports/FIX-28-探针清零第二批.md",
+   "report": "ra2mac_docs/reports/FIX-28-探针清零第二批.md",
    "thread": "C-02"
   },
   {
    "id": "M-22",
    "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
-   "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径且全部 is_regular_file，而 9 个模式规则文件（MPBattleMD/MPTeamMD/MPFreeForAllMD/MPUnholyMD/MPMWMD/MPDuelMD/MPMeatMD/MPNavalMD/MPCoopMD）只存在于 expandmd01.mix（索引加密）。松散层唯一存在的是模式索引 mpmodesmd.ini。判定性实验：放最小松散 MPFreeForAllMD.ini 即让 alliesAllowed=no → yes。修法：松散层 miss 时用 MixArchive::findEntryByName + readEntryData 从 mix_exports/*/*.mix 回退读取，IniFile::loadFromString。",
+   "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
    "root_cause": "模式规则解析绕开 MIX 归档层，只认松散文件；资产管线故意把条目留在归档里（引擎按 ID 递归扫描），两条口径不一致。",
    "value": "S：用户可见——9 个模式从静默无效变为生效；同时解开 M-13 / S-17。",
    "cost": "中低：单点函数加一条归档回退；MixArchive 已实现加密索引与按名查找。",
    "roi": "S",
    "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
+   "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md",
+   "thread": "skirmish-mode-rules"
+  },
+  {
+   "id": "M-23",
+   "title": "遭遇战冒烟 AI 开局 MCV 不展开",
+   "thread": "skirmish-mode-rules",
+   "detail": "deployRuntimeComputerAiMcvs（RuntimeSessionScenario.cpp:11398）返回 false：7 模式×3 阵营 + 7 夹阵营×2 模式共 35 例一字不差，与阵营/模式无关 → 单一原因。返回值是 changed，三来源各有假：①mcvIds 空（AI 没 MCV 或 owner 认不出）②findRuntimeMcvDeployCell 无落点 ③requestRuntimeMcvDeployment 被拒（人类走 deployRuntimeMcv，绕过请求门）。",
+   "root_cause": "未验证。先给返回值加三来源文案（ids/cell/item/planned/requested/owner），一次运行裁定。",
+   "value": "高：模式规则修好后的下一道门，不修则 S-17/M-13 永远接不上门禁。",
+   "cost": "低：先加一行失败文案（默认静默、不留环境变量），再一次运行定性。",
+   "roi": "A",
+   "complexity": "中等",
    "attempts": 0,
    "status": "pending",
-   "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
-   "report": "ra2mac_docs/reports/FIX-29-真实遭遇战通道已存在.md",
-   "thread": "skirmish-mode-rules"
+   "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
+   "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
+  },
+  {
+   "id": "M-24",
+   "title": "录像兼容哈希漏算归档侧模式规则",
+   "thread": "skirmish-mode-rules",
+   "detail": "RuntimeMatchReplayRuntime.inl:50 只在松散路径非空时 mixFile() 入哈希；归档命中后该分支不执行，于是「有松散 MP*MD.ini 的机器」与「没有的机器」算出的 runtimeMatchReplayCompatibility 不同。",
+   "root_cause": "兼容哈希按文件字节而非模式规则文本记账，且只在松散分支执行。",
+   "value": "中：多人/录像兼容性判定的可信度（错判会把可回放的录像判成不兼容）。",
+   "cost": "中：改成按模式规则文本入哈希 + 逼升 ReplaySimulation 版本号，需单独一轮验证不误判。",
+   "roi": "B",
+   "complexity": "中等",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "同一 config 下删掉松散文件后兼容哈希不变",
+   "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
   },
   {
    "id": "S-17",
    "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
-   "detail": "真遭遇战冒烟（入口/状态出口/己方工厂断言齐全）从未进过 11 条用例，红了也没人知道。必须先由 M-22 修绿再接入，不许登记 known-red——一条几乎全红的用例盖合格章等于取消门禁。",
+   "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。两道门：M-22 已修（规则能读出来），M-23 仍红（AI 开局 MCV 不展开，35/35 例一致）。不许登记 known-red——一条几乎全红的用例盖合格章等于取消门禁。",
    "root_cause": "该冒烟首次被跑就红在 option semantics（30 谓词，20 项 no），一直没人接门禁。",
    "value": "中：一条用例接入 = 真遭遇战链路从此有门。",
    "cost": "低：regress 加一行 + 口径说明。",
    "roi": "C",
    "complexity": "简单",
    "attempts": 0,
-   "status": "pending",
-   "verify": "regress 输出 12 条且 PASS=11 KNOWN-RED=1 RED-NEW=0。",
+   "status": "blocked",
+   "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
    "report": "ra2mac_docs/reports/FIX-29-真实遭遇战通道已存在.md",
    "thread": "skirmish-mode-rules"
   }
@@ -713,6 +743,15 @@
      "批量删语句前先判它是不是某个 if/for 的唯一 body——S-16 第一次提交因此把 if 删成空壳，构建当场失败（已 revert 重做）。",
      "探针的正确终局是「证据进失败文案」而不是「默认静默的环境变量」：默认静默等于只有知道变量名的人查得到。",
      "同一批删除要一次构建一次回归：本轮两族分两次构建（第二次是返工），多花 4 分钟。"
+    ]
+   },
+   {
+    "round": 29,
+    "date": "2026-11-13",
+    "lines": [
+     "「opening failed: skirmish start not applied」是多谓词短路：路口在第一个谓词，status 还停在初始值——读起来像开局失败，实际是压根没走到开局。",
+     "修好读取层不等于用例转绿：阻塞点立刻后移。35/35 例一字不差说明是单一新根因（M-23），不是模式内容差异。",
+     "给 skirmishModeRulesPath 赋值前先查消费者怎么用它（三处都取 filename() 与常量比较），否则归档路径会一次打坏三处。"
     ]
    }
   ]

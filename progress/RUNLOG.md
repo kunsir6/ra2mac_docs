@@ -7776,3 +7776,44 @@ dist 发布包 120 秒**零增长**。回归 `10/1/0` 与基线逐条一致（`2
 
 任何在每帧/每轮循环里调 AppKit / CoreFoundation 的地方，必须确认自己在 `@autoreleasepool` 内。
 本项目没有 `[NSApp run]`，漏一个调用就是几十 MB/s，症状是「整机卡死」而不是「程序崩溃」。
+
+---
+
+## 第 29 轮（2026-11-13 23:46~00:45）修复轮：游戏模式规则从归档读取（M-22）
+
+### 轮型判定
+主线「遭遇战模式规则」第 2 轮 / 第 2 子项（未到 ≤4 限）；上一轮为诊断轮且状态已收口（非 in_progress），
+无 attempts≥3 条目，近 5 轮无连续 300+ 净增，最近审计轮为第 25 轮（未满 5 轮）→ **修复轮**。
+
+### 做了什么
+`resolveRuntimeModeRulesOverridePath` 只查 5 个松散路径，9 个 `MP*MD.ini` 只在 `expandmd01.mix`
+（索引加密）→ `skirmishModeRulesLoaded` 恒 false，8 个模式全部静默退回默认值。
+新增 `loadRuntimeModeRulesIni`：**松散命中优先**（本地 mod 覆盖语义一字未改），miss 时按名在
+`expandmd01/expandmd02/localmd/local` 归档里 `findEntryByName` + `readEntryData` + `loadFromString`。
+两个消费点都改用它：`loadAndApplyRuntimeSkirmishModeRules`、`buildRuntimeStartupReport` 的 rules→mode→map 叠加。
+
+归档命中时 `skirmishModeRulesPath` 记**条目名**而非归档路径——三处消费者都对它取 `filename()`
+与 `"MPUNHOLYMD.INI"` 之类比较（isUnholyRules / runtimeSkirmishModeMatches / economy status）。
+
+### 读数
+```
+改前  FreeForAll/Americans: opening failed: skirmish start not applied
+改后  FreeForAll/Americans: computer could not deploy its opening MCV   （35/35 例一字不差 → M-23）
+```
+第一句是**多谓词短路**：路口在 `!skirmishModeRulesLoaded`，`skirmishStatus` 还是初始值，
+所以「开局失败」读起来像开局，实际压根没走到开局。
+
+### 质量四数
+净增 **+111**（4 files / +122 −11）；`RuntimeShell.cpp` 90,459 与 `RuntimeMapRenderer.cpp` 42,578 未动，
+`RuntimeSessionWorld.cpp` +4−4；新增断言 0；TODO/FIXME/探针 0→0。
+回归 `10/1/0` 逐条一致（`20261113-235638`），`command` 前缀不变。
+
+**待复查**：`build` 冒烟 `startup=487→2463ms / placementSearch=1707→7260ms`（总 3s→11s），
+疑为模式条目进了 `economy.catalog` 使候选格搜索变大，未定量。
+
+### 提交
+源码 `2c7f1ea` fix:；文档 docs:（计划+报告+FIX-31）/ queue:（v134 + 本日志）。两仓库收口干净，软链保持。
+
+### 下轮起手
+M-23：给 `deployRuntimeComputerAiMcvs` 的返回值加三来源文案（ids/cell/item/planned/requested/owner），
+一次运行裁定「AI 没 MCV / 没落点 / 请求被拒」。**S-17 仍不许接门禁**（第 2 道门还红）。
