@@ -14,20 +14,19 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 34 轮，2026-11-14）收口摘要 —— 修复轮（仪器 + 清单治理）**
-> 1. 轮型：**修复轮**。无 brake / 无腐烂预算 / 最高 attempts=2 / 距审计 4 轮。但 §八.3 比例闸仍在
->    （近 5 轮 test:3 fix:1 = 3.0×）→ **禁新增断言**，只能改产品行为或清偿。
-> 2. 上轮结论：S-19 的「30 分钟」估值是没勘察就写的（MIX 无按名抽取工具、旧二进制要另建构建树）。
-> 3. 本轮变化：S-08 仪器接入（`cf1903b`，+30 行）——`reuseCachedFrame` 早就算出来并传进诊断函数，
->    但只用来把绘制阶段记 0，**从来没人累加**；现在记「复用帧/重绘帧/最长连续复用帧」并落 `latest.txt`。
-> 4. 未完成：三个数只在真实会话退出时落盘，而真实开局通道（M-13）未绿 → S-08 记 **measuring**，
->    不当已完成。M-03 继续不启动（没有基线就改判定 = 冻屏风险）。
-> 5. 清单：缺估值条目实测 **16 条**（审计那 11 条漏了 8 条镜像 + 新增 4 条），本轮全部处置完；
->    `ledger-check.sh` 加第 7 项 `entry-fields`（负向测过会报 `1 M-25`）。
-> 6. 质量四数：净增 **+30**；90,476（+0）/ 42,578 / 30,794；断言 0 / 产品 0；TODO 0 → 0。
-> 7. 回归 `10/1/0`（`20261114-055524`），零新回归；清单 7 项全绿（167 行 / 51KB / 35 条 / 5 类）。
-> 8. 下轮起手：**第 35 轮是审计轮**（距 AUDIT-30 满 5 轮）。若审计后仍拿不到真实会话，按 §六.6
->    转清偿/可观测性，不许再把 S-08 挂一轮。
+> **本轮（第 35 轮，2026-11-14）收口摘要 —— 审计轮**
+> 1. 轮型：**审计轮**（§6.7，距 AUDIT-30 满 5 轮）。产品零改动、零新增断言、源码仓库零提交；
+>    同时满足 §0.3 比例闸（近 5 轮 test:3 / fix:0），清偿排期见报告 §三。
+> 2. 上轮结论：S-08 仪器已装但无实机读数 → 本轮查明是**结构原因**（出口只在真实窗口会话收尾），
+>    判 **blocked**，不再挂 measuring。
+> 3. 本轮变化：`M-29` 按 fix-plan 对齐为 done，其余段拆出 **M-30**（unholy 段一次读数）；
+>    修 2 条数据错误（`EVO-06` 估值过期、`C-02h` thread 未归类）；1:1 归档 `C-02h`。
+> 4. **头条**：8 条条目（M-13/S-17/U-19/20/21/23/S-08/ON-3-01b）共用同一道门——真开局会话。
+>    逐条估值都是「低/中」，合起来是同一条链没通 → 已立 §七 阻塞簇，只有 M-30 带真实成本。
+> 5. 质量四数：近 5 轮净增 **−574**；90,476(+0)/42,578(+0)/30,794(+0)；断言 0 / 产品 −608；TODO 0。
+>    近 60 提交 `test:`33 / `fix:`14 = **2.36×**（R30 为 1.88×，**恶化**）。
+> 6. 回归 `10/1/0`（`20261114-065949`，本机实测）；清单 7 项全绿（171 行 / 51KB / 35 条 / 5 类）。
+> 7. 下轮起手：**第 36 轮 = 修复轮，M-25**（unit-behavior 第 1 子项，用户实测的操作层阻断）。
 
 ---
 
@@ -35,11 +34,12 @@
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | attempts | 状态 | 验收条件 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | `tickAdvanced` 直接置 `repaintRequested`；**`reuseCachedFrame` 早已算出并传进 `recordRuntimeCompletedFrameDiagnostics`，但只用于把绘制阶段记 0，从未累加** | 中：M-03 的唯一基线 | 已接入（+30 行） | **B** | 简单 | 1 | **measuring**（`cf1903b`）：三个数只在真实会话退出时落盘，而 M-13 未绿 → 本轮只验证到编译+回归 | `performance/latest.txt` 出现「复用帧/重绘帧/最长连续复用帧」三行且与实际相符 | `reports/FIX-35-帧诊断记复用与重绘.md` §一 |
+| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | `tickAdvanced` 直接置 `repaintRequested`；**`reuseCachedFrame` 早已算出并传进 `recordRuntimeCompletedFrameDiagnostics`，但只用于把绘制阶段记 0，从未累加**。第 35 轮查明「有仪表无读数」的结构原因：出口 `writeRuntimeFrameDiagnosticsReport` 只被 `runRuntimeWindowSession` 收尾调用（`RuntimeShell.cpp:90368`），且 `sessionFrames==0` 直接 return | 中：M-03 的唯一基线 | 低：出口已存在，只差一次真会话（被 M-30 挡） | **B** | 简单 | 1 | **blocked**（`cf1903b` 仪器已装、离线探针验过；重开条件=①M-30 绿后跑一次真开局 ②第 38 轮把出口拆成 `flushRuntimeFrameDiagnosticsReport()` 供无窗口路径调） | `performance/latest.txt` 出现「复用帧/重绘帧/最长连续复用帧」三行且与实际相符 | `reports/FIX-35-帧诊断记复用与重绘.md` §一、`reports/AUDIT-35.md` §三.3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
-| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，剩 `unholy` 段 = MCV 发放，仍红） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞改为「整链路 `unholy` 段」**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` §八 |
+| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、M-30（`unholy` 段 MCV 发放，第 35 轮立） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞= M-30**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` §八 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
+| M-30 | 整链路 `unholy` 段：三台 MCV 到底有没有发放 | `--skirmish-build-smoke-test` 的 `option semantics` 里 `unholy` 位仍 no，整链路停在模式矩阵之后 | 三候选：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空/被装配期过滤 ②发放了但 owner 判成对方 ③techLevel 挡在入口。三种改法相反 | 高：解锁 M-13、S-17、U-19/20/21/23、S-08 共 **8 条** | 低：一处只读打印 + 一次运行（0.2s 到该段） | **A** | 简单 | 0 | 待修复（第 35 轮审计登记） | 一次运行打出 `additionalMcvs.size()` 与每台 `type/owner/houseClass/techLevel`；`unholy` 转 yes 或给出确切拒绝谓词 | `reports/AUDIT-35.md` §三.2 |
 
 ## 二、待修复 —— 中等
 
@@ -50,8 +50,8 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，`unholy` 仍红） | 第 32 轮读数：整链路停在 `unholy` 段（MCV 发放），模式矩阵 35/35 已绿 | 高：U-19/U-20/U-22 的前置 | 低：冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为「整链路 `unholy` 段」**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
-| M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes，`unholy` 仍 no（阻塞后移到 MCV 发放段）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
+| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，`unholy` 仍红） | 第 32 轮读数：整链路停在 `unholy` 段（MCV 发放），模式矩阵 35/35 已绿；第 35 轮把该段拆为 **M-30** | 高：U-19/U-20/U-22 的前置 | 低：冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞= M-30**；下次动手即第 3 次，届时必须三选一） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
+| M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes；第 35 轮 queue 侧对齐 done，剩余 `unholy` 段拆出为 **M-30**（不在本条续命）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -112,7 +112,24 @@
 
 ---
 
-## 六、已完成 / 已废弃
+## 六、阻塞簇：真开局会话（8 条共用一道门，第 35 轮）
+
+| 条目 | 它要的读数/证据 | 真实前置 |
+|---|---|---|
+| M-13 / S-17 | 一次真遭遇战开局 + `objects>0` | M-30 |
+| U-19 / U-20 / U-21 / U-23 | 真实窗口里 HUD/载入画面/主菜单小屏/羽化的截图 | M-30 → 真会话 |
+| S-08 | `performance/latest.txt` 的复用/重绘三行 | M-30，或把出口解耦（第 38 轮） |
+| ON-3-01b | 五界面「上屏自证」的合成输入驱动 | 与上面同一道门，另需 C-01 |
+
+**记账口径（本轮起生效）**：这 8 条里只有 M-30 带真实成本估值，其余 `cost` 一律指向 M-30，
+**不许**再各自写「低/中」——一条链的代价抄 8 份，正是它们排了 4 轮都没动的直接原因。
+
+**边界**：`skirmish-option-semantics` 已用 3 轮 / 2 子项（M-29 done + M-30），只剩 1 轮窗口；
+第 37 轮若 M-30 一次读数解不开且需跨模块改产品 → **整线判 blocked**，UI 对账 4 条一并转 `deferred.md`。
+
+---
+
+## 七、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
@@ -130,10 +147,11 @@
 
 ---
 
-## 六、轮次索引（一行一轮；原文见 `reports/fix-plan-archive.md` 与 `reports/archive/`）
+## 八、轮次索引（一行一轮；原文见 `reports/fix-plan-archive.md` 与 `reports/archive/`）
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 35 | 2026-11-14 | 审计：8 条条目共用「真开局会话」一道门；S-08 判 blocked；立 M-30 | `reports/AUDIT-35.md` |
 | 34 | 2026-11-14 | 帧诊断记「复用/重绘」；11 条缺估值条目实测是 16 条 | `reports/FIX-35-帧诊断记复用与重绘.md` |
 | 33 | 2026-11-14 | 地图预览自带第二份 TMP 解码器（清偿：−638 行，待 A/B） | `reports/FIX-34-地图预览自带第二份TMP解码器.md` |
 | 32 | 2026-11-14 | UnholyAlliance 的验收样本（NAPOWR）是探针自己编的；`ownerFactory` 转绿 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
