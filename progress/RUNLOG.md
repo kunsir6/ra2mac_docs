@@ -7462,3 +7462,38 @@ boarding:transfer-refused ×4 / access:body ×4
 - 「多谓词压成一句」的断言必须先拆成逐项读数再谈修：C-02f 六项里只有一项错，
   若没有逐项打印，很容易去改「拆包没发生」这条完全正常的路径。
 - 断言的期望值不能用「测试自己造夹具时用的坐标」代替「产品的落点规则」；两者一旦不同源就会假红。
+
+---
+
+## 2026-11-13 第 23 轮：步兵按子格站位，出舱窗口不能硬编码成格子（FIX-24）
+
+- 起手基线 `10/1/0`（`20261113-133904`），前缀与登记一致。
+- C-02g 一次读数定性：`CONCORD_SLAVE_EMERGENCE_TRACE=1` 给首次出现采样加
+  `cell/world/subCell/renderMove/hasRenderPos/render/renderFrom/renderTo/path/target/phase/status`，
+  `ore` 档首见工人读数为 `cell=8,8 subCell=2 render=7.75,8.25 renderMove=1`。
+- 产品没错：断言写的是 `renderX>=8 && renderX<=9 && renderY>=8 && renderY<=9`，
+  而步兵按子格站位（一格四子格，`subCell` 带来 ±0.25 的渲染偏移），
+  斜向首步 `(8,8)→(9,9)` 的首拍渲染位就是 `7.75,8.25` —— 差 0.25 落到窗口外。
+  该段自第 13 轮起从未执行到，窗口是照「格子坐标」的直觉写死的。
+- 改法（`c5d2b6c` test）：把渲染位 `std::lround` 取整成 `bodyCell` 再判
+  `runtimeCellDistanceToObjectFootprint(...)==0.0`（语义=「身体还在地基内」），
+  与同文件 `runtimeSlaveMinerWorkerAtRefinery` 的口径一致。**没有**把窗口放宽成 `[7,10]`。
+- 读数：`ore` 与 `no ore` 两档全过（含替补工人），阻塞点后移到 `blocked` 档。
+- 新阻塞 **C-02h**：`blocked` 档「worker teleported instead of walking」——
+  `id=14` 从 `9,8` 直接到 `6,6`（3 格外，`render=6,6`、`renderMove=0`、`mission=Guard/status="no ore"`），
+  与 `id=18` 在同一格出生后约 194 拍发生。根因假设（未验证）：通用步兵重叠重定位；
+  出生点重复的直接原因是 `findRuntimeSlaveMinerWorkerSpawnCell` 的半径 0 检查只看格子不看子格。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-135227`）。
+`command` 失败前缀随阻塞点改为 `slave emergence (blocked): worker teleported instead of walking`。
+
+### 决策（追加）
+
+- 「一格四子格」是这一段的通用陷阱：**凡是拿格子坐标去判渲染位置的断言，都会差 0.25**。
+  判「在哪」要么取整成体素格，要么用几何距离，不要拿渲染浮点数直接比区间。
+- 连续四轮的 `command` 阻塞点形态完全一致——**多谓词压成一句 + 把夹具自己的坐标/次序假设写死**。
+  夹具侧的通用改法是「期望值取几何（地基/集合成员/距离），不取常量」。
+  这条链上真正的产品缺陷只有两处（C-02b 登船互锁、C-02e 建筑进门格）。
+- 三档（`ore` / `no ore` / `blocked`）**不许混改**：前两档转绿后立即锁定，C-02h 只能动 `blocked` 路径。

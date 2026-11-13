@@ -16,7 +16,15 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 13:45（第 22 轮收口）；
+> 最近更新：2026-11-13 14:00（第 23 轮收口）；
+> 第 23 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
+> **C-02g 部分完成**：出舱判据把渲染窗口硬编码成 `[8,9]`，而步兵按子格站位——首拍斜向一步
+> `(8,8)→(9,9)` 的渲染位是 `7.75,8.25`，差 0.25 判假红。改为「渲染位取整后判在地基内」，
+> `ore` 与 `no ore` 两档转绿（含替补工人）。新登记 **C-02h**：`blocked` 档出现「工人瞬移 3 格」
+> （`id=14` 从 `9,8` 直接到 `6,6`、无插值），疑为通用步兵重叠重定位把内部工人挪出墙圈。
+> 报告 `reports/FIX-24-奴隶矿工出舱的子格偏移.md`。
+>
+> 上一轮收口：2026-11-13 13:45（第 22 轮收口）；
 > 第 22 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
 > **C-02f 已完成**：MCV 拆包的六个谓词里只有「落点」不成立——验收要建筑左上角 `(6,6)`，
 > 产品按 `runtimePlacementAnchorCellForFootprint` 落在地基锚点 `(7,7)`。改判「落在旧地基格清单内」
@@ -197,7 +205,8 @@
 | C-02d | 混编段载入 IFV 的整车下船失败 | 一次 `executeRuntimeSecondaryAction` 后断言 IFV 已出舱且乘员仍在车内，实际 `ifv=null riderAlive=0 riderCell=23023 boatCargo=3` —— IFV 没出舱 | **已定性**：`cargoBeforeAction=4 / boatMovingBefore=0`、无 `unload:host-busy` —— 卸载跑了，但一趟只放一件（循环找到第一个能出去的货就 break），而船货顺序 = boarding 到达顺序，IFV 不保证第一；「按一下就断言 IFV 已出舱」在赌排队次序 | 高：`command` 唯一 remaining known-red 的新阻塞点 | 已改完：按拍推进到 IFV 出舱（600 拍上限），断言本体一条没放 | **A** | 中等（若要改产品才升为复杂） | **已完成**（`107b06b` test + `2c3616c` test） | `reports/FIX-21-混编段按拍等待.md`
 | C-02e | 生物反应堆段：五个步兵 800 拍未全部进入 | `RuntimeBioReactorSmoke.inl:285-291` 断言 `power==5` 且 team step Complete，实际 `power=450 pending=2`（只进 3 人） | **已定性**：剩下的两人 `moveTarget` 分别是对方所站的格子、`path=0 pathReq=1`，`blockedTicks` 停在 1 不增。进门格本身没错（排队时五人目标都是地基格 `12,12`）；是路径请求回来的那一刻，`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支把地基格换成门外邻格——该分支的豁免名单只认 `WorldObjectKind::Unit`（`runtimeUnitTransportApproachAllowsBodyDetour:11444`），建筑吸收器被漏掉；两人因此互换目标格互堵，而「重算进门格」只活在路径走完的分支里，永远轮不到 | 高：`command` 链条第三段，且反应堆吸收是被动收入主路径 | 已改：新增 `runtimeBuildingAbsorberEntryKeepsGoal`（同构条件 + `moveTarget` 在地基内），载具那条不动 | **A** | 中等（产品侧单谓词） | **已完成**（`d6654eb` fix + `8dfc9f4` test）：`pending=0 power=650 aboard=5` | `reports/FIX-22-生物反应堆进门格不被兜底换掉.md` |
 | C-02f | MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆 | `RuntimeMcvRepackSmoke.inl:145`：`dispatchRuntimeSecondaryActionFromUi` + `finishRepacking` 之后六个谓词里落点不符——`cell=(7,7)`，验收要 `(6,6)`；其余五项（旧建筑已消失、恰好选中一件、type/owner/canMove）全过 | **已定性**：产品按 `runtimePlacementAnchorCellForFootprint` 把 MCV 放在地基**锚点**（GACNST 3x3 的中心 7,7）再找可走格；验收把「测试放置建筑用的左上角」当成了落点，是锚点规则改中心锚后没跟上的旧断言 | 高：`command` 新阻塞点，且四阵营/搬迁/再部署整段都排在它后面 | 已改（测试侧）：拆包前存旧地基格清单，断言落点在其中；失败文案带实际格与锚点。不做「把产品改成落左上角」 | **A** | 简单（单文件单断言） | **已完成**（`7c02812` test）：四阵营全过，含 Russians+GACNST→AMCV | `reports/FIX-23-MCV拆包落点是地基锚点.md` |
-| C-02g | 奴隶矿工出舱段：新工人出现在周边地面 | `RuntimeSlaveMinerSmoke.inl:214`。`inspect()` 对不在 `lastCells` 的新工人要求「在建筑内」或「在 8..9 的出舱渲染窗口且 renderMoveActive」；`mode=ore` 即失败 | **根因假设（未验证）**：夹具注释指出「工人第一次移动前存档/读档会触发通用步兵重叠重定位，把人推到周边地面」。三种待分流：①载入 placements 就没放进建筑 ②进了但首拍被重叠重定位弹出 ③渲染位缺失使 `emerging` 判据恒假 | 高：`command` 新阻塞点 | 先加 `CONCORD_SLAVE_EMERGENCE_TRACE=1` 按拍打 `id/cell/inside/renderMoveActive/renderX,Y/hasRenderPosition/task.phase`；只跑 `ore` 一档定位，别三档混改 | **A** | 中等（先量后改） | 待修复（第 22 轮登记） | `reports/FIX-23-MCV拆包落点是地基锚点.md` §4 |
+| C-02g | 奴隶矿工出舱段：新工人出现在周边地面 | `RuntimeSlaveMinerSmoke.inl:214`。`inspect()` 对不在 `lastCells` 的新工人要求「在建筑内」或「在渲染窗口 `renderX/Y∈[8,9]` 且 renderMoveActive」；`mode=ore` 即失败 | **已定性**：产品没错。新工人 `id=7` 的 committed cell 是 `(9,9)`（地基内）、起点 `(8,8)`（地基内），但 `subCell=2` 的子格偏移把渲染位放到 `7.75,8.25`，比窗口左界差 0.25 → 假红。窗口 `[8,9]` 是照夹具摆位 `(8,8)` 手算的 | 高：`command` 链条上的长段 | 已改（测试侧）：渲染位 `lround` 取整后判 `runtimeCellDistanceToObjectFootprint == 0`，与产品 `bodyCell` 取整规则一致 | **A** | 简单（单文件单判据） | **部分完成**（`c5d2b6c` test）：`ore` / `no ore` 转绿；`blocked` 档改由 C-02h 阻塞 | `reports/FIX-24-奴隶矿工出舱的子格偏移.md` |
+| C-02h | `blocked` 档：工人瞬移 3 格（从 9,8 直接到 6,6） | `RuntimeSlaveMinerSmoke.inl:218`「worker teleported instead of walking」。`id=14 prev=9,8 cell=6,6 renderMove=0 render=6,6 mission=Guard status="no ore"`；第 150 拍 `id=18` 在 (9,8) 出生，约 194 拍后 `id=14` 从同格一步到 3 格外且无插值 | **根因假设（未验证）**：通用步兵重叠重定位把人挪到最近可走格；墙圈封死时空位搜索一路放大到 (6,6)。出生点重复的直接原因：`findRuntimeSlaveMinerWorkerSpawnCell` 的半径 0 检查只看格子不看子格 | 高：`command` 新阻塞点 | 先在 `setRuntimeObjectCell`/重定位入口加 `why=relocated from/to/radius` 只读位确认路径；确认后分「产品该修（出舱中的工人不该被挪出建筑）」与「夹具该修（出生点避开已占子格）」两条路，**别混改三档** | **A** | 中等（先量后改） | 待修复（第 23 轮登记） | `reports/FIX-24-奴隶矿工出舱的子格偏移.md` §5 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -218,7 +227,21 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 22 轮）打包清单
+## 五、本轮（2026-11-13 第 23 轮）打包清单
+
+主题：**硬编码坐标窗口 vs 子格几何**。基线 `10/1/0` → 收口 `10/1/0`，零新回归，产品零改动。
+报告 `reports/FIX-24-奴隶矿工出舱的子格偏移.md`。
+
+- **C-02g 部分完成（`c5d2b6c` test）**：失败工人的 `committed cell` 与起点都在地基内，
+  但 `subCell=2` 的偏移把渲染位放到 `7.75,8.25`，比硬编码窗口 `[8,9]` 左界差 0.25。
+  改为渲染位取整后判地基，`ore` / `no ore` 两档转绿（含替补工人）。
+- **新登记 C-02h**：`blocked` 档「工人瞬移 3 格」（`9,8` → `6,6`，无插值、`render=6,6`），
+  疑为重叠重定位；出生点重复的直接原因是出生格检查只看格子不看子格。
+- **本段三档不许混改**：`ore` / `no ore` 已绿，改动只许影响 `blocked` 的墙圈场景。
+- **同源问题盘点**：C-02d 赌次序、C-02f 赌左上角、C-02g 赌渲染窗口——夹具一侧的通用改法是
+  「期望值取几何（地基/格子/集合成员），不取常量」。
+
+## 五-旧、第 22 轮（2026-11-13）打包清单（存档）
 
 主题：**验收把「测试自己的坐标假设」写死了**。基线 `10/1/0` → 收口 `10/1/0`，零新回归，产品零改动。
 报告 `reports/FIX-23-MCV拆包落点是地基锚点.md`。
