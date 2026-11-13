@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 137,
- "updated": "2026-11-14T02:20:55",
+ "version": 138,
+ "updated": "2026-11-14T04:20:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -545,18 +545,18 @@
   },
   {
    "id": "M-29",
-   "title": "UnholyAlliance 的工厂归属兼容没放宽（或探针没拿到模式规则）",
+   "title": "UnholyAlliance 的验收样本（NAPOWR）是探针自己编的",
    "thread": "skirmish-option-semantics",
-   "detail": "完整链路 --skirmish-build-smoke-test 的第一道门：`option semantics … ownerFactory=no unholy=no`，其余 18 项 yes（modeRules/alliesAllowed/mustAlly/megawealth/duelStart/megawealthStart 全绿）。位置在 validateRuntimeSkirmishOptionSemantics（RuntimeShell.cpp:16543），在模式矩阵之前。",
-   "root_cause": "未验证，三候选且改法相反：①unholyProbe 是新建 RuntimeWindowState（只补 rules/economy），模式规则可能没加载 → 夹具侧 ②runtimeFactoryOwnerCompatibleWithBuildItem 没被 UnholyAlliance 允许清单放宽 → 产品侧 ③catalog 里没有 NAPOWR（ownerFactoryApplied 三条谓词之一，RuntimeShell.cpp:15654）。",
+   "detail": "第 32 轮读数一次否掉三个候选：模式只授予 9 栋对面「基础建筑」（GAPILE/NAHAND/YABRCK、GAREFN/NAREFN、AMRADR/NARADR、GAAIRC、NAPSIS），不含电站；真实玩家目录 loadedCatalog=46 且不含任何苏军条目；三台 MCV 走 rules 层 runtimeUnholyAllianceAdditionalMcvTypes 而非模式 ini 目录段。改法后 ownerFactory 转 yes；整链路仍红在 `unholy` 段的 MCV 发放（未再定位，下轮一条读数）。",
+   "root_cause": "样本钉了 NAPOWR/YAPOWR，而零售UnholyAlliance从不授予电站；旧断言把「目录里必须有 AMCV/SMCV/PCV」当发放条件，同样是编出来的前提（发放走 rules 层）。",
    "value": "高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义。",
-   "cost": "低：给三条谓词（sovietPower 存在 / GACNST 不兼容 NAPOWR / NACNST 兼容 NAPOWR）各一个布尔进失败文案，一次运行裁定。",
+   "cost": "低：已改完（+63−46 单文件单函数），剩 unholy 段一条只读读数。",
    "roi": "A",
    "complexity": "中等",
-   "attempts": 0,
+   "attempts": 1,
    "status": "pending",
-   "verify": "该行打出 sovietPower=/alliedCompat=/sovietCompat=/rulesLoaded=，且其中恰有一项为假",
-   "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md"
+   "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（已达成）；整链路待 unholy 段清",
+   "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
   }
  ],
  "decisions": {
@@ -587,6 +587,15 @@
      "「opening failed: skirmish start not applied」是多谓词短路：路口在第一个谓词，status 还停在初始值——读起来像开局失败，实际是压根没走到开局。",
      "修好读取层不等于用例转绿：阻塞点立刻后移。35/35 例一字不差说明是单一新根因（M-23），不是模式内容差异。",
      "给 skirmishModeRulesPath 赋值前先查消费者怎么用它（三处都取 filename() 与常量比较），否则归档路径会一次打坏三处。"
+    ]
+   },
+   {
+    "round": 32,
+    "date": "2026-11-14",
+    "lines": [
+     "候选根因三种改法相反时，先补的读数必须能「一次否掉三种」——本轮三条读数各否一条，第四种（样本是编的）才浮出来。",
+     "「目录里有没有这个条目」不能当「模式是否放宽」的证据：条目在装配期就按 Owner 过滤掉了，模式放宽的是可见性与工厂归属。",
+     "同一句断言里第二段仍红时（ownerFactory→unholy），说明它还有第二个编出来的前提；先确认每段的数据来源，再谈改产品。"
     ]
    }
   ]

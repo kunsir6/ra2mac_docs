@@ -7904,3 +7904,38 @@ M-23 六字段一次定性（skirmish 第 3 轮）；同轮写出 M-24 与 S-17 
 M-29 第一步：给 `RuntimeShell.cpp:15654` 那三条谓词各一个布尔（`sovietPower` / `alliedCompat` /
 `sovietCompat`）再打 `rulesLoaded`，一次运行裁定「夹具没拿到模式规则」还是「工厂归属兼容没放宽」。
 不许同时动 S-17 与 M-13（同一根因的下游）。轮 32 若比例闸不触发，可顺带做 TMP 解码复制段清偿。
+
+## 第 32 轮（2026-11-14）修复轮：UnholyAlliance 的验收样本是探针自己编的
+
+### 轮型
+修复轮。无 brake、无腐烂预算、attempts 无 ≥3、距上次 AUDIT 2 轮；主目标 M-29。
+
+### 读数（一次运行否掉三个候选）
+```
+ownerFactory=no unholyRules=yes unholyCatalog=9 sovietPower=no
+loadedCatalog=46 loadedHasNapowr=no loadedHasSmcv=no
+unholyIds=YABRCK,NAPSIS,GAAIRC,GAPILE,AMRADR,NAREFN,NAHAND,NARADR,GAREFN
+```
+- ①「探针没拿到模式规则」→ `unholyRules=yes` 否掉；
+- ②「工厂归属兼容没放宽」→ 无意义，样本根本不在目录里；
+- ③「目录里没有 NAPOWR」→ 对，但**不是缺陷**：零售模式只授予 9 栋对面**基础建筑**（兵营/矿厂/雷达/
+  空军指挥部/心灵探测器），从不给电站；真实玩家目录 46 条按 Owner 过滤，也不含任何苏军条目；
+- 三台 MCV 走 rules 层 `runtimeUnholyAllianceAdditionalMcvTypes`，不在模式 ini 的目录段里。
+
+### 改法（`225d310` test:，+63−46）
+跨阵营样本从探针自己的目录里按 `aiBasePlanningSide` 取第一栋非本方建筑，由它的 side 决定车厂
+（YACNST/NACNST）——期望值从常量变关系；删掉 `unholyOwnerApplied`；两个兼容谓词各自具名进失败文案。
+**`ownerFactory` 转 yes**（alliedYardForeign=no / foreignYardForeign=yes），`unholy` 仍 no，
+阻塞后移到 MCV 发放段。
+
+### 质量四数与回归
+净增 +17（产品 0）；90,476(+17) / 42,578 / 30,794；新增断言 0；TODO 0。
+回归 `10/1/0`（`20261114-033749`），command 前缀不变。二进制含并发 compat 文本层 WIP。
+
+### 清单
+fix-plan 162 行不变；queue 35 条/13 字段，v138；`ledger-check.sh` 六项全绿。
+本轮按 §八.2 记**断言纠正**，不计入已修复。
+
+### 下轮起手
+一条读数裁定 `unholy` 的 MCV 发放段（`additionalMcvs` 数量 / techLevel 之一为假）。
+`skirmish-option-semantics` 已 2 轮无产品行为变化 → **第 33 轮按 §六.6 换赛道**。
