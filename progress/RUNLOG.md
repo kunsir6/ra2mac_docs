@@ -7605,3 +7605,41 @@ boarding:transfer-refused ×4 / access:body ×4
   止损线 4 轮从未触发。本轮起 `thread` 是必填字段，就是为了让「这条线用了几轮」随时可查。
 - **体检要查「看起来像链接的东西」**：19 处通配符在人工阅读时毫无违和，机器一查全是悬空。
 - **收口轮的价值不在修，在止损**：本轮产品代码零改动，但它结束了 11 轮的单主线消耗。
+
+## 第 26 轮（2026-11-13）清偿轮：删掉跨轮存活的探针
+
+### 轮型判定
+
+近 5 轮提交 test:4（`2c3616c` / `8dfc9f4` / `7c02812` / `c5d2b6c`）对 fix:2（`d6654eb` / `7b9f576`），
+比值达 2.0 → §0.3 清偿轮触发，同时 §8.3 比例闸对本轮生效（禁新增断言）。
+
+### 做了什么
+
+删 `CONCORD_SLAVE_EMERGENCE_TRACE` 产品侧八处只读打印（`97a5393`，**净增 −126 行**）：
+Production 4 处、Navigation 3 处、World 1 处。这些是第 24 轮 C-02h 一次性取证的残留，
+结论已进 FIX-25；C-02 第 25 轮判 blocked，重开条件是「交付段新读数」，与这八处覆盖的段不同，
+留着只是假入口。
+
+### 判定
+
+回归 `10/1/0` 与基线逐条一致；`command` 的 known-red **失败前缀不变**——说明删的是旁路打印，
+不是把红项擦掉。构建通过，新链接二进制重签后运行未卡 U。
+
+### 没做 / 债务
+
+- smoke 侧 `RuntimeSlaveMinerSmoke.inl` 还有 6 处同名打印 → 登记 **S-15**（下轮伴生清掉，
+  并删掉环境变量本身；只清一半比不清更糟）。
+- **M-13 只定位未动手**：`--skip-skirmish-menu` 只置两个 show 开关（`RuntimeMain.cpp:829-832`），
+  不构造 `playerSlots`，真遭遇战走 `applyRuntimeSkirmishSelection`（`RuntimeSkirmishSetup.cpp:31-44`）。
+  但 macOS 上 skip 只能起真窗口（实测只有 `[cocoa] frame N` 输出），**没有会话状态出口**就无从验收。
+  故下轮先做这个出口，再谈修 setup。
+
+### 质量四数
+
+净增 **−126 行**；`RuntimeShell.cpp` 90,459（不变）/ `RuntimeSessionWorld.cpp` 30,805→30,794；
+新增断言 0（比例闸）/ 净删产品代码 126 行；TODO=FIXME=0（持平）。
+
+### 提交
+
+- `97a5393` refactor：删探针（源码仓库，唯一提交）
+- 本轮 docs + queue 两个 commit；两仓库收口干净，`progress` 软链保持。

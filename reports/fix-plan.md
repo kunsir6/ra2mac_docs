@@ -14,13 +14,13 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 25 轮，2026-11-13）收口摘要**
-> 1. 轮型：**收口轮**（C-02 已用 10 轮 / 9 子项，超红线），另补做逾期 25 轮的审计对账。
-> 2. 上轮结论：C-02h 修好离场被当取消入场，`command` 阻塞点后移到交付段（`cargo=4 credits=0`）。
-> 3. 本轮变化：**清单治理全部达标**（queue 383KB→46KB、tasks 152→40、rules 168 键→5 类、fix-plan 条目正文进存档）；
->    **C-02 主线判 blocked**，剩余段 C-02i 移入 `progress/deferred.md`，附两条静态排除 + 重开条件。
-> 4. 本轮未改产品代码（收口轮按 D 锚点执行），回归 `10/1/0` 不变。
-> 5. 下轮起手：**换赛道** —— 从 S-08+M-03（世界 idle 空转重绘）或 M-13（真实遭遇战取证通道）二选一，不再碰 C-02。
+> **本轮（第 26 轮，2026-11-13）收口摘要**
+> 1. 轮型：**清偿轮**（近 5 轮 test:4 / fix:2 达 2×，§0.3 + §8.3 比例闸）。
+> 2. 上轮结论：清单治理达标、C-02 判 blocked；本轮动的是它的**残留**（八处跨轮探针）。
+> 3. 本轮变化：删 `CONCORD_SLAVE_EMERGENCE_TRACE` 产品侧八处只读打印，**净增 −126 行**，
+>    回归 `10/1/0` 逐条一致、`command` 失败前缀不变。
+> 4. 遗留：smoke 侧 6 处同名探针（S-15，下轮伴生清掉）；M-13 只做定位未动手，原因是缺无窗口会话状态出口。
+> 5. 下轮起手：**修复轮** —— 先给 `--skip-skirmish-menu` 加会话状态出口（M-13/M-07 共用的门）。
 
 ---
 
@@ -30,6 +30,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
+| S-15 | smoke 侧奴隶矿工探针要一起清 | `SlaveMinerSmoke.inl` 6 处同名打印仍在，`CONCORD_SLAVE_EMERGENCE_TRACE` 因此没被真正删掉 | 第 26 轮只清产品侧，一次同时动 smoke 侧要重跑三条 smoke 才能确认判据没受影响 | 低：删除负债，避免「看起来能查」的假入口 | 改 smoke 侧打印并删掉环境变量本身，重跑 command/build/render | **C** | 简单 | 0 | 待修复（第 26 轮登记） | 全仓 `grep CONCORD_SLAVE_EMERGENCE_TRACE` 为 0，且 `command` 的 known-red 前缀不变 | `reports/FIX-27-删掉跨轮存活的探针.md` §4 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 
 ## 二、待修复 —— 中等
@@ -41,7 +42,7 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | `--skip-skirmish-menu` 进的是战役图（`Units:0 / Structures:10 / Players:1`），没有基地车与己方建筑 | skip 路径没走遭遇战 bootstrap，直接吃 `DefaultMap` | 高：U-19/U-20/U-22 的前置 | 让 skip 路径构造标准遭遇战 setup，或换默认多人图 + 补 owner 注入 | **A** | 中等 | 0 | 待修复 | skip 进图后己方有 MCV、`Players≥2`、HUD 有资金与电力 | `reports/UI-01-正式版观感对账.md` §3.2 |
+| M-13 | 真实遭遇战开局取证通道 | `--skip-skirmish-menu` 进的是战役图（`Units:0 / Structures:10 / Players:1`），没有基地车与己方建筑 | 第 26 轮定位：skip 只置 `showMainMenu/showSkirmishMenu=false`（`RuntimeMain.cpp:829-832`），**不构造 `playerSlots`**；真遭遇战走 `applyRuntimeSkirmishSelection`（`RuntimeSkirmishSetup.cpp:31-44`），所以 `initializeRuntimeSkirmishStart` 落进「无 slot 单人兜底」分支 | 高：U-19/U-20/U-22 的前置 | 先加无窗口会话状态出口（打印 `skirmishStatus`/己方单位数），再合成两人 setup | **A** | 中等 | 0 | 待修复（**阻塞在取证通道**：macOS 上 skip 只能起真窗口，无状态出口） | skip 进图后己方有 MCV、`Players≥2`、HUD 有资金与电力 | `reports/UI-01-正式版观感对账.md` §3.2 ／ `FIX-27` §4 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -90,7 +91,7 @@
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜C-02d 混编段按拍等待（`107b06b`）｜C-02c 两栖卸载外侧终点（`4f13ccc`）｜M-21 矿喷发动画（`bf5fd7c`）｜M-12 命中样本落在视口外（`b0f1f9e`…）｜M-20 离屏帧记成空掩码（`dd6eb31`）
+S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜C-02d 混编段按拍等待（`107b06b`）｜C-02c 两栖卸载外侧终点（`4f13ccc`）｜M-21 矿喷发动画（`bf5fd7c`）｜M-12 命中样本落在视口外（`b0f1f9e`…）｜M-20 离屏帧记成空掩码（`dd6eb31`，已挤出至归档）
 
 ---
 
@@ -98,6 +99,7 @@ S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h �
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 26 | 2026-11-13 | 删掉跨轮存活的探针（清偿：净增 −126 行） | `reports/FIX-27-删掉跨轮存活的探针.md` |
 | 25 | 2026-11-13 | 清单治理达标 + C-02 主线收口（判 blocked） | `reports/FIX-26-C-02主线收口与清单治理.md` |
 | 24 | 2026-11-13 | 「入场恢复」不该吃掉「离场」 | `reports/FIX-25-奴隶矿工离场不该被当成取消入场.md` |
 | 23 | 2026-11-13 | 硬编码坐标窗口 vs 子格几何 | `reports/FIX-24-奴隶矿工出舱的子格偏移.md` |
