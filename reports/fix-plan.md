@@ -16,10 +16,12 @@
 >
 > **本轮（第 27 轮，2026-11-13）收口摘要**
 > 1. 轮型：**清偿轮**（§8.3 比例闸未解：近 5 轮 test:3 / fix:1；上一轮清偿只清了一半，smoke 侧探针还在）。
-> 2. 上轮结论：产品侧八处 slave 探针已删（净增 −126 行），smoke 侧 6 处留着 = 假入口（S-15）。
-> 3. 基点：回归 `PASS=10 KNOWN-RED=1 RED-NEW=0`（`20261113-192309`），前缀 `slave miner: workers did not dig…` 不变。
-> 4. 本轮主目标：跨轮存活的一次性探针清零（S-15 + 同族三处）。
-> 5. 下轮起手：修复轮 —— `--skip-skirmish-menu` 的会话状态出口（M-13/M-07 共用的门）。
+> 2. 上轮结论：产品侧八处 slave 探针已删（−126 行），smoke 侧 6 处留着 = 假入口（S-15）。
+> 3. 本轮变化：五族一次性 env 探针清零（slave / mcv / hit-span / shadow / transport），**净增 −319 行**，零新增断言。
+>    回归 `10/1/0` 与基线逐条一致，`command` 前缀不变。
+> 4. 事故与代价：S-16 第一次提交把 `if (remainingPath.empty())` 的唯一条语句删漏，**构建当场失败**，
+>    已 `revert` 后重做（多花一次 4 分钟构建）。教训：删「某 if 的唯一条语句」必须同时处理该 if。
+> 5. 下轮起手：修复轮 —— `--skip-skirmish-menu` 的会话状态出口（M-13/M-07 共用的门）；比例闸要求本轮仍不许新增断言。
 
 ---
 
@@ -29,7 +31,6 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
-| S-15 | smoke 侧奴隶矿工探针要一起清 | `SlaveMinerSmoke.inl` 6 处同名打印仍在，`CONCORD_SLAVE_EMERGENCE_TRACE` 因此没被真正删掉 | 第 26 轮只清产品侧，一次同时动 smoke 侧要重跑三条 smoke 才能确认判据没受影响 | 低：删除负债，避免「看起来能查」的假入口 | 改 smoke 侧打印并删掉环境变量本身，重跑 command/build/render | **C** | 简单 | 0 | 待修复（第 26 轮登记） | 全仓 `grep CONCORD_SLAVE_EMERGENCE_TRACE` 为 0，且 `command` 的 known-red 前缀不变 | `reports/FIX-27-删掉跨轮存活的探针.md` §4 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 
 ## 二、待修复 —— 中等
@@ -90,7 +91,7 @@
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜C-02d 混编段按拍等待（`107b06b`）｜C-02c 两栖卸载外侧终点（`4f13ccc`）｜M-21 矿喷发动画（`bf5fd7c`）｜M-12 命中样本落在视口外（`b0f1f9e`…）｜M-20 离屏帧记成空掩码（`dd6eb31`，已挤出至归档）
+S-16 两栖转移探针清零（`404afb5` revert + 重做 commit，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`，失败文案自带现场）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜C-02d 混编段按拍等待（`107b06b`）｜C-02c 两栖卸载外侧终点（`4f13ccc`）｜M-21 矿喷发动画（`bf5fd7c`）
 
 ---
 
@@ -98,6 +99,7 @@ S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h �
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 27 | 2026-11-13 | 五族一次性探针清零（清偿：净增 −319 行） | `reports/FIX-28-探针清零第二批.md` |
 | 26 | 2026-11-13 | 删掉跨轮存活的探针（清偿：净增 −126 行） | `reports/FIX-27-删掉跨轮存活的探针.md` |
 | 25 | 2026-11-13 | 清单治理达标 + C-02 主线收口（判 blocked） | `reports/FIX-26-C-02主线收口与清单治理.md` |
 | 24 | 2026-11-13 | 「入场恢复」不该吃掉「离场」 | `reports/FIX-25-奴隶矿工离场不该被当成取消入场.md` |

@@ -7643,3 +7643,45 @@ Production 4 处、Navigation 3 处、World 1 处。这些是第 24 轮 C-02h �
 
 - `97a5393` refactor：删探针（源码仓库，唯一提交）
 - 本轮 docs + queue 两个 commit；两仓库收口干净，`progress` 软链保持。
+
+---
+
+## 第 27 轮（2026-11-13 19:22~20:12）清偿轮：五族一次性探针清零
+
+### 轮型
+
+清偿轮。依据：§8.3 比例闸未解（近 5 轮 test:3 / fix:1），且 §5.4「探针不许跨轮存活」——上一轮只清产品侧。
+
+### 做了什么
+
+一次性 env 探针 **5 族 → 0**，净增 **−337 行**（`5 files changed, 59 insertions(+), 396 deletions(-)`，含一次 revert 往返）：
+
+- S-15 `CONCORD_SLAVE_EMERGENCE_TRACE`（smoke 侧 6 处）→ 删，证据改由 `describeWorker` 写进 4 条 fail 文案。
+- `CONCORD_MCV_REPACK_TRACE` → 删，六条谓词各自求值并逐项进失败文案。
+- `CONCORD_HIT_SPAN_TRACE` → 删（−64 行），四桶计数已由 `RuntimeMapRenderStats` 承担。
+- `CONCORD_SHADOW_TRACE` → 删（−90 行），四桶计数原样保留。
+- S-16 `CONCORD_TRANSPORT_TRACE` → 删（−105 行，21 条调用语句 + 四个符号）。
+
+### 事故
+
+S-16 第一次提交 `962f02e` 把 `if (remainingPath.empty())` 的唯一 body 删掉 → 构建失败。
+按 §9.6 `git revert`（`404afb5`）后重做（`2777a5c`），并收掉三处空壳结构。多花一次构建 + 一次回归。
+
+### 判定
+
+回归 `10/1/0`（`20261113-194809`）与基点 `20261113-192309` 逐条一致；`command` 失败前缀不变。
+
+### 质量四数
+
+净增 −337；`RuntimeShell.cpp` 90,459（不变）/ `RuntimeMapRenderer.cpp` 42,668→42,578 / `RuntimeSessionWorld.cpp` 30,794（不变）；
+新增断言 0（比例闸）；TODO=FIXME=0（持平），一次性探针 5→0。
+
+### 提交
+
+源码 5 个（`8da12fc` / `f8f6a54` / `deddb79` / `919ade3` / `962f02e`+`404afb5`+`2777a5c`），文档 2 个（docs + queue）。
+两仓库收口干净，`progress` 软链保持。
+
+### 下轮起手
+
+修复轮：`--skip-skirmish-menu` 的会话状态出口（M-13/M-07 共用门）。比例闸要求下轮仍不许新增断言，
+做 M-13 时先只加「会话状态出口」这一层可观测性（算产品行为，不算断言）。
