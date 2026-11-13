@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 122,
+  "version": 123,
   "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2587,11 +2587,20 @@
     },
     {
       "id": "C-02c",
-      "status": "measuring",
-      "title": "整仓步兵卸载 600 拍仍不放空",
-      "detail": "第 18 轮更正第 17 轮：unload:bodies 的 ticks=66/66 是 egress 的第一拍（去重键缺时间维度），不是卡住。加 120 拍时间桶后终态（tick=1680）是：11 名已出舱者 bstate=none、moving=0、render 落在格子中心，8 个邻格各站一个，最后一名 id=7 八条走廊的起点全被占。结构性原因：两栖卸载不规划外侧终点（remainingPath 只在 !runtimeAmphibiousTransport 时计算），出舱就地停靠；步兵子格 0.5 间距 + 走廊扫掠 0.5 阈值，实际容量远小于 8x4 子格。下一步取 A：给两栖卸载也规划半径 2 外侧终点（全水时退回就地停靠）；动手前先量「半径 2 的 16 格可用数」与「站定者 subCell 是否 -1」。",
+      "status": "done",
+      "title": "整仓步兵卸载 600 拍不放空——已修（出舱者获得外侧终点）",
+      "detail": "第 19 轮修掉：remainingPath 的外侧终点搜索原来只在 !runtimeAmphibiousTransport 时进行，两栖船的出舱者下船就地停在环上，8 个邻格被先出来的人占满，最后一名永远没有干净走廊（FIX-19 读数）。改为对「两栖船 + 步兵乘客」也搜半径 2 外侧终点；载具不变（坦克段要求 cell 距船体 <=1.5、exits 互不重合），全水时 findRuntimePath 返回空自动退回就地停靠。futureFootGoals 同步对两栖船统计避免重复派格。读数：12 名步兵整仓下船，command 阻塞点后移到混编段。commit 4f13ccc（fix）+ 7361f55（test）。",
       "verify": "移开阻挡载具后 12 名步兵在有限拍内全部下船，且 exits 用的地面子格互不重合",
       "complexity": "复杂（模拟层卸载排队）",
+      "value": "A"
+    },
+    {
+      "id": "C-02d",
+      "status": "measuring",
+      "title": "混编段载入 IFV 的整车下船失败",
+      "detail": "一次 executeRuntimeSecondaryAction 后断言 IFV 已出舱且乘员仍在车内，实际 ifv=null、riderAlive=0、riderCell=23023、boatCargo=3 —— IFV 没出舱。该夹具（船停 23,23）周边零 unload: trace，说明 unloadRuntimeUnitTransportMotion 在顶部守卫就返回、没进候选格循环，已排除第 19 轮改动。两种解释待分辨：①move() 后 renderMoveActive 仍为真，一次性卸载被整次吞掉 ②boatCargo=3 本来就是初始值（该断言此前从未被执行到）。",
+      "verify": "一次动作后 IFV 已出舱且 transportPassengerIds == {riderId}、乘员 alive=false 且 cell 与 IFV 一致；boat 其余 cargo 不受影响",
+      "complexity": "中等（若确认要改产品则升为复杂）",
       "value": "A"
     }
   ],

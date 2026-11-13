@@ -8,4 +8,4 @@
 #              留空 = 该条放弃文案门禁，只判"红"。改产品语义/改断言文案时必须同步改这一列。
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-command	第 16 轮修掉登船互锁（12/12 全部进舱，498ae37）；现阻塞后移到整仓步兵卸载：舱门口 8 台 MTNK 移开后按拍推进 600 拍仍不放空，单位停在 15,15（原生问题，登船入舱会清 pendingTransportTargets，本轮同伴豁免对它不生效）	code-red:needs-metering	full infantry hold did not unload
+command	第 19 轮修掉整仓步兵卸载（C-02c：出舱者现在有半径 2 外侧终点，12 名全部下船）；现阻塞后移到混编段：载入 IFV 的整车下船，一次动作后 IFV 仍未出舱（ifv=null、boatCargo=3），该夹具在 23,23 周边零 unload trace，说明根本没进候选格循环	code-red:needs-metering	loaded IFV lost its soldier/gunner
