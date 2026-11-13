@@ -7867,3 +7867,40 @@ skirmish-mode-rules 子项 = M-22(done) / M-23 / M-24 / S-17，**已满 4 条上
 ### 下轮起手
 M-23 六字段一次定性（skirmish 第 3 轮）；同轮写出 M-24 与 S-17 的二选一结论。
 轮 32 建议清偿（TMP 解码复制段 + 冒烟骨架）。轮 33 清 12 条 queue-only 条目，可顺带把 `ledger-check.sh` 接成 regress 第 0 步。
+
+## 第 31 轮（2026-11-14）修复轮：M-23 是断言错误 + skirmish-mode-rules 主线收口
+
+### 读数（一次定性）
+`mcvs=1 owner=SkirmishPlayer2 #18 AMCV->GACNST item=GACNST planned=91,128 status="MCV turning to deploy" yard=no`
+—— 有 MCV、认得类型、目录项在、落点找得到。计划里三个候选成因全被否。
+
+### 根因
+`requestRuntimeMcvDeployment` 在朝向到位前只挂 `McvDeployTurning` 并返回 true，真正换算在
+`advanceRuntimeMcvDeployTurns`（每拍）。冒烟短路求值后**同步**判 yard，必然读不到 → 35 例一字不差。
+同仓 `RuntimeUnholyStartSmoke:74-85` 早写过正确形态（按拍推进 + 有界等待），这条没跟上。
+
+### 结果
+- 单例转绿；模式矩阵 **35/35 全绿**（第一次跑到尾）。
+- 按八.2 口径标「**断言纠正**」，不计入已修复；产品行为净增 0。
+- 完整链路 `--skirmish-build-smoke-test` 0.2s 死在更早的一道门：`option semantics ownerFactory=no unholy=no`
+  → 登记 **M-29**（新主线 `skirmish-option-semantics`），S-17/M-13 阻塞改挂它。
+- **主线 skirmish-mode-rules 判 done**（M-22/M-23 done；M-24 → deferred.md；S-17 → blocked）。
+
+### 清单
+新增 M-29 撞了并发会话已有的 M-25（L10N-04 昨晚加的 M-25~M-28）→ 改号 M-29，五处引用全改；
+`ledger-check.sh` 补第 6 项 `dup-ids`（量了体量却没量结构，同一类失真）。tasks 35→35（M-24 出、M-29 进）。
+
+### 质量四数
+净增 +34−5=+29（产品 0）；90,459 / 42,578 / 30,794 全不变；新增断言 0；TODO 0。
+
+### 回归
+`PASS=10 KNOWN-RED=1 RED-NEW=0`（`20261114-021900`），`command` 前缀一字不变。
+
+### 提交
+源码 `4abfee7`（读数）+ `cc53d95`（按拍等待），均 test:；文档 `docs:` + `queue:`（v137）。
+并发 WIP（源码 7 文件 / 队列 v136 改动）原样保留、未触碰。
+
+### 下轮起手
+M-29 第一步：给 `RuntimeShell.cpp:15654` 那三条谓词各一个布尔（`sovietPower` / `alliedCompat` /
+`sovietCompat`）再打 `rulesLoaded`，一次运行裁定「夹具没拿到模式规则」还是「工厂归属兼容没放宽」。
+不许同时动 S-17 与 M-13（同一根因的下游）。轮 32 若比例闸不触发，可顺带做 TMP 解码复制段清偿。
