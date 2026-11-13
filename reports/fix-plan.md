@@ -13,7 +13,16 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 12:50（第 16 轮收口）；
+> 最近更新：2026-11-13 13:00（第 17 轮收口）；
+> 第 17 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
+> **C-02c 已收窄**：卸载侧逐格给原因后，「600 拍不放空」变成两阶段读数——①八台 MTNK 占住舱门口八格时
+> 八格全被 passability 拒（`occupied=14..21`，属预期的「堵住」判定）②挪开后**第一具出舱者（id=13）
+> 停在船体原点没走开**，后续所有人的扫掠段起点都落在它身体里（`distance²=0`），于是全员等它。
+> 出舱者不在 `pendingTransportTargets`，第 16 轮的同伴豁免对它不生效。下一步要量挡住者自己的
+> 行为状态（`ticks`/`path.size()`/`moveTarget`）才能定「egress 渲染步卡住」还是「egress 后走不到
+> 半径 2 终点」。报告 `reports/FIX-18-整仓卸载的八格拒绝表.md`。
+>
+> 上一轮收口：2026-11-13 12:50（第 16 轮收口）；
 > 第 16 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，`RED-NEW=0`（`command` 的失败文案按新阻塞点
 > 同步改第 4 列，属计划内的 cause-changed）。**登船互锁修好了**：12 名步兵 `aboard=10/12 → 12/12`。
 > 根因不是运力、寻路、地形层或子格，而是 `runtimeTransportTransferBodiesClear` 的 foot-to-foot
@@ -139,7 +148,7 @@
 |---|---|---|---|---|---|---|---|---|---|
 | C-01 | EVO-15 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]`，导致 cursor rect 全失效、`isActive`/`isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 高：改主循环 + 回归全部输入断言 | **A** | 复杂 | 待修复 | 见 `MEMORY` 中「本项目不调 sendEvent」条目 |
 | C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | **第 16 轮已修复（C-02a 部分）**：`498ae37` fix + `c7a1f2f` test。A 方案（每拍只放一人）被读数否决；真修法是「同船步兵同伴不算路障」（载具/外部单位仍严格互斥）。`aboard=10/12 → 12/12`。**剩余阻塞另立 C-02c** | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` |
-| C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **未定性**：这段此前被登船红挡住（第 16 轮第一次执行到）。已排除「本轮引入」——登船入舱会 `erase(pendingTransportTargets)`，被卸下的兵没有待登船意图，同伴豁免对它不生效。剩两种可能：①舱门口子格被河岸/水面判据挡住 ②卸载候选格几何不可达 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | 先加卸载侧只读位（候选格/子格/使 `runtimeTransportTransferBodiesClear` 失败的那一侧），再定性 | **A** | 复杂（模拟层卸载排队） | 待修复（第 16 轮登记） | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` §4 |
+| C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **第 17 轮已收窄（`22fea50` test）**：八格拒绝表证伪「八格都不可用」——遮挡阶段八格被 8 台 MTNK 占住（`occupied=14..21`，预期）；挪开后**第一具出舱者 id=13 停在船体原点不走开**（`distance²=0`、`moving=1`），后续全员被它挡住。出舱者不在 `pendingTransportTargets` → 同伴豁免不生效，故非本轮引入。剩两种可能：①egress 渲染步被「等身体停稳」卡住（可疑：11 具 `alive=false` 货舱体被同步到船体格）②egress 后走不到半径 2 终点（两栖船不统计 `futureFootGoals`） | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | 再补一档只读位：`unload:bodies` 命中时打出**挡住者自己**的 `behavior.state/ticks/target/path.size()/render`，据以在①egress 卡住 ②走不到外终点之间二选一 | **A** | 复杂（模拟层卸载排队） | 待修复（第 16 轮登记） | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` §4 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -160,7 +169,24 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 16 轮）打包清单
+## 五、本轮（2026-11-13 第 17 轮）打包清单
+
+主题：**把「600 拍不放空」拆成八格拒绝表，把结论从「候选格不可用」改写成「第一具出舱者没走开」**。
+基线 `10/1/0` → 收口 `10/1/0`，零新回归，产品行为零改动。报告 `reports/FIX-18-整仓卸载的八格拒绝表.md`。
+
+- **C-02c 第一步（`22fea50` test，只读）**：`unloadRuntimeUnitTransportMotion` 的候选格循环从两条合并
+  `continue` 拆成六个拒绝点（`passable/level/subcell/clearance/transition/bodies` + 每拍一条 `no-exit`），
+  `passable` 分支附带 `occupied=<id>/level/hullLevel/probe=<type>`。
+- **读数把两件事分开了**：①八台 MTNK 占住舱门口时八格全被 passability 拒（`occupied=14..21`），
+  这是「堵住」的正确判定，不是缺陷；②挪开后**第一具出舱者 id=13 停在船体原点**（`distance²=0`、
+  `moving=1`），后续 `id=7` 的扫掠段起点落在它身体里 → 全员在等它。
+- **口径修正**：C-02c 不再是「舱门口被河岸/水面判据挡住」或「候选格几何不可达」，而是
+  **「第一个出舱的没走开」**——与 C-02a「进舱方向拥挤」同族、方向相反。
+- **没做的事写在明处**：本轮不猜成因。要区分「egress 渲染步卡住」与「egress 后走不到半径 2 终点」，
+  得先量挡住者自己的 `ticks/path.size()/moveTarget`，那是下一轮第一件事。
+- **简单区仍空**（S-08 缺静止连拍入口、S-13 卡守卫产物、M-19 资产侧），继续不为凑批量拆中等项。
+
+## 五-旧、第 16 轮（2026-11-13）打包清单（存档）
 
 主题：**把「计划里的 A 方案」用一档读数否掉，换成真能解开死锁的那条边界**。
 基线 `10/1/0` → 收口 `10/1/0`，`RED-NEW=0`。报告 `reports/FIX-17-登船互锁解除与卸载新阻塞.md`。
