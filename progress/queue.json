@@ -5,7 +5,7 @@
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
-    "unit": "每轮只推进一个任务，单个任务控制在 1 小时内可完成可验证。",
+    "unit": "每轮推进 1 个主目标（可含同一主目标下 0~N 个伴生小项），单个主目标控制在 1 小时内可完成可验证；禁止把无关问题拼成一批。",
     "iron": [
       "绝不修改任何既有 if(WIN32) 分支内部的行，只在它后面追加 elseif(APPLE)。",
       "绝不删除文件，一律用临时文件 + os.replace / mv 原子替换。",
