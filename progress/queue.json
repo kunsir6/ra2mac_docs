@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 121,
+  "version": 122,
   "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2589,7 +2589,7 @@
       "id": "C-02c",
       "status": "measuring",
       "title": "整仓步兵卸载 600 拍仍不放空",
-      "detail": "第 17 轮用卸载侧八格拒绝表（22fea50 test，CONCORD_TRANSPORT_TRACE=1）收窄：①遮挡阶段八格全被 passability 拒，occupied=14..21 正是八台 MTNK —— 「堵住」判定正确，不是缺陷；②挪开后第一具出舱者 id=13 停在船体原点（unload:bodies other=13 distance²=0 moving=1），后续 id=7 的扫掠段起点落在它身体里 → 全员在等它。出舱者不在 pendingTransportTargets，第 16 轮的同船同伴豁免对它不生效。结论改写为「出舱方向第一个没走开」。下一步必须先量挡住者自己的 behavior.state/renderMoveTicksRemaining/moveTarget/path.size()，在「egress 渲染步被等身体停稳卡住（可疑：11 具 alive=false 货舱体被同步到船体格）」与「egress 后走不到半径 2 终点（两栖船不统计 futureFootGoals）」之间二选一，两者改法相反。",
+      "detail": "第 18 轮更正第 17 轮：unload:bodies 的 ticks=66/66 是 egress 的第一拍（去重键缺时间维度），不是卡住。加 120 拍时间桶后终态（tick=1680）是：11 名已出舱者 bstate=none、moving=0、render 落在格子中心，8 个邻格各站一个，最后一名 id=7 八条走廊的起点全被占。结构性原因：两栖卸载不规划外侧终点（remainingPath 只在 !runtimeAmphibiousTransport 时计算），出舱就地停靠；步兵子格 0.5 间距 + 走廊扫掠 0.5 阈值，实际容量远小于 8x4 子格。下一步取 A：给两栖卸载也规划半径 2 外侧终点（全水时退回就地停靠）；动手前先量「半径 2 的 16 格可用数」与「站定者 subCell 是否 -1」。",
       "verify": "移开阻挡载具后 12 名步兵在有限拍内全部下船，且 exits 用的地面子格互不重合",
       "complexity": "复杂（模拟层卸载排队）",
       "value": "A"
