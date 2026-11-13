@@ -13,7 +13,15 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 13:40（第 21 轮收口）；
+> 最近更新：2026-11-13 13:45（第 22 轮收口）；
+> 第 22 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
+> **C-02f 已完成**：MCV 拆包的六个谓词里只有「落点」不成立——验收要建筑左上角 `(6,6)`，
+> 产品按 `runtimePlacementAnchorCellForFootprint` 落在地基锚点 `(7,7)`。改判「落在旧地基格清单内」
+> 后四阵营全过（含被占领的 `GACNST`→`AMCV`）。新登记 **C-02g**：奴隶矿工出舱段
+> （`RuntimeSlaveMinerSmoke.inl:214`，新工人既不在建筑内也不在出舱渲染窗口）。
+> 报告 `reports/FIX-23-MCV拆包落点是地基锚点.md`。
+>
+> 上一轮收口：2026-11-13 13:40（第 21 轮收口）；
 > 第 21 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归。**C-02e 已完成**：生物反应堆段的两人
 > 不是「没派路」也不是「被地基挡」，而是**进门格被寻路器的兜底目标换成了门外邻格**——
 > `applyRuntimeMovePathResult` 的 blocked-goal 豁免名单只认 `WorldObjectKind::Unit` 的 host，
@@ -185,7 +193,8 @@
 | C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **第 18 轮定性（更正第 17 轮）**：`ticks=66/66` 是 egress 的第一拍，不是卡住——去重键缺时间维度。加 120 拍桶后终态（tick=1680）是 **11 名已出舱者 `bstate=none`/`moving=0`/位置=格子中心，占满 8 个邻格**，最后一名 `id=7` 无干净走廊。结构性原因：两栖卸载不规划外侧终点（`remainingPath` 只在 `!runtimeAmphibiousTransport` 时算），出舱就地停靠；8 格 × 0.5 身体互斥的实际容量远小于名义 32 子格 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | **取 A（推荐）**：两栖卸载也规划半径 2 外侧终点，全水时退回就地停靠；动手前先补两个只读位（半径 2 的 16 格可用计数、站定者的 `subCell` 是否 `-1`） | **A** | 复杂（模拟层卸载排队） | **已完成**（`4f13ccc` fix + `7361f55` test）：出舱者获得半径 2 外侧终点，12 名步兵整仓下船 | `reports/FIX-20-两栖卸载外侧终点.md`
 | C-02d | 混编段载入 IFV 的整车下船失败 | 一次 `executeRuntimeSecondaryAction` 后断言 IFV 已出舱且乘员仍在车内，实际 `ifv=null riderAlive=0 riderCell=23023 boatCargo=3` —— IFV 没出舱 | **已定性**：`cargoBeforeAction=4 / boatMovingBefore=0`、无 `unload:host-busy` —— 卸载跑了，但一趟只放一件（循环找到第一个能出去的货就 break），而船货顺序 = boarding 到达顺序，IFV 不保证第一；「按一下就断言 IFV 已出舱」在赌排队次序 | 高：`command` 唯一 remaining known-red 的新阻塞点 | 已改完：按拍推进到 IFV 出舱（600 拍上限），断言本体一条没放 | **A** | 中等（若要改产品才升为复杂） | **已完成**（`107b06b` test + `2c3616c` test） | `reports/FIX-21-混编段按拍等待.md`
 | C-02e | 生物反应堆段：五个步兵 800 拍未全部进入 | `RuntimeBioReactorSmoke.inl:285-291` 断言 `power==5` 且 team step Complete，实际 `power=450 pending=2`（只进 3 人） | **已定性**：剩下的两人 `moveTarget` 分别是对方所站的格子、`path=0 pathReq=1`，`blockedTicks` 停在 1 不增。进门格本身没错（排队时五人目标都是地基格 `12,12`）；是路径请求回来的那一刻，`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支把地基格换成门外邻格——该分支的豁免名单只认 `WorldObjectKind::Unit`（`runtimeUnitTransportApproachAllowsBodyDetour:11444`），建筑吸收器被漏掉；两人因此互换目标格互堵，而「重算进门格」只活在路径走完的分支里，永远轮不到 | 高：`command` 链条第三段，且反应堆吸收是被动收入主路径 | 已改：新增 `runtimeBuildingAbsorberEntryKeepsGoal`（同构条件 + `moveTarget` 在地基内），载具那条不动 | **A** | 中等（产品侧单谓词） | **已完成**（`d6654eb` fix + `8dfc9f4` test）：`pending=0 power=650 aboard=5` | `reports/FIX-22-生物反应堆进门格不被兜底换掉.md` |
-| C-02f | MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆 | `RuntimeMcvRepackSmoke.inl:145`：`dispatchRuntimeSecondaryActionFromUi` + `finishRepacking` 之后，`findObjectById(yardId)` 仍在，或选中车辆的 type/owner/`runtimeObjectCanMove`/cell 任一不符。第一个阵营（Americans/GACNST/AMCV）即失败 | **未定性**：与 `pendingTransportTargets` 无关，属被暴露出来的旧问题（该段自第 13 轮起从未执行到） | 高：`command` 新阻塞点 | 一次读数分流：`finishRepacking` 后打 `yard 是否还在 / selected.size / kind+type+owner / canMove / cell / pendingOccupyTargets`，分清 ①拆包根本没发生（查 `finishRepacking` 的计时前提）②拆了但 `canMove=false` ③类型/所有者没继承 | **A** | 中等 | 待修复（第 21 轮登记） | `reports/FIX-22-生物反应堆进门格不被兜底换掉.md` §6 |
+| C-02f | MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆 | `RuntimeMcvRepackSmoke.inl:145`：`dispatchRuntimeSecondaryActionFromUi` + `finishRepacking` 之后六个谓词里落点不符——`cell=(7,7)`，验收要 `(6,6)`；其余五项（旧建筑已消失、恰好选中一件、type/owner/canMove）全过 | **已定性**：产品按 `runtimePlacementAnchorCellForFootprint` 把 MCV 放在地基**锚点**（GACNST 3x3 的中心 7,7）再找可走格；验收把「测试放置建筑用的左上角」当成了落点，是锚点规则改中心锚后没跟上的旧断言 | 高：`command` 新阻塞点，且四阵营/搬迁/再部署整段都排在它后面 | 已改（测试侧）：拆包前存旧地基格清单，断言落点在其中；失败文案带实际格与锚点。不做「把产品改成落左上角」 | **A** | 简单（单文件单断言） | **已完成**（`7c02812` test）：四阵营全过，含 Russians+GACNST→AMCV | `reports/FIX-23-MCV拆包落点是地基锚点.md` |
+| C-02g | 奴隶矿工出舱段：新工人出现在周边地面 | `RuntimeSlaveMinerSmoke.inl:214`。`inspect()` 对不在 `lastCells` 的新工人要求「在建筑内」或「在 8..9 的出舱渲染窗口且 renderMoveActive」；`mode=ore` 即失败 | **根因假设（未验证）**：夹具注释指出「工人第一次移动前存档/读档会触发通用步兵重叠重定位，把人推到周边地面」。三种待分流：①载入 placements 就没放进建筑 ②进了但首拍被重叠重定位弹出 ③渲染位缺失使 `emerging` 判据恒假 | 高：`command` 新阻塞点 | 先加 `CONCORD_SLAVE_EMERGENCE_TRACE=1` 按拍打 `id/cell/inside/renderMoveActive/renderX,Y/hasRenderPosition/task.phase`；只跑 `ore` 一档定位，别三档混改 | **A** | 中等（先量后改） | 待修复（第 22 轮登记） | `reports/FIX-23-MCV拆包落点是地基锚点.md` §4 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -206,7 +215,20 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 21 轮）打包清单
+## 五、本轮（2026-11-13 第 22 轮）打包清单
+
+主题：**验收把「测试自己的坐标假设」写死了**。基线 `10/1/0` → 收口 `10/1/0`，零新回归，产品零改动。
+报告 `reports/FIX-23-MCV拆包落点是地基锚点.md`。
+
+- **C-02f 已完成（`7c02812` test）**：六个谓词逐项打印后只有落点不符（`7,7` vs 验收的 `6,6`）。
+  产品按地基锚点落点、再找可走格；验收钉的是建筑左上角。改判「落在旧地基格清单内」后四阵营全过。
+- **不做的事**：不改产品去落左上角（会让放置锚点规则自相矛盾），也不把锚点算法抄进测试
+  （会随产品演进假红）；锚点只出现在失败文案里。
+- **新登记 C-02g**：奴隶矿工出舱段（`RuntimeSlaveMinerSmoke.inl:214`），根因假设尚未验证。
+- **链条观察（延续第四轮）**：阻塞点全是「第一次运行」的段落，形态是「多谓词压成一句 + 测试自己的
+  坐标/次序假设写死」。C-02d 赌船货次序、C-02f 赌建筑左上角，属同一类。
+
+## 五-旧、第 21 轮（2026-11-13）打包清单（存档）
 
 主题：**建筑吸收器的进门格不该被兜底目标换掉**。基线 `10/1/0` → 收口 `10/1/0`，零新回归。
 报告 `reports/FIX-22-生物反应堆进门格不被兜底换掉.md`。
