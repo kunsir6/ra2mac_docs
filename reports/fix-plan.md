@@ -14,16 +14,19 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 30 轮，2026-11-14）收口摘要 —— 审计轮**
-> 1. 轮型：**审计轮**（§6.7 每 5 轮强制；上次 AUDIT 为第 25 轮，本轮正好第 5 轮）。产品零改动、零新增断言。
-> 2. 上轮结论：M-22 修好读取层后阻塞点后移到 `deployRuntimeComputerAiMcvs`，35/35 例一字不差 → 单一新根因。
-> 3. 本轮变化：**清单体检**——queue 46→35 条（归档 11 条：6 已结案超窗口 + 5 被取代），修 2 条状态矛盾
->    （C-02g→done、C-02i→blocked/deferred），修 `root`/`repo` 指向不存在路径的数据 bug；29 个报告引用零悬空。
-> 4. 关键发现：**12 条 pending 从未估值**（root_cause/cost 空）→ 按 §一.4 不许进排序，已标「禁排序」；
->    另发现唯一一处产品侧重复实现（`MapPreviewExporter` 复制了 `RuntimeTmpCodec` 的 TMP 解码段）。
-> 5. 质量四数：近 5 轮净增 **−333**；三大文件 90,459 / 42,578(−90) / 30,794(+2)；近 5 轮断言 0 / 产品 +130；TODO 0。
-> 6. 主线：skirmish-mode-rules **子项已满 4 条上限**（M-22/M-23/M-24/S-17），已用 2 轮，剩 2 轮必须整体收口。
-> 7. 下轮起手：M-23 六字段一次定性（第 3 轮）；同轮写出 M-24 与 S-17 的二选一结论。详见 `reports/AUDIT-30.md`。
+> **本轮（第 31 轮，2026-11-14）收口摘要 —— 修复轮**
+> 1. 轮型：**修复轮**（主线未超 4 轮、无 brake、无腐烂预算、距上次 AUDIT 只 1 轮）；主目标 M-23。
+> 2. 上轮结论：M-22 修好读取层后阻塞点后移到 `deployRuntimeComputerAiMcvs`，35/35 例一字不差。
+> 3. 本轮变化：**M-23 是断言错误，不是产品缺陷**。读数 `mcvs=1 item=GACNST planned=91,128 status=MCV turning to
+>    deploy yard=no` 一次否掉计划里三个候选；改为按拍等待后**模式矩阵 35/35 全绿**（第一次跑到尾）。
+>    按八.2 口径标「断言纠正」，**不计入已修复**；产品行为净增 0。
+> 4. 新发现：完整链路 `--skirmish-build-smoke-test` 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，
+>    位置在模式矩阵之前——S-17 要接的那条从来没跑到过我们跟了 3 轮的那一段。登记 **M-29**（新主线
+>    `skirmish-option-semantics`），两条候选解释改法相反，先加三值读数不猜。
+> 5. 主线收口：**skirmish-mode-rules 判 done**（M-22/M-23 done；M-24 移 `deferred.md`；S-17 转 blocked，阻塞改 M-29）。
+> 6. 质量四数：净增 **+29**（产品 0）；三文件 90,459 / 42,578 / 30,794 全不变；新增断言 0；TODO 0。
+> 7. 回归 `10/1/0`（`20261114-021900`），`command` 前缀不变。清单 `ledger-check.sh` 五项全绿。
+> 8. 下轮起手：M-29 第一步加三值读数（`skirmishModeRulesLoaded` / 工厂归属兼容两向 / catalog 是否含 NAPOWR）。
 
 ---
 
@@ -34,7 +37,7 @@
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
-| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 它先后被两道门挡着：M-22（规则没加载，已修）与 M-23（AI 开局 MCV 不展开，仍红）；先修再进门禁 | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + `known-red` 口径（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**依赖 M-23**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-31-游戏模式规则从归档读取.md` §7 |
+| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、**M-29**（`option semantics ownerFactory=no`，位置在模式矩阵之前，仍红） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞改为 M-29**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-32-电脑开局MCV是转向后落地.md` §6 |
 
 ## 二、待修复 —— 中等
 
@@ -45,9 +48,8 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被两道门挡着：M-22（已修）、M-23（AI 开局 MCV 不展开） | 第 29 轮读数：模式规则已从归档读出，阻塞点后移到 `deployRuntimeComputerAiMcvs` | 高：U-19/U-20/U-22 的前置 | 低：M-23 修完 + 冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为 M-23**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
-| M-23 | 遭遇战冒烟 AI 开局 MCV 不展开 | `deployRuntimeComputerAiMcvs` 返回 false，7 模式 × 3 阵营 + 7 夹阵营 × 2 模式**共 35 例一字不差** | 单一原因，三候选：①AI 阵营没拿到 MCV / owner 认不出 ②`findRuntimeMcvDeployCell` 无落点 ③`requestRuntimeMcvDeployment` 被规则拒（人类那条走 `deployRuntimeMcv`，绕过请求门） | 高：模式规则修好后的下一道门；不修则 S-17/M-13 永远接不上 | 低：先给返回值加三来源文案（一行），再一次运行定性 | **A** | 中等 | 0 | 待修复（第 29 轮登记） | 该行打出 `ids=/cell=/item=/planned=/requested=/owner=` 且其中恰有一项为空/假 | `reports/FIX-31-游戏模式规则从归档读取.md` §5 |
-| M-24 | 录像兼容哈希漏算归档侧模式规则 | 有松散 `MP*MD.ini` 的机器与没有的机器算出的 `runtimeMatchReplayCompatibility` 不同（前者按文件字节、后者直接跳过） | `RuntimeMatchReplayRuntime.inl:50` 只在松散路径非空时 `mixFile()`，归档命中后该分支不执行 | 中：多人/录像兼容性判定的可信度 | 中：改成按模式规则**文本**入哈希 + 逼升 `ReplaySimulation` 版本号 | **B** | 中等 | 0 | 待修复（本轮识别、未动） | 同一 config 下删掉松散文件后兼容哈希不变 | `reports/FIX-31-游戏模式规则从归档读取.md` §7 |
+| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`option semantics`） | 第 31 轮读数：模式矩阵 35/35 已绿，整链路仍停在 `validateRuntimeSkirmishOptionSemantics` | 高：U-19/U-20/U-22 的前置 | 低：M-29 修完 + 该冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为 M-29**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
+| M-29 | UnholyAlliance 的工厂归属兼容没放宽（或探针没拿到模式规则） | 完整链路第一道门：`option semantics … ownerFactory=no unholy=no`，其余 18 项 yes；`unholy` 是 `ownerFactory` 的下游 | 三候选，**改法相反**：①`unholyProbe` 是新建 `RuntimeWindowState`（只补 rules/economy），模式规则可能没加载 ②`runtimeFactoryOwnerCompatibleWithBuildItem` 没被 UnholyAlliance 的允许清单放宽 ③catalog 里没有 NAPOWR | 高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义 | 低：先给三条谓词各一个布尔入失败文案（`RuntimeShell.cpp:15654` 那三行），一次运行裁定 | **A** | 中等 | 0 | 待修复（第 31 轮登记，新主线 `skirmish-option-semantics`） | 该行打出 `sovietPower=/alliedCompat=/sovietCompat=/rulesLoaded=`，且其中恰有一项为假 | `reports/FIX-32-电脑开局MCV是转向后落地.md` §6 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -59,7 +61,25 @@
 
 ---
 
-## 四、C-02 主线：整体收口判定（第 25 轮，判 **blocked**）
+## 四、skirmish-mode-rules 主线：整体收口判定（第 31 轮，判 **done**）
+
+**账目**：第 28~31 轮共 3 轮、4 个子项（M-22 done / M-23 done / M-24 移出 / S-17 转 blocked），
+窗口用尽，**不再开第 5 个子项**。
+
+- **M-22**（`2c7f1ea`）：9 个 `MP*MD.ini` 只在 `expandmd01.mix` 里，松散路径查不到 → 模式规则从未加载。
+  改为「松散优先 + 归档按名回退」。**这是本轮线唯一的 S 级用户价值**：9 个模式的规则从静默无效变为生效。
+- **M-23**（`4abfee7` + `cc53d95`）：不是产品缺陷，是断言把「请求被接受」当「基地已存在」。
+  按拍等待后模式矩阵 **35/35 全绿**（第一次跑到尾）。标「断言纠正」，**不计入已修复**。
+- **M-24** → `progress/deferred.md`（重开条件：多人联机/跨机录像判定实测/版本号本来要逼升）。
+  未做的行为差异：归档侧的规则差异不进兼容哈希，**代价**是跨机录像兼容会误判；单人本地回放不受影响。
+- **S-17** → blocked（阻塞改 M-29，属另一条主线）。**代价**：遭遇战链路继续没有日常门禁，回归仍是 11 条。
+
+**判 done 的依据**：这条主线的用户价值（模式规则生效）已交付且有回归兜住；剩下的两段都不在本线内
+（一个在录像层、一个在 option semantics 层），继续挂在本线只会让它变成第二条 C-02。
+
+---
+
+## 五、C-02 主线：整体收口判定（第 25 轮，判 **blocked**）
 
 **账目**：第 15~25 轮共 11 轮，9 个子项（C-02 / b / c / d / e / f / g / h / i），超「≤4 子项 / ≤4 轮」红线两倍以上。
 其中**真产品缺陷 3 处**（C-02b 登船互锁、C-02e 建筑进门格被兜底换掉、C-02h 离场被当取消入场），
@@ -90,13 +110,13 @@
 
 ---
 
-## 五、已完成 / 已废弃
+## 六、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool；dist/.app 挂 120s 内存零增长）｜**M-22 游戏模式规则从归档读取**（`2c7f1ea`，松散 miss 时按名读 `expandmd01.mix`；模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做 commit，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`，失败文案自带现场）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）｜已归档两条（C-02d/C-02c，见归档）
+**M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）**｜S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）｜C-02f MCV 拆包落点（`7c02812`）｜C-02e 反应堆进门格（`d6654eb`）
 
 **第 30 轮审计遗留（不进本表，只在 queue 里挂着）**：12 条 queue-only 条目（`ON-5-01`/`ON-5-02b`/`ON-4-02d`/
 `ON-3-01b`/`ON-3-02`/`ON-2-04b`/`ARM-03`/`EVO-07`/`U-19`/`U-20`/`U-21`/`U-23`）缺根因与成本，按 §一.4 不排进排序；
@@ -108,6 +128,7 @@ S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autorelease
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 31 | 2026-11-14 | 电脑开局 MCV 是「转向后落地」，不是没展开；35/35 全绿 + 主线收口 | `reports/FIX-32-电脑开局MCV是转向后落地.md` |
 | 30 | 2026-11-14 | 审计：queue 46→35、2 条状态矛盾、TMP 解码双实现、主线子项已满 4 | `reports/AUDIT-30.md` |
 | 29 | 2026-11-13 | 游戏模式规则从归档读取（模式从静默无效到生效） | `reports/FIX-31-游戏模式规则从归档读取.md` |
 | 28b | 2026-11-13 | 挂机 37GB 内存爆炸：光标同步在 autoreleasepool 外（用户报障追加轮） | `reports/FIX-30-挂机内存泄漏-autoreleasepool.md` |

@@ -59,5 +59,16 @@ PY
 )
 check detail-lines "${long_detail%% *}" 0 " 条超 6 行"
 
+# 4. 条目 id 唯一（第 31 轮踩过：并发会话各自新增，两本账撞了同一个 M-25）
+dup_ids=$(python3 - "$QUEUE" <<'PY'
+import json,sys,collections
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+ids=[t.get('id','') for t in d.get('tasks',[])]
+dups=[k for k,v in collections.Counter(ids).items() if v>1]
+print(len(dups), ','.join(sorted(dups)[:5]))
+PY
+)
+check dup-ids "${dup_ids%% *}" 0 " 条重复 id"
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail
