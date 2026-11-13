@@ -83,7 +83,7 @@
 | 项 | 值 |
 |---|---|
 | 净增行数 | **+111**（`4 files changed, 122 insertions(+), 11 deletions(-)`） |
-| 最大单文件 | `RuntimeShell.cpp` 90,459（未动）/ `RuntimeMapRenderer.cpp` 42,578（未动）/ `RuntimeSessionWorld.cpp` 30,792 → +4−4 |
+| 最大单文件 | `RuntimeShell.cpp` 90,459（未动）/ `RuntimeMapRenderer.cpp` 42,578（未动）/ `RuntimeSessionWorld.cpp` 30,792 → 30,794（+2） |
 | 断言 vs 产品代码 | 新增断言 0 / 产品代码 +122（本轮不新增断言：既有冒烟就是验收器） |
 | TODO/FIXME/探针 | 0 → 0（本轮没引入任何环境变量开关） |
 
