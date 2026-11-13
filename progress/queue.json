@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 126,
-  "updated": "2026-11-13T13:38:30+08:00",
+  "version": 127,
+  "updated": "2026-11-13T14:00:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2621,9 +2621,20 @@
     {
       "id": "C-02g",
       "status": "measuring",
-      "title": "奴隶矿工出舱段：新工人出现在周边地面",
-      "detail": "第 22 轮 C-02f 转绿后暴露。RuntimeSlaveMinerSmoke.inl:214：inspect() 对不在 lastCells 的新工人要求「在建筑内」或「在 8..9 的出舱渲染窗口且 renderMoveActive」，mode=ore 档即失败。夹具自身注释给出的根因假设（未验证）：工人第一次移动前存档/读档会触发通用步兵重叠重定位，把人推到周边地面。三种待分流：①载入 placements 就没放进建筑 ②进了但首拍被重叠重定位弹出 ③渲染位缺失使 emerging 判据恒假。起手先加 CONCORD_SLAVE_EMERGENCE_TRACE=1 按拍打印 id/cell/inside/renderMoveActive/renderX,Y/hasRenderPosition/task.phase，并且只跑 ore 一档定位，三档（ore/no ore/blocked）不要混改。",
+      "title": "奴隶矿工出舱段：ore / no ore 已绿，blocked 档仍见工人瞬移 3 格——部分完成",
+      "detail": "第 23 轮解决其中两档。定性用的是 CONCORD_SLAVE_EMERGENCE_TRACE=1 的首次出现采样，ore 档首见工人读数 cell=8,8 subCell=2 render=7.75,8.25 renderMove=1 —— 断言原本把渲染窗口硬编码成 renderX∈[8,9]、renderY∈[8,9]，而步兵按子格站位（一格四子格，subCell 带来 ±0.25 的渲染偏移），斜向首步 (8,8)→(9,9) 的首拍渲染位正好是 7.75,8.25，差 0.25 落到窗口外，属假红（该段自第 13 轮起从未执行到，窗口是照格子坐标的直觉写死的）。改法：把渲染位 std::lround 取整成 bodyCell 再判 runtimeCellDistanceToObjectFootprint == 0.0（语义=身体仍在地基内），与同文件 runtimeSlaveMinerWorkerAtRefinery 口径一致；没有把窗口放宽成 [7,10]。commit c5d2b6c（test）。读数：ore 与 no ore 两档全过（含替补工人），阻塞点后移到 blocked 档，另登记 C-02h。",
       "verify": "三档下所有奴隶矿工都从建筑内按拍走出，中途不出现「直接出现在周边地面」的位移，且数量等于 slavesNumber",
+      "complexity": "中等（先量后改）",
+      "value": "A",
+      "verify_note": "ore / no ore 两档已在全量回归中转绿；blocked 档待 C-02h 收敛",
+      "commit": "c5d2b6c"
+    },
+    {
+      "id": "C-02h",
+      "status": "measuring",
+      "title": "奴隶矿工出舱 blocked 档：内部工人瞬移 3 格（疑通用步兵重叠重定位）",
+      "detail": "第 23 轮 C-02g 两档转绿后暴露。RuntimeSlaveMinerSmoke.inl:218「worker teleported instead of walking」：id=14 的岗位从 9,8 直接变成 6,6（3 格外），render=6,6、renderMove=0、mission=Guard、status=\"no ore\"，与 id=18 在同一格出生后约 194 拍发生。已知事实：出生格由 findRuntimeSlaveMinerWorkerSpawnCell 挑「半径 0 可走」的地基格，它挑中了 id=14 所在的 (9,8)——因为一格四子格，两名步兵可合法同格。根因假设（未验证）：通用步兵重叠重定位把「正在出舱的工人」推出了原位。起手先加只读位：在 setRuntimeObjectCell / 重定位入口打 why=relocated from=.. to=.. radius=..（复用 CONCORD_SLAVE_EMERGENCE_TRACE 开关），确认是否重叠重定位；确认后再分两条路：产品（出舱中的工人不该被挪出建筑）或夹具（出生点应避开已占子格）。",
+      "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
       "complexity": "中等（先量后改）",
       "value": "A"
     }
@@ -2768,6 +2779,27 @@
         "topic": "断言期望值不能取自「测试自己造夹具用的坐标」",
         "decision": "落点/位置类期望必须来自产品的定位规则（如 runtimePlacementAnchorCellForFootprint），或退一步用集合语义（在旧地基内），不要写死夹具坐标",
         "effect": "GACNST 放在 (6,6) 是夹具的写法，产品按地基中心 (7,7) 落点；两者不同源，段落一跑就假红。"
+      }
+    ]
+  },
+  "decisions_20261113_r23": {
+    "date": "2026-11-13",
+    "source": "第 23 轮（FIX-24）",
+    "items": [
+      {
+        "topic": "一格四子格：拿格子坐标判渲染位置的断言必然差 0.25",
+        "decision": "判「在哪」要么把渲染位取整成体素格，要么用几何距离；不要拿渲染浮点数直接比区间",
+        "effect": "出舱窗口 [8,9] 与首拍渲染位 7.75,8.25 只差 0.25，ore 档一开始就被判假红。"
+      },
+      {
+        "topic": "夹具侧的通用改法：期望值取几何，不取常量",
+        "decision": "位置类期望用「在地基格清单内 / 距离为 0 / 集合成员」，不要写死坐标区间或建筑角点",
+        "effect": "C-02d 赌船货次序、C-02f 赌建筑左上角、C-02g 赌渲染窗口，连续三条同一形态；真正的产品缺陷只有 C-02b、C-02e 两处。"
+      },
+      {
+        "topic": "三档场景不许混改",
+        "decision": "同一段的多档（ore / no ore / blocked）中，一旦某档转绿立即锁定，后续改动只许影响剩余档",
+        "effect": "C-02h 只能动 blocked 的墙圈路径，改动后 ore / no ore 必须仍然绿。"
       }
     ]
   }

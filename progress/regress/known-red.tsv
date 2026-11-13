@@ -8,4 +8,4 @@
 #              留空 = 该条放弃文案门禁，只判"红"。改产品语义/改断言文案时必须同步改这一列。
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
-command	第 22 轮修掉 MCV repack 段（验收比的是建筑左上角 (6,6)，产品按放置锚点把 MCV 放在地基中心 (7,7)；改判「落在旧地基内」后四阵营全过，含被占领的 GACNST→AMCV）。现阻塞后移到奴隶矿工出舱段：RuntimeSlaveMinerSmoke.inl:214「新工人出现在周边地面」（加载后首个工人被通用步兵重叠重定位推出地基，且不在 8..9 的出舱渲染窗口内）。该段自第 13 轮起从未被执行到	code-red:needs-metering	slave emergence (ore): new worker appeared on surrounding ground
+command	第 23 轮修掉奴隶矿工出舱段的 ore / no ore 两档：出舱判据原来把渲染窗口硬编码成 [8,9]，而步兵按子格站位，首拍的斜向一步 (8,8)→(9,9) 渲染在 7.75,8.25 → 假红；改为把渲染位取整后判「在地基内」。现 blocked 档阻塞：RuntimeSlaveMinerSmoke.inl:218「worker teleported instead of walking」（id=14 从 9,8 直接到 6,6，render=6,6、renderMove=0，mission=Guard/status=no ore，与 id=18 同一格出生后约 194 拍发生，疑为通用步兵重叠重定位把内部工人挪出 3 格）。该段自第 13 轮起从未被执行到	code-red:needs-metering	slave emergence (blocked): worker teleported instead of walking
