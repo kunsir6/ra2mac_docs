@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 120,
+  "version": 121,
   "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2589,7 +2589,7 @@
       "id": "C-02c",
       "status": "measuring",
       "title": "整仓步兵卸载 600 拍仍不放空",
-      "detail": "登船互锁修掉后（C-02b，498ae37），command 冒烟第一次执行到「移开舱门口 8 台 MTNK 后整仓下船」这一段：executeRuntimeSecondaryAction 后按拍推进 600 拍，12 名步兵仍留在 LCRF 上，simulationStatus=moved #7 to 15,15。这段此前被登船红挡住，属原生问题（登船入舱会 pendingTransportTargets.erase，被卸下的兵没有待登船意图，第 16 轮的同伴豁免对它不生效）。待判定：舱门口子格被河岸/水面判据挡住，还是卸载候选格几何不可达。",
+      "detail": "第 17 轮用卸载侧八格拒绝表（22fea50 test，CONCORD_TRANSPORT_TRACE=1）收窄：①遮挡阶段八格全被 passability 拒，occupied=14..21 正是八台 MTNK —— 「堵住」判定正确，不是缺陷；②挪开后第一具出舱者 id=13 停在船体原点（unload:bodies other=13 distance²=0 moving=1），后续 id=7 的扫掠段起点落在它身体里 → 全员在等它。出舱者不在 pendingTransportTargets，第 16 轮的同船同伴豁免对它不生效。结论改写为「出舱方向第一个没走开」。下一步必须先量挡住者自己的 behavior.state/renderMoveTicksRemaining/moveTarget/path.size()，在「egress 渲染步被等身体停稳卡住（可疑：11 具 alive=false 货舱体被同步到船体格）」与「egress 后走不到半径 2 终点（两栖船不统计 futureFootGoals）」之间二选一，两者改法相反。",
       "verify": "移开阻挡载具后 12 名步兵在有限拍内全部下船，且 exits 用的地面子格互不重合",
       "complexity": "复杂（模拟层卸载排队）",
       "value": "A"

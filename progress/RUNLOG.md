@@ -7283,3 +7283,31 @@ boarding:transfer-refused ×4 / access:body ×4
   加计量时先问「这条读数能不能否掉我准备写的那条改法」。
 - 豁免类改动必须把边界写成窄条件（同 kind + 同队列 + 同 host），
   一次放宽一个维度，才能让坦克段的 `aboard=4` / `exits` 互不重合继续当反证。
+
+## 2026-11-13 第 17 轮
+
+### 主题
+
+整仓卸载（C-02c）第一步：只读计量。基线 `10/1/0` → 收口 `10/1/0`，产品行为零改动。
+
+### 动作
+
+- `22fea50` test：`unloadRuntimeUnitTransportMotion` 的候选格循环拆成六个拒绝点
+  （`passable/level/subcell/clearance/transition/bodies`），`passable` 附带 `occupied/level/probe`，
+  每拍补一条 `unload:no-exit` 汇总。
+
+### 读数
+
+- 遮挡阶段：八格全被 passability 拒，`occupied=14..21` 正是八台 MTNK → 「堵住」判定正确。
+- 挪开后：第一具出舱者 `id=13` 停在船体原点（`distance²=0`、`moving=1`），
+  后续 `id=7` 被它挡住。出舱者不在 `pendingTransportTargets`，第 16 轮豁免不适用。
+- 结论改写：不是「候选格不可达」，是「第一个出舱的没走开」。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-124323`）。
+
+### 决策（追加）
+
+- 三态判定看不出「同一句话背后的阶段差异」：这一段有两个阶段（堵住/放开），
+  去重 trace 若不分阶段会把阶段一的正确拒绝当成阶段二的成因。读数必须能对上是哪一拍。
