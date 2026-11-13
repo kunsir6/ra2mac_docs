@@ -13,7 +13,13 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 10:55（第 15 轮收口）；
+> 最近更新：2026-11-13 12:14（第 16 轮开工）；
+> 第 16 轮开工：基线 **`10/1/0`**（`20261113-121025`，与第 15 轮收口逐条一致，`command` 前缀
+> `twelve infantry did not board` 未漂移）。简单区仍为空（S-08 缺静止连拍入口、S-13 卡守卫产物、
+> M-19 属资产侧），按「不为凑批量拆中等项」的既有纪律，本轮只做唯一 remaining known-red
+> **C-02**，取 A 方案（复杂，单独成轮，先写方案再动手）。
+>
+> 最近更新（上一轮）：2026-11-13 10:55（第 15 轮收口）；
 > 第 15 轮：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
 > **C-02 根因收窄**：给登船路径加 `CONCORD_TRANSPORT_TRACE=1` 原因位后，卡点不是寻路/地形/子格，
 > 也不是容量，而是**四个人同拍停在 (15,15) 同格互相锁死**——`runtimeTransportTransferBodiesClear`
@@ -122,7 +128,7 @@
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | 状态 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|
 | C-01 | EVO-15 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]`，导致 cursor rect 全失效、`isActive`/`isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 高：改主循环 + 回归全部输入断言 | **A** | 复杂 | 待修复 | 见 `MEMORY` 中「本项目不调 sendEvent」条目 |
-| C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | 根因已定位（`94fbc71` 只读计量）；下一轮取 A，并补「同格四人有限拍内全进舱」断言 | `reports/FIX-16-登船互锁的四道门计量.md` |
+| C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | 根因已定位（`94fbc71` 只读计量）；**第 16 轮取 A 方案，分两步**：①`runtimeTransportTransferBodiesClear` 加「被谁挡住」只读位（other id/kind/线段距离）钉死是同伴而非外部单位；②同 host 整船转移每拍只放一人（`pendingTransportTargets` 按 host 分组、instanceId 定序），并补「同格四人有限拍内全进舱」断言。坦克段 `aboard=4` / `exits` 互不重合必须同时绿 | `reports/FIX-16-登船互锁的四道门计量.md` |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
