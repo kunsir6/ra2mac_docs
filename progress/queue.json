@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 125,
-  "updated": "2026-11-13T13:29:33+08:00",
+  "version": 126,
+  "updated": "2026-11-13T13:38:30+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2611,10 +2611,19 @@
     },
     {
       "id": "C-02f",
-      "status": "measuring",
-      "title": "MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆",
-      "detail": "第 21 轮 C-02e 转绿后暴露。RuntimeShell.cpp:63082 → RuntimeMcvRepackSmoke.inl:145：Americans/GACNST/AMCV 第一个阵营即失败——dispatchRuntimeSecondaryActionFromUi 之后 finishRepacking 跑完，findObjectById(yardId) 仍在，或选中车辆的 type/owner/runtimeObjectCanMove/cell 任一不符。与 pendingTransportTargets 无关，属自第 13 轮起从未执行到的旧问题。一次读数分流：finishRepacking 后打 yard 是否还在 / selected.size / kind+type+owner / canMove / cell / pendingOccupyTargets.size()，分清 ①拆包根本没发生（查 finishRepacking 的计时前提与 runtimeMissionIsRepacking）②拆了但 canMove=false（查拆包后 mission/deployed 与移动档位）③类型或所有者没继承。",
+      "status": "done",
+      "title": "MCV repack 段：拆包落点是地基锚点，不是建筑左上角——已修（测试侧）",
+      "detail": "第 22 轮修掉（测试侧，产品零改动）。第 145 行那条断言把六个谓词压成一句，加 CONCORD_MCV_REPACK_TRACE=1 逐项打印后，Americans 档读数 yardStillThere=0 selection=1 ids=2 live=[#2 AMCV/Americans cell=7,7 canMove=1] —— 五项全过，只有落点 (7,7) 与验收要求的 (6,6) 不符。产品没错：undeployRuntimeStructure 明确按 runtimePlacementAnchorCellForFootprint 取地基锚点（GACNST 3x3、左上角 (6,6) → 中心 (7,7)）再找可走格。验收把「测试放置建筑用的左上角」当成了落点，是锚点规则改中心锚之后没跟上的旧断言（该段自第 13 轮起从未执行到）。改法：拆包前存下旧地基格清单，断言车辆落点在其中；失败文案带实际格与锚点。没有把产品改成落左上角，也没有把锚点算法抄进测试。commit 7c02812（test）。读数：四阵营全过，含 Russians+GACNST→AMCV 那一档。",
       "verify": "四个阵营（含被占领的 GACNST 换成 Russians）拆包后都得到可移动、已选中的对应 MCV，且伤害/星级/箱子加成保留",
+      "complexity": "简单（单文件单断言）",
+      "value": "A"
+    },
+    {
+      "id": "C-02g",
+      "status": "measuring",
+      "title": "奴隶矿工出舱段：新工人出现在周边地面",
+      "detail": "第 22 轮 C-02f 转绿后暴露。RuntimeSlaveMinerSmoke.inl:214：inspect() 对不在 lastCells 的新工人要求「在建筑内」或「在 8..9 的出舱渲染窗口且 renderMoveActive」，mode=ore 档即失败。夹具自身注释给出的根因假设（未验证）：工人第一次移动前存档/读档会触发通用步兵重叠重定位，把人推到周边地面。三种待分流：①载入 placements 就没放进建筑 ②进了但首拍被重叠重定位弹出 ③渲染位缺失使 emerging 判据恒假。起手先加 CONCORD_SLAVE_EMERGENCE_TRACE=1 按拍打印 id/cell/inside/renderMoveActive/renderX,Y/hasRenderPosition/task.phase，并且只跑 ore 一档定位，三档（ore/no ore/blocked）不要混改。",
+      "verify": "三档下所有奴隶矿工都从建筑内按拍走出，中途不出现「直接出现在周边地面」的位移，且数量等于 slavesNumber",
       "complexity": "中等（先量后改）",
       "value": "A"
     }
@@ -2743,6 +2752,22 @@
         "topic": "读数必须带时间维度才能区分「本来错」与「被改错」",
         "decision": "定性路径类问题时，至少采三个时刻：排队后、首拍、阻塞稳态",
         "effect": "after-issue 显示五人目标全对且 path=1，把「findRuntimeEngineerEntryCell 挑错格」这个最像的候选一次否掉，省掉一整轮改错方向。"
+      }
+    ]
+  },
+  "decisions_20261113_r22": {
+    "date": "2026-11-13",
+    "source": "第 22 轮（FIX-23）",
+    "items": [
+      {
+        "topic": "多谓词一句的断言必须先拆读数再谈修",
+        "decision": "凡是「一条 fail 文案后面挂了 5~6 个条件」的断言，第一次接触就补逐项打印，不要凭直觉挑最像的那条去改",
+        "effect": "C-02f 六项里只有落点错，其余五项（拆包发生、选中、type/owner/canMove）全正常；直接去查「拆包没发生」会白改一轮。"
+      },
+      {
+        "topic": "断言期望值不能取自「测试自己造夹具用的坐标」",
+        "decision": "落点/位置类期望必须来自产品的定位规则（如 runtimePlacementAnchorCellForFootprint），或退一步用集合语义（在旧地基内），不要写死夹具坐标",
+        "effect": "GACNST 放在 (6,6) 是夹具的写法，产品按地基中心 (7,7) 落点；两者不同源，段落一跑就假红。"
       }
     ]
   }
