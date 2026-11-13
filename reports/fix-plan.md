@@ -13,7 +13,16 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 13:30（第 20 轮收口）；
+> 最近更新：2026-11-13 13:40（第 21 轮收口）；
+> 第 21 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归。**C-02e 已完成**：生物反应堆段的两人
+> 不是「没派路」也不是「被地基挡」，而是**进门格被寻路器的兜底目标换成了门外邻格**——
+> `applyRuntimeMovePathResult` 的 blocked-goal 豁免名单只认 `WorldObjectKind::Unit` 的 host，
+> 建筑吸收器（反应堆/碉堡）不在内，两名乘客各自被换成对方所在的格子，互堵死且不自愈。
+> 补 `runtimeBuildingAbsorberEntryKeepsGoal` 后 `power=650 aboard=5`，五人全部真实进入。
+> 新登记 **C-02f**：MCV repack 段（`RuntimeMcvRepackSmoke.inl:145`），属暴露出来的旧问题。
+> 报告 `reports/FIX-22-生物反应堆进门格不被兜底换掉.md`。
+>
+> 上一轮收口：2026-11-13 13:30（第 20 轮收口）；
 > 第 20 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归。**C-02d 已完成**：读数证明
 > `cargoBeforeAction=4 / boatMovingBefore=0 / 无 host-busy` —— 卸载跑了，但一趟只放一件，
 > 且船货顺序取决于 boarding 到达顺序，「按一下就断言 IFV 已出舱」实际在赌次序。改按拍推进后混编段转绿。
@@ -175,7 +184,8 @@
 | C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | **第 16 轮已修复（C-02a 部分）**：`498ae37` fix + `c7a1f2f` test。A 方案（每拍只放一人）被读数否决；真修法是「同船步兵同伴不算路障」（载具/外部单位仍严格互斥）。`aboard=10/12 → 12/12`。**剩余阻塞另立 C-02c** | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` |
 | C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **第 18 轮定性（更正第 17 轮）**：`ticks=66/66` 是 egress 的第一拍，不是卡住——去重键缺时间维度。加 120 拍桶后终态（tick=1680）是 **11 名已出舱者 `bstate=none`/`moving=0`/位置=格子中心，占满 8 个邻格**，最后一名 `id=7` 无干净走廊。结构性原因：两栖卸载不规划外侧终点（`remainingPath` 只在 `!runtimeAmphibiousTransport` 时算），出舱就地停靠；8 格 × 0.5 身体互斥的实际容量远小于名义 32 子格 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | **取 A（推荐）**：两栖卸载也规划半径 2 外侧终点，全水时退回就地停靠；动手前先补两个只读位（半径 2 的 16 格可用计数、站定者的 `subCell` 是否 `-1`） | **A** | 复杂（模拟层卸载排队） | **已完成**（`4f13ccc` fix + `7361f55` test）：出舱者获得半径 2 外侧终点，12 名步兵整仓下船 | `reports/FIX-20-两栖卸载外侧终点.md`
 | C-02d | 混编段载入 IFV 的整车下船失败 | 一次 `executeRuntimeSecondaryAction` 后断言 IFV 已出舱且乘员仍在车内，实际 `ifv=null riderAlive=0 riderCell=23023 boatCargo=3` —— IFV 没出舱 | **已定性**：`cargoBeforeAction=4 / boatMovingBefore=0`、无 `unload:host-busy` —— 卸载跑了，但一趟只放一件（循环找到第一个能出去的货就 break），而船货顺序 = boarding 到达顺序，IFV 不保证第一；「按一下就断言 IFV 已出舱」在赌排队次序 | 高：`command` 唯一 remaining known-red 的新阻塞点 | 已改完：按拍推进到 IFV 出舱（600 拍上限），断言本体一条没放 | **A** | 中等（若要改产品才升为复杂） | **已完成**（`107b06b` test + `2c3616c` test） | `reports/FIX-21-混编段按拍等待.md`
-| C-02e | 生物反应堆段：五个步兵 800 拍未全部进入 | `RuntimeBioReactorSmoke.inl:285-291` 断言 `power==5` 且 team step Complete，实际未达成（`bioreactor: AI did not complete five real arrivals`） | **未定性**：该路径是建筑吸收，判定用 `runtimeCellDistanceToObjectFootprint(...)==0.0`（`completeRuntimeTransportEntry` 的 bioReactor 分支），不走 `runtimeTransportTransferBodiesClear`；且全程零 transport trace。自第 13 轮起从未被执行到 | 高：`command` 链条上第三段，且反应堆吸收是被动收入路径 | 先量「800 拍后 power / pending 数 / 五人 cell·mission·blockedTicks」，按三种情形分流（进了又没进 / 被挡 / 从没派路） | **A** | 中等 | 待修复（第 20 轮登记） | `reports/FIX-21-混编段按拍等待.md` §4 |
+| C-02e | 生物反应堆段：五个步兵 800 拍未全部进入 | `RuntimeBioReactorSmoke.inl:285-291` 断言 `power==5` 且 team step Complete，实际 `power=450 pending=2`（只进 3 人） | **已定性**：剩下的两人 `moveTarget` 分别是对方所站的格子、`path=0 pathReq=1`，`blockedTicks` 停在 1 不增。进门格本身没错（排队时五人目标都是地基格 `12,12`）；是路径请求回来的那一刻，`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支把地基格换成门外邻格——该分支的豁免名单只认 `WorldObjectKind::Unit`（`runtimeUnitTransportApproachAllowsBodyDetour:11444`），建筑吸收器被漏掉；两人因此互换目标格互堵，而「重算进门格」只活在路径走完的分支里，永远轮不到 | 高：`command` 链条第三段，且反应堆吸收是被动收入主路径 | 已改：新增 `runtimeBuildingAbsorberEntryKeepsGoal`（同构条件 + `moveTarget` 在地基内），载具那条不动 | **A** | 中等（产品侧单谓词） | **已完成**（`d6654eb` fix + `8dfc9f4` test）：`pending=0 power=650 aboard=5` | `reports/FIX-22-生物反应堆进门格不被兜底换掉.md` |
+| C-02f | MCV repack 段：拆包后没在旧地基上生成可移动的已选中车辆 | `RuntimeMcvRepackSmoke.inl:145`：`dispatchRuntimeSecondaryActionFromUi` + `finishRepacking` 之后，`findObjectById(yardId)` 仍在，或选中车辆的 type/owner/`runtimeObjectCanMove`/cell 任一不符。第一个阵营（Americans/GACNST/AMCV）即失败 | **未定性**：与 `pendingTransportTargets` 无关，属被暴露出来的旧问题（该段自第 13 轮起从未执行到） | 高：`command` 新阻塞点 | 一次读数分流：`finishRepacking` 后打 `yard 是否还在 / selected.size / kind+type+owner / canMove / cell / pendingOccupyTargets`，分清 ①拆包根本没发生（查 `finishRepacking` 的计时前提）②拆了但 `canMove=false` ③类型/所有者没继承 | **A** | 中等 | 待修复（第 21 轮登记） | `reports/FIX-22-生物反应堆进门格不被兜底换掉.md` §6 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -196,7 +206,23 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 20 轮）打包清单
+## 五、本轮（2026-11-13 第 21 轮）打包清单
+
+主题：**建筑吸收器的进门格不该被兜底目标换掉**。基线 `10/1/0` → 收口 `10/1/0`，零新回归。
+报告 `reports/FIX-22-生物反应堆进门格不被兜底换掉.md`。
+
+- **C-02e 已完成（`d6654eb` fix + `8dfc9f4` test）**：三次采样把三种候选逐个否掉——
+  不是「从未派路」（`after-issue` 五人 `path=1`），不是「被地基挡」（目标就是地基格），
+  而是第 20 拍前后目标被换成**对方的格子**。根因是 `goalAdjusted` 豁免名单只认载具 host。
+  补谓词后 `pending=0 power=650 aboard=5`。
+- **`8dfc9f4`**：`CONCORD_BIOREACTOR_TRACE=1` 打地基格清单 + 每人 `moveTarget/entryCell/bstate/blocked/pathReq/path`，
+  按 before-unload / after-unload / after-issue / 1·2·5·20·100·400 拍采样。默认静默。
+- **顺带确认**：五人抢同一地基格**不是**缺陷（坦克碉堡段也如此），进人本身是按拍串行的。
+- **新登记 C-02f**：MCV repack 段（旧问题被暴露，与本次改动无关）。
+- **链条观察（延续）**：`command` 每转绿一段就露出下一段，且下一段全是「第一次运行」；
+  第 19→21 轮连续三轮都是这种暴露式阻塞。
+
+## 五-旧、第 20 轮（2026-11-13）打包清单（存档）
 
 主题：**把「赌排队次序」的断言改成按拍等待**。基线 `10/1/0` → 收口 `10/1/0`，零新回归。
 报告 `reports/FIX-21-混编段按拍等待.md`。

@@ -7398,3 +7398,39 @@ boarding:transfer-refused ×4 / access:body ×4
 - 「动作后立刻断言某件货已出舱」必须同时给出「动作前件数」；否则「没卸」与「卸了别的」同形。
 - `command` 是一条从未执行完的段落链：每转绿一段就露出下一段。下轮先列清段落清单再动手，
   避免一段一轮地磨。
+
+---
+
+## 2026-11-13 第 21 轮：生物反应堆进门格不该被兜底目标换掉（FIX-22）
+
+- 起手基线 `10/1/0`（`20261113-131040`），前缀与登记一致，零漂移。
+- 本轮先做了一件不花构建的事：把 `command` 这条 smoke 的段落清单列出来——
+  `runRuntimeCommandSmokeTest` 是 60278–74548 行、约 250 个子段的顺序链，
+  `runRuntimeBioReactorSmokeProbe` 排在 63064，紧随两栖段。
+- C-02e 三次采样定性（每次都要一次构建，读数一次比一次窄）：
+  1. `ticks=800 pending=2 power=450 aboard=3`：#4/#5 的 `moveTarget` 分别是对方所站的格子，
+     `path=0 pathReq=1 blocked=1`；#2/#3/#6 已进（`findObjectById` 对 `alive=false` 返回空 → 显示 gone）。
+  2. 打出地基格清单与每人**当前**算出的 `entryCell`：地基是 2x2 `(12,12)(13,12)(12,13)(13,13)`，
+     两人当前 `entryCell` 都是 `12,12`，而行为里的 `moveTarget` 是门外的 `12,11`/`11,11` —— 陈旧且互换。
+  3. 按拍采样：`after-issue` 五人目标全是 `12,12`（`path=1`，排队本身没问题）；
+     第 1 拍进第一个人（`power=250`）；第 20 拍目标已变成互换的门外格；之后 780 拍一动不动。
+- 根因：`applyRuntimeMovePathResult` 的 blocked-goal 豁免名单里，
+  `runtimeUnitTransportApproachAllowsBodyDetour` 要求 `host->kind == WorldObjectKind::Unit`，
+  建筑吸收器（反应堆/碉堡）不在内 → 地基格被 `goalAdjusted` 换成门外邻格；
+  而重算进门格的分支只活在「路径走完」里，两人一步都走不出去 → 死锁不自愈。
+- 修法（`d6654eb` fix）：新增 `runtimeBuildingAbsorberEntryKeepsGoal`，同构条件 + `moveTarget` 在地基内；
+  载具那条规则原样不动。读数 `pending=0 power=650 aboard=5`，五人全部真实进入。
+- 顺带确认：五人抢同一地基格**不是**缺陷，进人本来就是按拍串行的（坦克碉堡段亦然）。
+- 新阻塞 **C-02f**：MCV repack 段（`RuntimeMcvRepackSmoke.inl:145`），第一个阵营即失败；
+  与 `pendingTransportTargets` 无关，属暴露出来的旧问题。
+
+### 验证
+
+全量回归 **PASS=10 KNOWN-RED=1 RED-NEW=0**（`20261113-132804`）。
+`command` 失败前缀随阻塞点改为 `MCV repack: click did not create a selected movable vehicle`。
+
+### 决策（追加）
+
+- 寻路器的「兜底目标」是一类隐蔽改写：凡是靠**精确格子**判到达的语义（进门、占位、出货），
+  都要显式声明「目标不许被换」，否则会被静默改成邻格，且失败形态是「两人互换」这种极难猜的样子。
+- 读数采样的价值在于**时间维度**：`after-issue` 与第 20 拍必须分开看，只看终态会把「被改过」读成「一开始就错」。
