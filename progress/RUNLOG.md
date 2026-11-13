@@ -7685,3 +7685,47 @@ S-16 第一次提交 `962f02e` 把 `if (remainingPath.empty())` 的唯一 body �
 
 修复轮：`--skip-skirmish-menu` 的会话状态出口（M-13/M-07 共用门）。比例闸要求下轮仍不许新增断言，
 做 M-13 时先只加「会话状态出口」这一层可观测性（算产品行为，不算断言）。
+
+---
+
+## 第 28 轮（2026-11-13 22:40~23:30）诊断/重排轮：真遭遇战通道早已存在
+
+### 轮型
+
+**诊断/重排轮**。依据 §七.1「根因假设被实测推翻」：M-13 登记的「macOS 上没有会话状态出口」
+本轮实测不成立——入口、状态出口、断言三样都已存在。按 §七，本轮余下时间锚点作废，只做诊断与重排。
+
+### 推翻的三条旧表述
+
+- 「`--skip-skirmish-menu` 是唯一进图入口」→ 另有 `--skirmish-build-smoke-test`（`RuntimeMain.cpp:305/997`），无窗口直构真遭遇战。
+- 「没有会话状态出口」→ 它自己打 `Skirmish start: <status> owner= credits= objects=`（`RuntimeShell.cpp:77753`），
+  并断言 `skirmishStartApplied` + 有己方工厂 + 有己方 `GACNST`（`:77764`）。
+- 「skip 不构造 playerSlots」→ 该冒烟在 slot 为空时自己补「人 vs 电脑」两席位（`:77638`）。
+
+### 真正的阻塞：模式规则读不到
+
+`--skirmish-build-smoke-test` 一跑就红在 option semantics：**凡读盘的模式项全 `no`，凡不读盘的全 `yes`**。
+根因在 `resolveRuntimeModeRulesOverridePath`（`RuntimeSessionNavigation.cpp:161`）——只查 5 个**松散**路径，
+而 9 个 `MP*MD.ini` 只存在于 `expandmd01.mix`（`flags=0x30000`，索引加密），松散层唯一有的是模式索引
+`mpmodesmd.ini`。判定性实验：放两个最小松散文件 → `alliesAllowed=no → yes`，其余一字未动；实验后已删除。
+
+**结论：真实游戏里选 Duel / Megawealth / MeatGrind / NavalWar / Unholy / TeamGame / Cooperative 规则一条不生效。**
+
+### 重排
+
+新增 M-22（A 级，前置，单点函数加归档回退）与 S-17（regress 第 12 条，依赖 M-22）；M-13 阻塞改挂 M-22、
+attempts 记 1。新主线「遭遇战模式规则」= M-22 → S-17 → M-13，本轮起计 1 轮 / 1 子项。
+
+### 质量四数
+
+净增 0（诊断轮，源码零提交）；`RuntimeShell.cpp` 90,459 / `RuntimeMapRenderer.cpp` 42,578 / `RuntimeSessionWorld.cpp` 30,794 均不变；
+新增断言 0；TODO=FIXME=探针=0。
+
+### 提交
+
+文档 2 个（docs：计划+报告 / queue：队列 v133 + RUNLOG）。源码仓库零提交。两仓库收口干净，`progress` 软链保持。
+
+### 下轮起手
+
+M-22：先用 `MixArchive::findEntryByName` **只读**打出 9 个名字在 `mix_exports/*/*.mix` 里的命中表（一次运行、不改行为），
+再谈改加载；判据是同一实验在**无松散文件**时也能翻面，且 regress 不退化。
