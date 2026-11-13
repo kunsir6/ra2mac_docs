@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 127,
-  "updated": "2026-11-13T14:00:00+08:00",
+  "version": 128,
+  "updated": "2026-11-13T14:52:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
   "rules": {
@@ -2621,7 +2621,7 @@
     {
       "id": "C-02g",
       "status": "measuring",
-      "title": "奴隶矿工出舱段：ore / no ore 已绿，blocked 档仍见工人瞬移 3 格——部分完成",
+      "title": "奴隶矿工出舱段：新工人出现在周边地面——三档全绿",
       "detail": "第 23 轮解决其中两档。定性用的是 CONCORD_SLAVE_EMERGENCE_TRACE=1 的首次出现采样，ore 档首见工人读数 cell=8,8 subCell=2 render=7.75,8.25 renderMove=1 —— 断言原本把渲染窗口硬编码成 renderX∈[8,9]、renderY∈[8,9]，而步兵按子格站位（一格四子格，subCell 带来 ±0.25 的渲染偏移），斜向首步 (8,8)→(9,9) 的首拍渲染位正好是 7.75,8.25，差 0.25 落到窗口外，属假红（该段自第 13 轮起从未执行到，窗口是照格子坐标的直觉写死的）。改法：把渲染位 std::lround 取整成 bodyCell 再判 runtimeCellDistanceToObjectFootprint == 0.0（语义=身体仍在地基内），与同文件 runtimeSlaveMinerWorkerAtRefinery 口径一致；没有把窗口放宽成 [7,10]。commit c5d2b6c（test）。读数：ore 与 no ore 两档全过（含替补工人），阻塞点后移到 blocked 档，另登记 C-02h。",
       "verify": "三档下所有奴隶矿工都从建筑内按拍走出，中途不出现「直接出现在周边地面」的位移，且数量等于 slavesNumber",
       "complexity": "中等（先量后改）",
@@ -2631,10 +2631,22 @@
     },
     {
       "id": "C-02h",
-      "status": "measuring",
-      "title": "奴隶矿工出舱 blocked 档：内部工人瞬移 3 格（疑通用步兵重叠重定位）",
-      "detail": "第 23 轮 C-02g 两档转绿后暴露。RuntimeSlaveMinerSmoke.inl:218「worker teleported instead of walking」：id=14 的岗位从 9,8 直接变成 6,6（3 格外），render=6,6、renderMove=0、mission=Guard、status=\"no ore\"，与 id=18 在同一格出生后约 194 拍发生。已知事实：出生格由 findRuntimeSlaveMinerWorkerSpawnCell 挑「半径 0 可走」的地基格，它挑中了 id=14 所在的 (9,8)——因为一格四子格，两名步兵可合法同格。根因假设（未验证）：通用步兵重叠重定位把「正在出舱的工人」推出了原位。起手先加只读位：在 setRuntimeObjectCell / 重定位入口打 why=relocated from=.. to=.. radius=..（复用 CONCORD_SLAVE_EMERGENCE_TRACE 开关），确认是否重叠重定位；确认后再分两条路：产品（出舱中的工人不该被挪出建筑）或夹具（出生点应避开已占子格）。",
+      "status": "done",
+      "title": "奴隶矿工出舱 blocked 档：内部工人瞬移 3 格——已修（离场不再被当成取消入场）",
+      "detail": "第 24 轮修掉（产品缺陷）。四次读数、两次自我否定：①reconcileRuntimeSubcells 的 NeedsMoveOut 重定位（直接改格+清渲染位+半径 6 搜索）看起来最像，加 why=reconcile-relocate 后一条没打，否定；②在 setRuntimeObjectCell 加「跨 >1 格」读数，命中 tick=344 from=9,8 to=6,6 resetRender=0；③在 recoverRuntimeCancelledStructureEntry 入口加读数，命中 prevKind=1(Move) prevTarget=9,8 allowedOccupied=1；④在无矿分支三处加读数，看到 tick=1 exit=6,6 issued=1 path=0。根因：runtimeCancelledStructureEntryNeedsRecovery 只对 Returning/Stored 豁免奴隶矿工，而墙圈关着时无矿分支签发的离场 Move 目标格 (6,6) 不可达 → path=0 即刻「完成」→ 被当成失败入场 → 半径 6 搜索把站在自己炼油厂地基里的矿工直接搬到空地（无插值）。改法：按任务归属豁免（任务 refineryId 就是这个 host 就不恢复），不按「目标格在地基外」（试过不成立，恢复时 prevTarget 已被兜底改回自己脚下），也没有放宽成「所有步兵」。读数 blocked closed/reopened exit=ok，ore / no ore 两档仍绿。另留 7 条 env-gated 只读计量。",
       "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
+      "complexity": "中等（先量后改）",
+      "value": "A",
+      "completedAt": "2026-11-13",
+      "commit": "7b9f576",
+      "verify_note": "blocked 档转绿；三档（ore/no ore/blocked）在同一份夹具下全过"
+    },
+    {
+      "id": "C-02i",
+      "status": "measuring",
+      "title": "奴隶矿工段：挖了装了但货没卸下去（digging=1 carrying=1 cargo=4 credits=0）",
+      "detail": "第 24 轮 C-02h 转绿后暴露。Command smoke failed: slave miner: workers did not dig, carry full loads and deposit credits: digging=1 carrying=1 cargo=4 credits=0 —— 「挖」和「装」各发生过一次，cargo=4 仍在手里，credits=0。该段自第 13 轮起从未被执行到。两种待分流：夹具等待拍数不足（交付发生在更晚的拍），或产品真没把货交进炼油厂。起手先加读数：谁持有 cargo、卸载守卫拒绝原因（槽位/坐标/相位），并把这条多谓词断言拆开逐项打印。",
+      "verify": "workers 完成一次完整的挖→装→运→卸，credits 增加量等于货值，且不依赖额外的等待拍",
       "complexity": "中等（先量后改）",
       "value": "A"
     }
@@ -2800,6 +2812,27 @@
         "topic": "三档场景不许混改",
         "decision": "同一段的多档（ore / no ore / blocked）中，一旦某档转绿立即锁定，后续改动只许影响剩余档",
         "effect": "C-02h 只能动 blocked 的墙圈路径，改动后 ore / no ore 必须仍然绿。"
+      }
+    ]
+  },
+  "decisions_20261113_r24": {
+    "date": "2026-11-13",
+    "source": "第 24 轮（FIX-25）",
+    "items": [
+      {
+        "topic": "读数必须先具备否定能力",
+        "decision": "怀疑一个「看起来最像」的位置时，先在那里加一条会沉默的读数；沉默本身就是结论",
+        "effect": "C-02h 第一步按重叠重定位查，why=reconcile-relocate 一条没打，省掉了整条错误分支。"
+      },
+      {
+        "topic": "入场恢复 ≠ 离场",
+        "decision": "为失败入场准备的「把人从地基里挪出来」，只能用在入场；判定用「这个身体归谁负责」，不要用「目标格在哪」",
+        "effect": "离场 Move 的目标格会被寻路兜底改回自己脚下，按位置判会漏；按任务归属判才稳。"
+      },
+      {
+        "topic": "整体改格的读数放在 setRuntimeObjectCell",
+        "decision": "要找「无插值瞬移」时，在唯一必经的整体改格入口加「跨 >1 格」判据，比逐个猜调用点快得多",
+        "effect": "一次命中就拿到 from/to/resetRender，范围从「所有改格的地方」收成一个函数。"
       }
     ]
   }
