@@ -70,5 +70,21 @@ PY
 )
 check dup-ids "${dup_ids%% *}" 0 " 条重复 id"
 
+# 5. 条目字段完整性（第 34 轮加）：缺根因/收益/成本/性价比/复杂度/验收的条目
+#    按 §一.4 不许进排序。第 30 轮审计记过 11 条、第 33 轮只处置 1 条、第 34 轮
+#    才发现实际是 16 条——「写在规则里但没有东西去量」第二次失效，故做成硬门禁。
+#    已结案（done）条目豁免：它们的历史字段已归档。
+incomplete=$(python3 - "$QUEUE" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+need=['root_cause','value','cost','roi','complexity','verify']
+def missing(t):
+    return [k for k in need if not str(t.get(k,'')).strip() or str(t.get(k,'')).strip() in ('待估','未估')]
+bad=[t.get('id','') for t in d.get('tasks',[]) if t.get('status')!='done' and missing(t)]
+print(len(bad), ','.join(bad[:5]))
+PY
+)
+check entry-fields "${incomplete%% *}" 0 " 条缺估值字段"
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail
