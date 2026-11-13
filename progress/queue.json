@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 138,
- "updated": "2026-11-14T04:20:00",
+ "version": 139,
+ "updated": "2026-11-14T05:20:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -150,21 +150,6 @@
    "attempts": 0,
    "status": "blocked",
    "verify": "--onscreen-attest-smoke <dir> 走完五界面脚本，onscreen-attest.log 中至少 5 条互不相同的界面记录（按 size+hash 去重），每条 layerHash==dibHash==providerHash，且 windowState 无异常，EXIT=0。",
-   "report": "",
-   "thread": "ON-3-上屏自证"
-  },
-  {
-   "id": "ON-3-02",
-   "title": "--onscreen-capture：用 CGWindowListCreateImage 抓自己窗口",
-   "detail": "CGWindowListCreateImage 抓本进程窗口不需要额外 API 权限（屏幕录制授权一次即可，用户侧执行）。产出 png 与标准 BMP 比对，差异应仅来自系统合成（颜色管理/缩放）。用于向人证明「屏幕上真的是这幅画」。 【2026-11-11 修订】实现路径需换：① screencapture -l <windowNumber> 子进程（memory 已验证它是\"判定自己窗口是否更新\"的正解，仍需 TCC）；② ScreenCaptureKit（SCScreenshotManager，macOS 14+ 官方替代，异步 API + TCC）。CALayer.renderInContext 可无授权拿到 PNG，但那只证明\"layer 里是什么\"，不构成\"屏幕合成结果\"这一层证据，只能作为降级选项标注使用。",
-   "root_cause": "CGWindowListCreateImage 在 macOS 26 SDK 已标记 **unavailable**（不只是 deprecated），编译直接报错（CGWindow.h:271 \"has been explicitly marked unavailable\"）。2026-11-11 实测，故本条不只是\"缺屏幕录制授权\"，API 本身已不可用。",
-   "value": "",
-   "cost": "",
-   "roi": "",
-   "complexity": "",
-   "attempts": 0,
-   "status": "blocked",
-   "verify": "用户授权屏幕录制后执行 --onscreen-capture /tmp/on.png，与同帧 BMP 平均通道差 < 2。",
    "report": "",
    "thread": "ON-3-上屏自证"
   },
@@ -557,20 +542,26 @@
    "status": "pending",
    "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（已达成）；整链路待 unholy 段清",
    "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
-  }
+  },
+  {
+   "id": "S-19",
+   "title": "地图预览产物的旧/新 A/B 没做（第 33 轮清掉一份分叉解码器后未验证等价）",
+   "detail": "MapPreviewExporter.cpp 里与 RuntimeTmpCodec 分叉的 600 行解码器已删（b2ebc4c，-647/+8），四个函数里三个逐字相同、主函数已漂 8 处（旧副本按文件头 extra/z/extraZ 偏移字段定位，codec 按 flags 位 + 紧凑布局推算）。预览产物因此跟着变，但没做逐字节对比：瓦片能从 --extract-map-tiles 抽出（实测 213 块到 /tmp/tiles），--export-map-tmp-preview 却卡在 failed to open file: isotem.pal（该调色板只在归档里，本机无 loose 副本）。",
+   "root_cause": "验证缺前置资产而非缺工时：--export-map-tmp-preview 需要 theater-dir + tile-root + palette-dir 三件套，isotem.pal 必须先从归档抽到本地。",
+   "value": "中：不做完，「删了 647 行且行为不变」这句话就不成立；做完本轮结论才闭环。",
+   "cost": "低：抽 1 个 pal + 编 1 份旧二进制 + 跑 2 次导出，约 30 分钟。",
+   "roi": "A",
+   "complexity": "简单",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "isotem.pal 落进 palette-dir 后，用 git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp 编旧二进制，两次 --export-map-tmp-preview 出 PPM 的 sha256 相同；不同则按差异函数定性并登记新条目。",
+   "report": "ra2mac_docs/reports/FIX-34-地图预览自带第二份TMP解码器.md",
+   "thread": "preview-dedupe"
+ }
  ],
  "decisions": {
-  "note": "只留最近 2 轮决策；历史 9 轮见 queue-archive-202611.json 的 decisions_* 段。",
+  "note": "只留最近 4 轮决策（27/29/32/33）；历史 9 轮见 queue-archive-202611.json 的 decisions_* 段。",
   "recent": [
-   {
-    "round": 26,
-    "date": "2026-11-13",
-    "lines": [
-     "清偿轮的边界是「只删不改」：探针旁边的判定逻辑一行没碰，否则回归红了无法二分。",
-     "删掉读取端不等于删掉开关：探针分产品侧/smoke 侧两处，只清一半会让环境变量变成更坏的假入口（登记 S-15）。",
-     "「验收条件无法观察」本身就是一条前置任务：M-13 在 macOS 上只能起真窗口，没有会话状态出口时不许开工。"
-    ]
-   },
    {
     "round": 27,
     "date": "2026-11-13",
@@ -596,6 +587,15 @@
      "候选根因三种改法相反时，先补的读数必须能「一次否掉三种」——本轮三条读数各否一条，第四种（样本是编的）才浮出来。",
      "「目录里有没有这个条目」不能当「模式是否放宽」的证据：条目在装配期就按 Owner 过滤掉了，模式放宽的是可见性与工厂归属。",
      "同一句断言里第二段仍红时（ownerFactory→unholy），说明它还有第二个编出来的前提；先确认每段的数据来源，再谈改产品。"
+    ]
+   },
+   {
+    "round": 33,
+    "date": "2026-11-14",
+    "lines": [
+     "「看着像重复」不等于重复：抽函数配平花括号再比，才知道 4 个里 3 个逐字相同、主函数已漂 8 处——分叉的副本比复制品更危险，它不报错，只会慢慢更落后。",
+     "删掉副本立刻链接失败（Undefined symbols: loadRuntimeTmpTileBytes）反而是铁证：那个目标从来只靠副本链得上，从没链接过 codec。",
+     "清偿轮也会带出行为变更：预览的解码立场随 codec 变了却没做产物级 A/B，只能记成「未验证的债」（S-19），不许写成「纯删除」。"
     ]
    }
   ]
