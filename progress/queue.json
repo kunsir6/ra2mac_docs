@@ -1,6 +1,6 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": 119,
+  "version": 120,
   "updated": "2026-11-12T21:40:00+08:00",
   "root": "/Users/zhenglk/ai-project/ra2mac",
   "repo": "/Users/zhenglk/ai-project/ra2mac/ConcordRTS",
@@ -2578,11 +2578,20 @@
     },
     {
       "id": "C-02b",
-      "status": "measuring",
-      "title": "十二名步兵登 LCRF 只上十名，两人停在舱门口",
-      "detail": "第 14 轮把 C-02 的原断言口径修掉后（单位船卸载逐人推进，旧冒烟按一次点击全员下船断言），坦克段全绿，失败点后移到混装段：aboard=10/12 pending=2 status=moved #5 to 15,15。boat 在 16,16，两个步兵停在邻格 15,15 不进舱，40 秒模拟内不推进。待判定：舱门口 subcell 被同伴占（入口排队策略）还是 hullClearance 把 1.0 的邻格判成太近（几何阈值），两者改法相反。",
+      "status": "done",
+      "title": "十二名步兵登 LCRF 只上十名（四人同格互锁）——已修",
+      "detail": "第 16 轮定位并修掉：runtimeTransportTransferBodiesClear 的 foot-to-foot 最小间距 0.5，而一格四子格，四人同格时彼此扫掠段起点距离仅 0.002~0.10，且四人同拍都在往板上挤 → 同拍死锁。先按计划试 A（同 host 每拍只放一人）被读数否决（单独一个动仍被站着或挤着的同伴挡住）；trace 加「被谁挡住」只读位后确证阻挡者全是 otherPending==host 的同船同伴。改为豁免「同为步兵 + 同船排队」的同伴；载具段与外部单位仍严格互斥。读数 aboard=10/12 → 12/12 全部进舱。commit 498ae37，冒烟断言另见 c7a1f2f。",
       "verify": "12 名步兵全部进入 LCRF；且反向用例（舱门口被占）仍拒绝",
       "complexity": "复杂（模拟层入口排队）",
+      "value": "A"
+    },
+    {
+      "id": "C-02c",
+      "status": "measuring",
+      "title": "整仓步兵卸载 600 拍仍不放空",
+      "detail": "登船互锁修掉后（C-02b，498ae37），command 冒烟第一次执行到「移开舱门口 8 台 MTNK 后整仓下船」这一段：executeRuntimeSecondaryAction 后按拍推进 600 拍，12 名步兵仍留在 LCRF 上，simulationStatus=moved #7 to 15,15。这段此前被登船红挡住，属原生问题（登船入舱会 pendingTransportTargets.erase，被卸下的兵没有待登船意图，第 16 轮的同伴豁免对它不生效）。待判定：舱门口子格被河岸/水面判据挡住，还是卸载候选格几何不可达。",
+      "verify": "移开阻挡载具后 12 名步兵在有限拍内全部下船，且 exits 用的地面子格互不重合",
+      "complexity": "复杂（模拟层卸载排队）",
       "value": "A"
     }
   ],
