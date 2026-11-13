@@ -14,19 +14,18 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 31 轮，2026-11-14）收口摘要 —— 修复轮**
-> 1. 轮型：**修复轮**（主线未超 4 轮、无 brake、无腐烂预算、距上次 AUDIT 只 1 轮）；主目标 M-23。
-> 2. 上轮结论：M-22 修好读取层后阻塞点后移到 `deployRuntimeComputerAiMcvs`，35/35 例一字不差。
-> 3. 本轮变化：**M-23 是断言错误，不是产品缺陷**。读数 `mcvs=1 item=GACNST planned=91,128 status=MCV turning to
->    deploy yard=no` 一次否掉计划里三个候选；改为按拍等待后**模式矩阵 35/35 全绿**（第一次跑到尾）。
->    按八.2 口径标「断言纠正」，**不计入已修复**；产品行为净增 0。
-> 4. 新发现：完整链路 `--skirmish-build-smoke-test` 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，
->    位置在模式矩阵之前——S-17 要接的那条从来没跑到过我们跟了 3 轮的那一段。登记 **M-29**（新主线
->    `skirmish-option-semantics`），两条候选解释改法相反，先加三值读数不猜。
-> 5. 主线收口：**skirmish-mode-rules 判 done**（M-22/M-23 done；M-24 移 `deferred.md`；S-17 转 blocked，阻塞改 M-29）。
-> 6. 质量四数：净增 **+29**（产品 0）；三文件 90,459 / 42,578 / 30,794 全不变；新增断言 0；TODO 0。
-> 7. 回归 `10/1/0`（`20261114-021900`），`command` 前缀不变。清单 `ledger-check.sh` 五项全绿。
-> 8. 下轮起手：M-29 第一步加三值读数（`skirmishModeRulesLoaded` / 工厂归属兼容两向 / catalog 是否含 NAPOWR）。
+> **本轮（第 32 轮，2026-11-14）收口摘要 —— 修复轮**
+> 1. 轮型：**修复轮**（无 brake、无腐烂预算、attempts 无 ≥3、距上次 AUDIT 2 轮）；主目标 M-29。
+> 2. 上轮结论：整链路停在 `option semantics ownerFactory=no unholy=no`，三个候选根因待读数。
+> 3. 本轮变化：**三个候选全被否**，真因是第四个——探针拿 NAPOWR 当跨阵营样本，而零售
+>    UnholyAlliance 只授予 9 栋对面「基础建筑」（兵营/矿厂/雷达/空军/心灵探测器），**从不给电站**；
+>    `loadedCatalog=46` 也不含任何苏军条目。改法：样本从探针自己目录里按 `aiBasePlanningSide` 取，
+>    期望值由常量改成关系。`ownerFactory` 转 **yes**；`unholy` 仍 no，阻塞后移到 MCV 发放段。
+> 4. 质量四数：净增 **+17**（产品 0）；90,476 / 42,578 / 30,794；新增断言 0；TODO 0。一次性读数同轮已删。
+> 5. 回归 `10/1/0`（`20261114-033749`），`command` 前缀不变（二进制含并发 compat WIP）。
+> 6. 纪律：本轮记**断言纠正**，不计入已修复；简单区仍空，未拆中等凑批量；S-17/M-13 继续不接门禁。
+> 7. 下轮起手：一条读数裁定 `unholy` 的 MCV 发放段；主线 `skirmish-option-semantics` 已 2 轮无产品
+>    行为变化，**第 33 轮按 §六.6 换赛道**（清偿 / 可观测性 / known-red 另段），不许再开子项。
 
 ---
 
@@ -37,7 +36,7 @@
 | S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | 第 14 轮已定位到行：`if (tickAdvanced) state.repaintRequested = true;` 使 `reuseCachedFrame` 永不生效 | 中：为脏区驱动提供基线数字；M-03 的前置 | 把「本帧是否 reuse / 连续相同帧数 / 每秒 Invalidate 次数」接进现有 `RuntimeFrameDiagnostics` | **B** | 简单 | 0 | 待修复（与 M-03 同源，先计量后动提交条件） | 静止 60 帧内 `reuse` 计数 >0 且每秒 Invalidate 降到个位数 | `reports/FIX-15-框选结案与两栖卸载真阻塞点.md` §3 |
 | S-13 | 结构守卫基线列着已删文件 | `structure-baseline.json` 仍列 U-15 已删的两个文件；守卫不在构建链里，从没跑过 | 基线是人工审过的精确清单，删文件后没回写；守卫本身没有生成 `--inventory/--trace` 的入口脚本 | 低：守卫不参与判定，脏基线只会在下次运行时误报 | 先查清产物由谁生成，再重生成基线 | **C** | 简单 | 0 | 待修复（第 12 轮登记） | `bash tools/structure/run.sh` 零误报，且能在删文件后立刻报出 | `reports/U-15-选中指示与矿量格.md` §遗留 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
-| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、**M-29**（`option semantics ownerFactory=no`，位置在模式矩阵之前，仍红） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞改为 M-29**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-32-电脑开局MCV是转向后落地.md` §6 |
+| S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，剩 `unholy` 段 = MCV 发放，仍红） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞改为「整链路 `unholy` 段」**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` §八 |
 
 ## 二、待修复 —— 中等
 
@@ -48,8 +47,8 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`option semantics`） | 第 31 轮读数：模式矩阵 35/35 已绿，整链路仍停在 `validateRuntimeSkirmishOptionSemantics` | 高：U-19/U-20/U-22 的前置 | 低：M-29 修完 + 该冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为 M-29**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
-| M-29 | UnholyAlliance 的工厂归属兼容没放宽（或探针没拿到模式规则） | 完整链路第一道门：`option semantics … ownerFactory=no unholy=no`，其余 18 项 yes；`unholy` 是 `ownerFactory` 的下游 | 三候选，**改法相反**：①`unholyProbe` 是新建 `RuntimeWindowState`（只补 rules/economy），模式规则可能没加载 ②`runtimeFactoryOwnerCompatibleWithBuildItem` 没被 UnholyAlliance 的允许清单放宽 ③catalog 里没有 NAPOWR | 高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义 | 低：先给三条谓词各一个布尔入失败文案（`RuntimeShell.cpp:15654` 那三行），一次运行裁定 | **A** | 中等 | 0 | 待修复（第 31 轮登记，新主线 `skirmish-option-semantics`） | 该行打出 `sovietPower=/alliedCompat=/sovietCompat=/rulesLoaded=`，且其中恰有一项为假 | `reports/FIX-32-电脑开局MCV是转向后落地.md` §6 |
+| M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，`unholy` 仍红） | 第 32 轮读数：整链路停在 `unholy` 段（MCV 发放），模式矩阵 35/35 已绿 | 高：U-19/U-20/U-22 的前置 | 低：冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞改为「整链路 `unholy` 段」**） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
+| M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes，`unholy` 仍 no（阻塞后移到 MCV 发放段）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -128,6 +127,7 @@
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 32 | 2026-11-14 | UnholyAlliance 的验收样本（NAPOWR）是探针自己编的；`ownerFactory` 转绿 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 | 31 | 2026-11-14 | 电脑开局 MCV 是「转向后落地」，不是没展开；35/35 全绿 + 主线收口 | `reports/FIX-32-电脑开局MCV是转向后落地.md` |
 | 30 | 2026-11-14 | 审计：queue 46→35、2 条状态矛盾、TMP 解码双实现、主线子项已满 4 | `reports/AUDIT-30.md` |
 | 29 | 2026-11-13 | 游戏模式规则从归档读取（模式从静默无效到生效） | `reports/FIX-31-游戏模式规则从归档读取.md` |
