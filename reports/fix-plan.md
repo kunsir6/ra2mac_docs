@@ -13,7 +13,14 @@
 >
 > 性价比排序：S（半天内可见用户价值）＞A（清掉一条 known-red 或解掉一类卡点）＞B（体验打磨）＞C（基建/可观测性，回报延迟）。
 >
-> 最近更新：2026-11-13 13:10（第 18 轮收口）；
+> 最近更新：2026-11-13 13:20（第 19 轮收口）；
+> 第 19 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归。**C-02c 已完成**：两栖卸载给步兵
+> 规划半径 2 外侧终点（`4f13ccc`），12 名步兵整仓下船转绿；坦克段与其余 9 条 smoke 全绿。
+> 新登记 **C-02d**：混编段「载入 IFV 的整车下船」——一次动作后 IFV 仍未出舱（`ifv=null`、`boatCargo=3`），
+> 该夹具在 23,23 周边零 `unload:` trace，说明 `unloadRuntimeUnitTransportMotion` 顶部就返回了，
+> 已排除本轮引入。报告 `reports/FIX-20-两栖卸载外侧终点.md`。
+>
+> 上一轮收口：2026-11-13 13:10（第 18 轮收口）；
 > 第 18 轮收口：基线 `10/1/0` → 收口 **`10/1/0`**，零新回归，产品行为零改动（一条 `test:`）。
 > **上一轮结论被推翻并更正**：`unload:bodies` 的 `ticks=66/66` 不是「卡住」，而是 egress 的**第一拍**——
 > 去掉重键只含「人+格子+原因」，读到的是首次命中时刻，不是终态。加 120 拍时间桶后（tick=1680）真形态是：
@@ -158,7 +165,8 @@
 |---|---|---|---|---|---|---|---|---|---|
 | C-01 | EVO-15 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]`，导致 cursor rect 全失效、`isActive`/`isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 高：改主循环 + 回归全部输入断言 | **A** | 复杂 | 待修复 | 见 `MEMORY` 中「本项目不调 sendEvent」条目 |
 | C-02 | EVO-09 两栖卸载卸不下坦克 | 原写「船靠岸二次动作后 `transportPassengerIds` 仍非空」 | **第 15 轮定位到门**：`CONCORD_TRANSPORT_TRACE=1` 读数 `transfer:bodies id=9/10/11/12 at=15,15 hull=16,16` + `boarding:transfer-refused`，四人**同拍停在同一格**，`runtimeTransportTransferBodiesClear` 的 foot-to-foot 最小间距 0.5 使彼此都在对方扫掠走廊内 → 互锁；先到的 10 人是在格子未挤满时逐个进的。同时 `advanceRuntimeUnitTransportBoarding` 原先把 `beginRuntimeTransportGroundTransfer` 的返回值 `(void)` 丢弃，导致「被拒」与「没走到」不可区分 | 高：两栖玩法可用性 | 两条候选改法方向相反：A 每拍只放一人（按 instanceId 定序）；B 对「同船等待乘客」不算障碍。B 会放宽坦克段依赖的身体互斥，须先绿 `aboard=4`/`exits` 不重合 | **B** | 复杂（模拟层入口排队） | **第 16 轮已修复（C-02a 部分）**：`498ae37` fix + `c7a1f2f` test。A 方案（每拍只放一人）被读数否决；真修法是「同船步兵同伴不算路障」（载具/外部单位仍严格互斥）。`aboard=10/12 → 12/12`。**剩余阻塞另立 C-02c** | `reports/FIX-17-登船互锁解除与卸载新阻塞.md` |
-| C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **第 18 轮定性（更正第 17 轮）**：`ticks=66/66` 是 egress 的第一拍，不是卡住——去重键缺时间维度。加 120 拍桶后终态（tick=1680）是 **11 名已出舱者 `bstate=none`/`moving=0`/位置=格子中心，占满 8 个邻格**，最后一名 `id=7` 无干净走廊。结构性原因：两栖卸载不规划外侧终点（`remainingPath` 只在 `!runtimeAmphibiousTransport` 时算），出舱就地停靠；8 格 × 0.5 身体互斥的实际容量远小于名义 32 子格 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | **取 A（推荐）**：两栖卸载也规划半径 2 外侧终点，全水时退回就地停靠；动手前先补两个只读位（半径 2 的 16 格可用计数、站定者的 `subCell` 是否 `-1`） | **A** | 复杂（模拟层卸载排队） | 待修复（第 16 轮登记） | `reports/FIX-19-卸载终态是被站着的人占满环.md`
+| C-02c | 整仓步兵卸载 600 拍仍不放空 | 舱门口 8 台 MTNK 移开后，`executeRuntimeSecondaryAction` + 按拍推进 600 拍，12 名步兵仍留在 LCRF 上，`simulationStatus=moved #7 to 15,15` | **第 18 轮定性（更正第 17 轮）**：`ticks=66/66` 是 egress 的第一拍，不是卡住——去重键缺时间维度。加 120 拍桶后终态（tick=1680）是 **11 名已出舱者 `bstate=none`/`moving=0`/位置=格子中心，占满 8 个邻格**，最后一名 `id=7` 无干净走廊。结构性原因：两栖卸载不规划外侧终点（`remainingPath` 只在 `!runtimeAmphibiousTransport` 时算），出舱就地停靠；8 格 × 0.5 身体互斥的实际容量远小于名义 32 子格 | 高：`command` 仅剩的这一条，且「满仓下船」是两栖玩法主路径 | **取 A（推荐）**：两栖卸载也规划半径 2 外侧终点，全水时退回就地停靠；动手前先补两个只读位（半径 2 的 16 格可用计数、站定者的 `subCell` 是否 `-1`） | **A** | 复杂（模拟层卸载排队） | **已完成**（`4f13ccc` fix + `7361f55` test）：出舱者获得半径 2 外侧终点，12 名步兵整仓下船 | `reports/FIX-20-两栖卸载外侧终点.md`
+| C-02d | 混编段载入 IFV 的整车下船失败 | 一次 `executeRuntimeSecondaryAction` 后断言 IFV 已出舱且乘员仍在车内，实际 `ifv=null riderAlive=0 riderCell=23023 boatCargo=3` —— IFV 没出舱 | **未定性**：该夹具（船停 23,23）周边零 `unload:` trace，说明 `unloadRuntimeUnitTransportMotion` 在顶部守卫就返回了；最可能是 `move()` 后 `renderMoveActive` 仍为真时一次性卸载被整次吞掉。另一种解释是 `boatCargo=3` 本来就是初始值（该断言此前从未被执行到） | 高：`command` 唯一 remaining known-red 的新阻塞点 | 先加顶部守卫拒绝位 + 在动作前打 `transportPassengerIds.size()`，一次读数即可定性；若确为「船没停稳就点卸载」，按拍等待而非改产品 | **A** | 中等（若要改产品才升为复杂） | 待修复（第 19 轮登记） | `reports/FIX-20-两栖卸载外侧终点.md` §3 |
 | C-03 | EVO-05 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高 | 高 | **B** | 复杂 | 待修复 | — |
 | C-04 | EVO-14 全屏原生分辨率渲染 | 呈现表面跟随窗口，而不是放大 800x600 | U-14 已把「客户区尺寸」交给游戏，剩余是表面重建与缩放策略 | 中 | 中高 | **B** | 复杂 | 待修复（U-14 已吃掉一半） | `reports/U-14-全屏等于更大视口.md` |
 
@@ -179,7 +187,23 @@
 
 ---
 
-## 五、本轮（2026-11-13 第 18 轮）打包清单
+## 五、本轮（2026-11-13 第 19 轮）打包清单
+
+主题：**A 方案落地——出舱步兵走开，环自然腾空**。基线 `10/1/0` → 收口 `10/1/0`，零新回归。
+报告 `reports/FIX-20-两栖卸载外侧终点.md`。
+
+- **C-02c 已完成（`4f13ccc` fix）**：`remainingPath` 的外侧终点搜索对「两栖船 + 步兵乘客」开启
+  （`!runtimeAmphibiousTransport || runtimeInfantryUsesGroundSubcells(probe)`）。载具不变
+  （坦克段要求 `cell` 距船体 ≤1.5、`exits` 互不重合），全水时 `findRuntimePath` 返回空自动退回就地停靠。
+  `futureFootGoals` 同步对两栖船统计，避免同一外格重复派给多人。
+- **读数**：`full infantry hold did not unload after 600 ticks` 消失，12 名全部下船；
+  坦克段（`aboard=4`/`exits`/深水拒卸/跨水/save-load/老兵度）与其余 9 条 smoke 全绿。
+- **`7361f55` test**：混编段失败文案拆成六个条件字段，一次读数定性
+  （`ifv=null / riderAlive=0 / boatCargo=3`）。
+- **新登记 C-02d**：混编段 IFV 未出舱。已排除本轮引入（该夹具零 `unload:` trace，说明没进候选格循环）。
+- **简单区仍空**（S-08 缺静止连拍入口、S-13 卡守卫产物、M-19 资产侧）。
+
+## 五-旧、第 18 轮（2026-11-13）打包清单（存档）
 
 主题：**更正上一轮的结论——不是「有人卡住」，是「先出来的人把环站满」**。
 基线 `10/1/0` → 收口 `10/1/0`，零新回归，产品行为零改动。报告 `reports/FIX-19-卸载终态是被站着的人占满环.md`。
