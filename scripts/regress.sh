@@ -2,7 +2,7 @@
 # ConcordRTS macOS 一键回归（无人值守，可自我判定）
 #
 # 用法：
-#   bash ra2mac_docs/scripts/regress.sh                  # 全量，约 25-40 秒
+#   bash ra2mac_docs/scripts/regress.sh                  # 全量，约 30-45 秒
 #   bash ra2mac_docs/scripts/regress.sh --only menu,core # 只跑指定用例
 #   CONCORD_BIN=/path/to/concord_runtime bash .../regress.sh
 #
@@ -41,7 +41,7 @@ usage() {
   cat <<'EOF'
 ConcordRTS 回归编排器
   --only id[,id]   只跑指定用例（core menu loading skirmish attest render
-                   interaction command build campaign result）
+                   interaction command build campaign result skirmishbuild）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
   --out <dir>      指定输出目录（默认 progress/regress/<时间戳>）
   -h               本帮助
@@ -210,6 +210,9 @@ run_case command     300 ""                                     "--command-smoke
 run_case build       300 ""                                     "--build-smoke-test"
 run_case campaign    300 ""                                     "--campaign-smoke-test"
 run_case result      300 ""                                     "--result-presentation-smoke-test"
+# 第 12 条（S-17）：真遭遇战整链路。它才是「遭遇战能不能开起来」的门，
+# skirmish 那条只验 UI。第 38 轮 M-31 夹具修正后首次整条 rc=0。
+run_case skirmishbuild 300 ""                                   "--skirmish-build-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
