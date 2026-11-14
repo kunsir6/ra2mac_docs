@@ -1,5 +1,5 @@
 {
-  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。",
+  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。 ｜ 第 44 轮归档 1 条（S-21，done；1:1 替换新增的 S-25）。",
   "tasks": [
     {
       "id": "M-22",
@@ -60,6 +60,21 @@
       "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
       "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md",
       "thread": "skirmish-mode-rules"
+    },
+    {
+      "id": "S-21",
+      "title": "重复代码指标没有脚本，三轮三个数",
+      "detail": "AUDIT-30/35/41 各按「写死的口径」重测，得 125/139/140 组、产品侧 11/7/5 组。差别来自「同文件相隔 <25 行的窗口要不要折叠」这类话原文没写死 → 每轮审计都在给同一个量编新数（与 S-14 清单体量同形）。",
+      "root_cause": "口径只存在于报告散文里，没有可执行实现。",
+      "value": "中：审计结论的可比性；后续清偿轮的删除对象靠它排序。",
+      "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
+      "roi": "C",
+      "complexity": "简单",
+      "attempts": 1,
+      "status": "done",
+      "thread": "S-审计度量",
+      "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
+      "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
     }
   ]
 }

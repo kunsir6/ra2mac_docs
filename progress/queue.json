@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v150",
-  "updated": "2026-11-15T03:13+08:00",
+  "version": "v151",
+  "updated": "2026-11-15T04:16+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -499,21 +499,6 @@
       "thread": "persistence-roundtrip"
     },
     {
-      "id": "S-21",
-      "title": "重复代码指标没有脚本，三轮三个数",
-      "detail": "AUDIT-30/35/41 各按「写死的口径」重测，得 125/139/140 组、产品侧 11/7/5 组。差别来自「同文件相隔 <25 行的窗口要不要折叠」这类话原文没写死 → 每轮审计都在给同一个量编新数（与 S-14 清单体量同形）。",
-      "root_cause": "口径只存在于报告散文里，没有可执行实现。",
-      "value": "中：审计结论的可比性；后续清偿轮的删除对象靠它排序。",
-      "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
-      "roi": "C",
-      "complexity": "简单",
-      "attempts": 1,
-      "status": "done",
-      "thread": "S-审计度量",
-      "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
-      "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
-    },
-    {
       "id": "S-22",
       "title": "regress 12 条不覆盖混合编队收敛",
       "detail": "M-25 的试改让 12E1_2MTNK_tank_first 从 PASS 变 arrival_timeout，而 regress.sh 仍 11/1/0 一字未变 → 一个能让混合编队彻底不收敛的改动可以通过唯一那道门。 ｜ 第 43 轮落地：regress.sh 第 13 条 `compactgroups`（CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1，0.7s/7 场景），known-red 前缀 `Compact groups: 1 failed; 3MTNK_3SHAD: ground_final_not_compact`。**DoD 偏差（不改原文）**：PASS 仍是 11 而不是 12——该条首跑即红（3MTNK_3SHAD 预存红），不硬凑；第二条 DoD「重放 M-25 试改」未做（要整编源码、会与并发 WIP 冲突），改为两道负向验证（换首个失败场景 / 只改计数 → 均 cause-changed）。",
@@ -531,17 +516,17 @@
     {
       "id": "S-23",
       "title": "3MTNK_3SHAD 终态落在半径 2 而不是 3x3",
-      "detail": "第 43 轮接入第 13 条后首跑即红：7 场景 6 PASS，只有 3MTNK_3SHAD（3 台 MTNK + 3 架 SHAD 同目标）打出 ground_final_not_compact，groundRadius=2；3 个地面格只需 Chebyshev 半径 1（同批 5MTNK=1、12MTNK=2 都在合法范围）。settled=1116 已收敛，不是超时。",
-      "root_cause": "目标格分配器对「3 台同型载具 + 3 架同目标飞行器」给了 5x5 的环。候选：①地面候选格按最近环取，但 air 层占用被一起算进避让 ②tanksFirst 分批下发让第二批在第一批之外再开一圈。**未验证**，先只读计量（每台目标格 + 分配时候选环）。",
+      "detail": "第 43 轮接入第 13 条后首跑即红：7 场景 6 PASS，只有 3MTNK_3SHAD（3 台 MTNK + 3 架 SHAD 同目标）打出 ground_final_not_compact，groundRadius=2；3 个地面格只需 Chebyshev 半径 1（同批 5MTNK=1、12MTNK=2 都在合法范围）。settled=1116 已收敛，不是超时。 ｜ 第 44 轮：根因已在落位侧确认（飞行器落地占地面格），取证已永久化进冒烟；修法 (a) 飞行器静默保持 airborne / 落地避开地面已认领格，(b) 地面单位被挤开后回填——实测 (b) 单独不够。下轮实施。",
+      "root_cause": "**第 44 轮实测确认（落位侧冲突）**：地面 3 台 MTNK 的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD 完全同格；SHAD 终态 airborne=0（落地），重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格（半径 2）且不回填。新增取证 ground_target_reclaimed 零触发 → 不是「先停好再被推走」，冲突发生在坦克到达之前。分配器共格是**被要求的**：同一冒烟的两条判据分别要求地面层与空中层都必须使用中心格，分离共享会把 air_target_center_unused 打红。",
       "value": "A：这是「编队收得散不散」唯一的在线门禁；修好才有真绿基线，否则第 13 条长期靠 known-red 前缀兜着。",
       "cost": "中：先加只读计量再改分配器，单模块多文件，失败可整块回退。",
       "roi": "B",
       "complexity": "中等",
-      "attempts": 0,
+      "attempts": 1,
       "status": "pending",
       "thread": "S-回归门禁",
       "verify": "3MTNK_3SHAD 的 groundRadius=1 且 ground_final_cells 不退化；同批另外 6 例保持 PASS；known-red 该行可注销",
-      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md §三"
+      "report": "reports/FIX-44-混合编队地面层被落地飞行器占格.md"
     },
     {
       "id": "S-24",
@@ -557,6 +542,21 @@
       "thread": "S-回归门禁",
       "verify": "regress 出现第 14 条 `vehiclepass`；接上时该条若非绿则登记前缀，M-25 修好后转 PASS 且前缀可注销",
       "report": "reports/FIX-43-regress接入混合编队收敛门禁.md §六"
+    },
+    {
+      "id": "S-25",
+      "title": "--command-smoke-test 首败即断，掩蔽后面 19 步",
+      "detail": "command 是 60 步链式冒烟，C-02i（奴隶矿工）在第 54 步；它一红，后面 19 步（feature-details / factory-exit / air-navigation / missiles / electric-attack / vertical-bomb / 中立驻军 / 收割机稳定性 / 主机侧十余条）从未执行。known-red 前缀只钉第一条失败文案（Command smoke failed: slave miner），它稳所以没人发现尾巴是死的。",
+      "root_cause": "每步都是「失败即打印并 return 1」的短路结构；收尾只打印首条失败，链尾状态不可见。",
+      "value": "A：19 步在 regress 里目前零覆盖；且哪天 C-02i 修好，这 19 步会同时点亮，旧红会以「修完突然红一片」的形态出现。",
+      "cost": "中：改成累加失败 + 收尾统一打印 `N failed; 首个失败: X` 要动 60 个分支；先只把 C-02i 挪到链尾只需 6 行。",
+      "roi": "A",
+      "complexity": "中等",
+      "attempts": 0,
+      "status": "pending",
+      "thread": "S-回归门禁",
+      "verify": "链尾 19 步每轮真的执行（日志里看得到它们的输出行）；失败汇总变成 `N failed; 首个失败: X`，前缀钉两个维度。",
+      "report": "reports/FIX-44-混合编队地面层被落地飞行器占格.md"
     }
   ],
   "decisions": {
@@ -707,5 +707,19 @@
     ],
     "regress": "11/2/0（13 条：新增 compactgroups 为 KNOWN-RED）",
     "gate": "第 44 轮 = 修复轮，主目标 M-28（新造工程师/间谍原地晃动，S 级）或 S-23；C-02i 仍未取数 → 按第 42 轮约定移 deferred.md；M-25 修法单独成轮先写方案"
+  },
+  "decisions_20261115_r44": {
+    "round": 44,
+    "type": "fix",
+    "summary": "修复轮：主目标 S-23 根因确认（地面目标格被落地的飞行器占着，1:1 对应），取证永久化进冒烟（+69/−1，单 TU）；登记 S-25（command 链首败即断掩蔽 19 步）；纠正三轮对 ninja 全量的误判（.ninja_deps 尾部截断）。dist 重编。",
+    "findings": [
+      "S-23 根因在落位侧不在分配侧：三层证据（units.csv 的 target 同格、SHAD 终态 airborne=0、ground_target_reclaimed 零触发）。",
+      "分配器不能当修点：冒烟同时要求地面层与空中层都使用中心格，共格是被要求的设计；分离共享会打红 air_target_center_unused = 改软判据。",
+      "『落点≠分配格』不是判据：11MTNK 有 7 台停不进分配格但整体合法。第一版取证没加 groundScattered 闸门直接把 11MTNK 判红——判据必须先问『哪儿才算错』。",
+      "command 链是 60 步短路结构，C-02i 在 54 步 → 后 19 步从未执行；known-red 前缀只钉首条失败，所以尾巴死活没人知道。",
+      "ninja -n 报 1,642 全量的真因是 build-product-arm/.ninja_deps 尾部截断（premature end of file; recovering），不是并发改 cmake；反证=x86_64 同刻 no work to do。全量实测 4:17。这个误判让三轮放弃源码修复。"
+    ],
+    "regress": "11/2/0（13 条，零 RED-NEW；compactgroups 前缀仍命中）",
+    "gate": "第 45 轮 = 修复轮，主目标 S-23 修法 (a)；可先做 S-25 的『把 C-02i 挪到链尾』6 行版作为伴生"
   }
 }
