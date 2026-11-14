@@ -86,5 +86,16 @@ PY
 )
 check entry-fields "${incomplete%% *}" 0 " 条缺估值字段"
 
+# 8. RUNLOG.md 体量（第 42 轮加）：第 41 轮审计发现它是清单之外唯一无人量的膨胀源——
+#    516KB / 8,178 行，七项门禁一个都不管它。归档口径同 §一.2：正文只留最近轮次，
+#    更早的原文进 progress/archive/，主文件留一行指针。
+RUNLOG="$ROOT/ra2mac_docs/progress/RUNLOG.md"
+if [[ -f "$RUNLOG" ]]; then
+  check runlog-lines "$(wc -l < "$RUNLOG" | tr -d ' ')" 1500 " 行"
+  check runlog-bytes "$(( $(wc -c < "$RUNLOG" | tr -d ' ') / 1024 ))" 120 " KB"
+else
+  printf 'LEDGER-BREACH  runlog 缺失：%s\n' "$RUNLOG"; fail=1
+fi
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail
