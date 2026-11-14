@@ -694,3 +694,22 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 质量四数：净增 **+68**（自有改动）；90,652(并发 WIP +26)/42,542/30,794；断言 0 / 产品 0；TODO 0。
 - 清单：240 行 / 35 条 / 5 类；`S-25`↔`S-21` 一笔 1:1 归档。
 - dist：**重编**（arm 全量 + x86_64 增量 → lipo → pack-dist），三轮来第一次由真树编出的包。
+
+## 第 45 轮（2026-11-15，修复轮）
+
+- 轮型：修复轮。主目标 **S-13**。并发会话已用掉第 44 轮与 `S-25` 号，本轮取 45、新条目从 `S-26` 起（第 31 轮同一坑的第二次）。
+- **旧估值被推翻**：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 `pwsh 7` + `clang-cl` + MSVC 前端 + CTest，
+  `--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。
+  macOS 上三个产物都不存在 → 守卫**从没跑过**，「约 30 分钟补两条基线」是错的。
+- **接上不需要构建产物的两段**：`tools/structure/run.sh`（`4e395b5`）+ `check_baseline_refs.py`（`c84f14b`）。
+  守卫自带的 366 例合成夹具一直是能单独跑的（1.4s），只是没人知道。
+- **死条目精确 16 条 / 3 文件**：U-15 的两个 Raster 文件 15 条 + **第 39 轮自己删的探针** `RuntimeScenePaintTrace.inl` 1 条。
+  `f97d1b1` 删干净并记 `reviewedUpdates` 的 R44/S-13 批次。
+- **口径纠正**：例外表 5,267 条按 `file 3983 / target 923 / test 345` 分三类，三类之和必须等于总数否则报错。
+  首次数成「1,284 条悬空」是把自己的 `target:`/`test:` 名字当成了路径。1,268 条离线不可验，一个字没动。
+- 验证：`--strict` rc=0 且 `stale file paths 0`；负向（塞假路径进基线副本）rc=1 并点名该路径。
+- **bash 3.2 坑**：`set -u` 下空数组展开 `${a[@]}` 报 `unbound variable`，改用空字符串承载。
+- 质量四数：净增 +37（两脚本 +206 / 基线 −169）；90,652(并发 WIP +26)/42,542/30,794；断言 0 / 产品 0；TODO 0。
+- dist：**不重编**（本轮 commit 全是 Python/JSON，产品代码与 HEAD 逐行相同），复用并发会话 04:18 全量重编产物
+  重新 pack；stamp 标 `delta=tooling-only`。回归 `11/2/0`，`compactgroups` 前缀在新文案下仍命中。
+- 登记 **S-26**（inventory 生产者搬上 macOS）；1:1 归档 M-30。九项门禁全绿。
