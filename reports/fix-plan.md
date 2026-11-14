@@ -15,16 +15,18 @@
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
 > **本轮（第 37 轮，2026-11-14）收口摘要 —— 修复轮**
-> 1. 轮型：**清偿轮**（§0.3③：近 5 轮 `test:`3 / `fix:`0 = 3.0×，§八.3 比例闸同时生效）。零新增断言、产品行为零变化。
-> 2. 上轮结论：审计把「产品侧同构代码」列成 7 组没动；本轮按 R33 教训（先逐行比，再谈删）逐组验过，
->    只有两族是**逐字克隆** → 收成单点实现，净增 **−103**（`04e366d` −36 / `1563d7a` −67）。
-> 3. 本轮变化：新增 **S-20**（多机对战两份 `ByteWriter/ByteReader` 已漂 3 处，合并必改行为 → 不许在清偿轮做）；
->    另 3 组判「不合并」并把理由写进报告（含 `low/high` 桥面拒绝用布尔开关）。
-> 4. 质量四数：净增 −103；90,482(+0，其中 +6 是并发 WIP)/42,542(**−36**)/30,794(+0)；断言 0 / 产品行为 0；TODO 0。
-> 5. 回归 `10/1/0`（`20261114-081543`），与基线逐条一致；定向补跑 `VEHICLE_TERRAIN_SLOPE`（16 例）与 `VEHICLE_BODY`（含 turret yaw）。
-> 6. 清单：`ledger-check` 7 项全绿；35→35 条（新增 S-20 ↔ 归档 1 条 done）；本轮无压缩需求。
-> 7. 下轮起手：**第 37 轮 = 修复轮，M-30 一段读数**（0.2s 到该段），它同时是 M-13/S-17/U-19~23/S-08 共 8 条的钥匙；
->    `skirmish-option-semantics` 用满 4 轮，第 37 轮内必须整体收口。**M-25 已有并发会话在飞，本轮零触碰。**
+> 1. 上轮结论：第 36 轮清偿（−103），留下 M-30 作为 8 条条目的公共钥匙。
+> 2. 本轮变化：**M-30 结案**（`d2fff47`，断言纠正）——`unholy` 段要求 `techLevel==0`，
+>    而发放走开局生成、从不读 techLevel（零售 SMCV/PCV 都是 10）。改为数据推导等价条件 +
+>    一条反向控制（非该模式探针必须返回空）。整链路首过 option semantics，进到 `Skirmish start … objects=14`。
+> 3. 连带产品修复（`e32136b`）：读档不清 `impactEffects`，上一局火花飘在新地图上；
+>    逐项读数（`379f06b`）把 12 条谓词拆开后一次定位。往返段首次执行并通过。
+> 4. 质量四数：净增 **+77**；90,551(+69，含并发 WIP)/10,498/30,794；断言改写 2、新增 0；TODO 0。
+> 5. 回归 `10/1/0`（`20261114-171407`）与基线逐条一致，`command` 前缀不变。
+> 6. 主线：`skirmish-option-semantics` **判 done**（M-29+M-30，无真产品缺陷）；新开
+>    `persistence-roundtrip`（1 轮/1 子项 M-31）。**S-17 仍不能接 regress**（链路未整条绿）。
+> 7. 下轮起手：M-31（`invalid behavior record`，先造一份真 v10 夹具定性夹具侧/产品侧）。
+>    比例闸仍在（近两轮 `test:` 3 / `fix:` 1）→ 下轮不许新增断言。
 
 ---
 
@@ -37,7 +39,6 @@
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-17 | 真遭遇战冒烟进 regress | `--skirmish-build-smoke-test` 从未出现在 11 条用例里，红了也没人知道 | 三道门：M-22（已修）、M-23（已修）、M-30（`unholy` 段 MCV 发放，第 35 轮立） | 中：一条用例接入 = 真遭遇战链路从此有门 | regress 加第 12 条 + 口径说明（不加登记，必须真绿） | **C** | 简单 | 0 | 待修复（**阻塞= M-30**，不许登记 known-red） | regress 输出 `PASS=12`（12 条，无新增红） | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` §八 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
-| M-30 | 整链路 `unholy` 段：三台 MCV 到底有没有发放 | `--skirmish-build-smoke-test` 的 `option semantics` 里 `unholy` 位仍 no，整链路停在模式矩阵之后 | 三候选：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空/被装配期过滤 ②发放了但 owner 判成对方 ③techLevel 挡在入口。三种改法相反 | 高：解锁 M-13、S-17、U-19/20/21/23、S-08 共 **8 条** | 低：一处只读打印 + 一次运行（0.2s 到该段） | **A** | 简单 | 0 | 待修复（第 35 轮审计登记） | 一次运行打出 `additionalMcvs.size()` 与每台 `type/owner/houseClass/techLevel`；`unholy` 转 yes 或给出确切拒绝谓词 | `reports/AUDIT-35.md` §三.2 |
 
 ## 二、待修复 —— 中等
 
@@ -51,6 +52,7 @@
 | M-13 | 真实遭遇战开局取证通道 | 入口/状态出口/断言全都已存在，被三道门挡着：M-22（已修）、M-23（已修）、M-29（`ownerFactory` 已清，`unholy` 仍红） | 第 32 轮读数：整链路停在 `unholy` 段（MCV 发放），模式矩阵 35/35 已绿；第 35 轮把该段拆为 **M-30** | 高：U-19/U-20/U-22 的前置 | 低：冒烟跑绿即可 | **A** | 中等 | 2 | 待修复（**阻塞= M-30**；下次动手即第 3 次，届时必须三选一） | 该冒烟退出码 0 且打出 `Skirmish start: … objects>0` | `reports/FIX-29-真实遭遇战通道已存在.md` §1 |
 | M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes；第 35 轮 queue 侧对齐 done，剩余 `unholy` 段拆出为 **M-30**（不在本条续命）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 | S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp:13` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一处带下溢守卫一处不带 ③方法集不同（`writeBool/readBool` vs `writeByteVector/readByteVector/writeArray`） | **A**：两边对敲的 wire format，漂开与分叉同级风险 | 中：新头文件 + 统一错误文案（会碰既有断言文案）+ 加一条两实现对敲的单测 | **A** | 中等 | 0 | 待修复（第 36 轮登记；**必须先取得「允许改错误文案」的窗口**，清偿轮不许顺手改行为） | 一份共享 codec + `CONCORD_*` 双实现等价冒烟：同一字节流两边解码结果逐字段相同 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三 |
+| M-31 | legacy 存档的字符串手术被载入拒绝 | `--skirmish-build-smoke-test` 的 legacy 段：把 v14 库存档改 `Version=10` 再删五段瞬态，期望载入把集合清回基线；实测载入整体失败 `error=invalid behavior record`，12 个数字全是手术前故意弄脏的值 | 两种解释：①夹具侧——库存档已演进（v14 的 Behaviors 记录布局与 v10 不同），改版本号不再构成合法 v10 存档 ②产品侧——拒绝是真的，但 `invalid behavior record` 分不清「版本不符」与「记录损坏」 | 中：它是 S-17 接门禁的下一道门（链路整条绿前不能接） | 低：先造一份真 v10 夹具，一次运行即可分流 | **A** | 中等 | 0 | 待修复（第 37 轮登记） | 该段载入成功且 12 个瞬态集合回到基线；失败文案能区分版本不符/记录损坏 | `reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md` §三 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -115,16 +117,34 @@
 
 | 条目 | 它要的读数/证据 | 真实前置 |
 |---|---|---|
-| M-13 / S-17 | 一次真遭遇战开局 + `objects>0` | M-30 |
-| U-19 / U-20 / U-21 / U-23 | 真实窗口里 HUD/载入画面/主菜单小屏/羽化的截图 | M-30 → 真会话 |
-| S-08 | `performance/latest.txt` 的复用/重绘三行 | M-30，或把出口解耦（第 38 轮） |
+| M-13 / S-17 | 一次真遭遇战开局 + `objects>0` | **M-31**（legacy 段）；`Skirmish start … objects=14` 已由第 37 轮打出 |
+| U-19 / U-20 / U-21 / U-23 | 真实窗口里 HUD/载入画面/主菜单小屏/羽化的截图 | M-31 → 真会话 |
+| S-08 | `performance/latest.txt` 的复用/重绘三行 | M-31，或把出口解耦（`flushRuntimeFrameDiagnosticsReport`） |
 | ON-3-01b | 五界面「上屏自证」的合成输入驱动 | 与上面同一道门，另需 C-01 |
 
-**记账口径（本轮起生效）**：这 8 条里只有 M-30 带真实成本估值，其余 `cost` 一律指向 M-30，
+**记账口径（第 35 轮起生效）**：这 8 条里只有钥匙条目带真实成本估值，其余 `cost` 一律指向钥匙，
 **不许**再各自写「低/中」——一条链的代价抄 8 份，正是它们排了 4 轮都没动的直接原因。
 
-**边界**：`skirmish-option-semantics` 已用 3 轮 / 2 子项（M-29 done + M-30），只剩 1 轮窗口；
-第 37 轮若 M-30 一次读数解不开且需跨模块改产品 → **整线判 blocked**，UI 对账 4 条一并转 `deferred.md`。
+**第 37 轮更新**：钥匙从 M-30 换成 M-31。M-30 已结案（见文末「附」），链路已跑过 option semantics
+与存档往返两段；现在的边界是 legacy 兼容段。
+
+---
+
+## 附、skirmish-option-semantics 主线：整体收口判定（第 37 轮，判 **done**）
+
+**账目**：2 个子项（M-29 / M-30），窗口内完成，未开第 3 个。
+
+- **M-29**（`225d310`）：验收样本 NAPOWR 是探针自己编的——零售模式只授予 9 栋对面**基础建筑**，
+  从不给电站。改成从探针目录里按 `aiBasePlanningSide` 取。
+- **M-30**（`d2fff47`）：验收要求 `techLevel==0`，而发放走 `spawnRuntimeUnholyAllianceMcvs`
+  （开局生成，从不读 techLevel；零售三台 MCV 都是 10）。改成数据推导的等价条件 + 反向控制。
+
+**判定依据**：两处都是「把功能没有的性质写进验收」，无真产品缺陷；该线的用户价值
+（选模式时规则真的生效）已由 M-22 交付并有模式矩阵 35/35 兜住。
+**代价（写清）**：`--skirmish-build-smoke-test` 仍未进 regress，日常门禁还是 11 条；
+它剩下的红已不在本线内（legacy 兼容段），继续挂着只会变成第二条 C-02。
+
+**新主线 `persistence-roundtrip`** 开账：1 轮 / 1 子项（M-31），不属于本线续命。
 
 ---
 
@@ -134,7 +154,7 @@
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-**M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）**｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）
+**M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）**｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）**｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）｜S-16 两栖转移探针清零（`404afb5` revert + 重做，−105 行）｜S-15 smoke 侧探针清零（`8da12fc`）｜S-14 计划表体量门禁（`5b1e0a1`，`scripts/ledger-check.sh`）｜C-02h 离场不再被当取消入场（`7b9f576`）｜C-02g 出舱子格偏移（`c5d2b6c`）
 
 **第 30 轮审计遗留**：原 12 条 queue-only 条目缺根因与成本。**第 34 轮已全部清零**——但实测是
 **16 条**而不是 11 条：审计那 11 条漏了 8 条「fix-plan 条目的队列侧镜像」（`ON-2-06≈S-08`、
@@ -150,6 +170,7 @@
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 37 | 2026-11-14 | unholy 段要求 techLevel=0 是假门；读档残留特效（产品修） | `reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md` |
 | 36 | 2026-11-14 | 清偿：炮塔/炮管与动画层解析两族克隆收口（−103）；登记 S-20 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` |
 | 35 | 2026-11-14 | 审计：8 条条目共用「真开局会话」一道门；S-08 判 blocked；立 M-30 | `reports/AUDIT-35.md` |
 | 34 | 2026-11-14 | 帧诊断记「复用/重绘」；11 条缺估值条目实测是 16 条 | `reports/FIX-35-帧诊断记复用与重绘.md` |
