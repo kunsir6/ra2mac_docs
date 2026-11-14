@@ -1,5 +1,5 @@
 {
-  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。 ｜ 第 44 轮归档 1 条（S-21，done；1:1 替换新增的 S-25）。",
+  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。 ｜ 第 44 轮归档 1 条（S-21，done；1:1 替换新增的 S-25）。 ｜ 第 46 轮审计归档 1 条（S-13，done；1:1 替换新增的 S-27）。",
   "tasks": [
     {
       "id": "M-22",
@@ -90,6 +90,21 @@
       "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
       "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
       "thread": "skirmish-option-semantics"
+    },
+    {
+      "id": "S-13",
+      "title": "结构守卫基线列着 U-15 已删的两个文件",
+      "detail": "tools/structure/structure-baseline.json 是人工审过的精确清单，删文件后没人回写；守卫不在构建链里。第 45 轮查明真因：完整检查链的入口是 `.ps1`（`--inventory` 由 `Get-TestInventory.ps1` 生成、`--trace` 是那轮 configure 的 jsonl），macOS 上三个产物都不存在，所以从没跑过。已接上不需要构建产物的两段并清掉 16 条死条目。",
+      "root_cause": "structure-baseline.json 是人工审过的精确清单，U-15 删文件后没人回写；守卫本身没有 --inventory/--trace 入口脚本，不在构建链里",
+      "value": "低：守卫不参与判定，脏基线只会在下次运行时误报",
+      "cost": "中高（第 45 轮推翻「约 30 分钟」：完整检查链只有 Windows 版，`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest；本轮只做不需要构建产物的两段，完整 scan 拆出 S-26）",
+      "roi": "C",
+      "complexity": "中等",
+      "attempts": 0,
+      "status": "done",
+      "verify": "`bash tools/structure/run.sh --strict` rc=0 且 `stale file paths 0`（366 例夹具 OK）；塞一条假路径进基线副本必须 rc=1。**偏差**：完整 scan 仍需 Windows 侧产物，拆出 S-26",
+      "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
+      "thread": "S-结构守卫"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v152",
-  "updated": "2026-11-15T04:26+08:00",
+  "version": "v153",
+  "updated": "2026-11-15T06:05+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -349,21 +349,6 @@
       "thread": "问题修复"
     },
     {
-      "id": "S-13",
-      "title": "结构守卫基线列着 U-15 已删的两个文件",
-      "detail": "tools/structure/structure-baseline.json 是人工审过的精确清单，删文件后没人回写；守卫不在构建链里。第 45 轮查明真因：完整检查链的入口是 `.ps1`（`--inventory` 由 `Get-TestInventory.ps1` 生成、`--trace` 是那轮 configure 的 jsonl），macOS 上三个产物都不存在，所以从没跑过。已接上不需要构建产物的两段并清掉 16 条死条目。",
-      "root_cause": "structure-baseline.json 是人工审过的精确清单，U-15 删文件后没人回写；守卫本身没有 --inventory/--trace 入口脚本，不在构建链里",
-      "value": "低：守卫不参与判定，脏基线只会在下次运行时误报",
-      "cost": "中高（第 45 轮推翻「约 30 分钟」：完整检查链只有 Windows 版，`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest；本轮只做不需要构建产物的两段，完整 scan 拆出 S-26）",
-      "roi": "C",
-      "complexity": "中等",
-      "attempts": 0,
-      "status": "done",
-      "verify": "`bash tools/structure/run.sh --strict` rc=0 且 `stale file paths 0`（366 例夹具 OK）；塞一条假路径进基线副本必须 rc=1。**偏差**：完整 scan 仍需 Windows 侧产物，拆出 S-26",
-      "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
-      "thread": "S-结构守卫"
-    },
-    {
       "id": "C-02i",
       "title": "奴隶矿工段：挖了装了但货没卸下去（digging=1 carrying=1 cargo=4 credits=0）",
       "detail": "第 24 轮 C-02h 转绿后暴露。Command smoke failed: slave miner: workers did not dig, carry full loads and deposit credits: digging=1 carrying=1 cargo=4 credits=0 —— 「挖」和「装」各发生过一次，cargo=4 仍在手里，credits=0。该段自第 13 轮起从未被执行到。两种待分流：夹具等待拍数不足（交付发生在更晚的拍），或产品真没把货交进炼油厂。起手先加读数：谁持有 cargo、卸载守卫拒绝原因（槽位/坐标/相位），并把这条多谓词断言拆开逐项打印。 ｜ 2026-11-13 第 25 轮 C-02 主线整体收口，本条已移出主清单至 progress/deferred.md（重开条件见该文件），此处只留 blocked 标记。",
@@ -526,7 +511,7 @@
       "status": "blocked",
       "thread": "S-回归门禁",
       "verify": "regress 出现第 14 条 `vehiclepass`；接上时该条若非绿则登记前缀，M-25 修好后转 PASS 且前缀可注销",
-      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md §六"
+      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md"
     },
     {
       "id": "S-25",
@@ -557,6 +542,21 @@
       "verify": "`bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中）",
       "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
       "thread": "S-结构守卫"
+    },
+    {
+      "id": "S-27",
+      "title": "回归产物与旧交付包没有保留策略（本地 6.6GB，且不在任何门禁里）",
+      "detail": "progress/regress 148 个目录 3.4GB（单次 26MB，每轮 3~5 次）；dist/.archive 34 个旧包 3.2GB（单个 96MB）。两者都不入库（前者 gitignore），清单/RUNLOG 都装了门禁，磁盘产物一个都没有。第 46 轮审计实测。",
+      "root_cause": "regress.sh 每次新建时间戳目录、pack-dist.sh 每次把旧包移入 .archive，两处只写不删；ledger-check 只管文本账，不管磁盘账。",
+      "value": "C：不影响用户，只吃本机磁盘（约 130MB/轮 + 96MB/次打包）",
+      "cost": "低：regress.sh 收尾保留最近 20 次 + 每天首跑一份；pack-dist 的 .archive 保留最近 5 个。≤10 行。",
+      "roi": "C",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "pending",
+      "verify": "连跑 25 次 regress 后 progress/regress 目录数 ≤22 且最近一次产物仍在；重复打包 6 次后 dist/.archive ≤5 个包，最新包仍登记在 LaunchServices",
+      "report": "reports/AUDIT-46.md",
+      "thread": "清单治理"
     }
   ],
   "decisions": {
@@ -602,8 +602,8 @@
   },
   "archive": {
     "path": "progress/queue-archive-202611.json",
-    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23，done，主线叙事见 fix-plan §四）至 queue-archive-202611c.json",
-    "tasks_archived": 3
+    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23）至 queue-archive-202611c.json ｜ 第 43~46 轮归档 4 条（S-17/S-21/M-30/S-13）同上",
+    "tasks_archived": 7
   },
   "decisions_20261113_r30": {
     "round": 30,
