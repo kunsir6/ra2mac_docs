@@ -8056,3 +8056,41 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 2. **第 37 轮 = M-30 一段读数**：解开则同轮接 S-17 进 regress（PASS=12）、M-13 结案；
    解不开且需跨模块 → `skirmish-option-semantics` 用满 4 轮，整线判 blocked + UI 对账 4 条转 deferred。
 3. `unit-behavior` 只剩 1 个子项槽位（3/4），M-26/M-28 不许再拆新 ID 续命。
+
+## 第 36 轮（2026-11-14 08:06~08:45）清偿轮：两族克隆实现收口
+
+**轮型：清偿轮**。判定依据 §0.3③：近 5 轮 `test:`3 / `fix:`0 = **3.0×**（§八.3 比例闸同时生效 → 禁新增断言）。
+另：主目标不取 AUDIT-35 建议的 M-25 —— 该条已被并发会话接管（源码 7 文件 +324 行 WIP、新增
+`RuntimeVehicleInfantryPassThroughSmoke.inl`、docs 侧 `M-25-载具被友军步兵挡死` 报告在飞），本轮**零触碰**。
+
+### 做了什么
+1. **炮塔/炮管共享挂载几何**（`04e366d`，+76/−112，净 −36）：新增 `runtimeVxlSharedPartCenter`
+   （体旋转下的 mount 换算 + 像素偏移环境变量）与 `drawRuntimeVxlPart`（候选帧遍历 + remap + 绘制）。
+   两个入口只剩 4 处差异。这段几何两面各存一份时，任何一处改动都会让炮管相对炮塔脱开。
+2. **动画层解析四份副本收成一份**（`1563d7a`，+18/−85，净 −67）：`addAnimationLayer(..., target)` 承接 12 字段解析，
+   四个入口各一行转发。审计按 25 行窗口只看到 2 对，实际是**四份**。
+3. **S-20 登记**（不在本轮做）：多机对战两份大端 `ByteWriter/ByteReader` 逐行 diff 后是**分叉**不是复制品——
+   错误文案前缀、`require()` 下溢写法、方法集三处不同；合并必改行为，清偿轮不许。
+
+### 判「不合并」的三组（写下来防下一轮再查一遍）
+- `low/high` 桥面精灵（26804/26863，各 59 行）：骨架 90% 相同，但要合并得加 `bool highBridge` 控制
+  「authoredEmpty 提前返回 / 是否盖 ownership / 用哪个子瓦片查找器」——一个函数靠开关分叉两个语义，比两份更难读。
+- `RuntimeShell.cpp:74791↔85151`：该文件有并发 WIP。
+- `progress/undefined-symbols.txt`（49KB）：RUNLOG 5 处按路径引用它，删了历史结论就不可复核。
+
+### 验证
+回归 `10/1/0`（`20261114-081543`），与基线 `20261114-080824` 逐条一致，`command` 前缀未变。
+另定向跑 `CONCORD_COMMAND_SMOKE_VEHICLE_TERRAIN_SLOPE_ONLY`（原生 16 例全 PASS）与
+`..._VEHICLE_BODY_ONLY`（`independent turret yaw ... =ok`）——这是渲染改动的直接覆盖。
+没做「新旧二进制逐像素对比」：同一 TU 内算式搬移、公式与实参逐字保留，差异只可能来自改错，而 body 冒烟已在 turret yaw 上判过「画在哪」。
+
+### 质量四数与清单
+净增 **−103**；90,482（我 +0，其中 +6 是并发 WIP）/ 42,542（**−36**）/ 30,794（+0）；断言 0 / 产品行为 0；TODO 0。
+`ledger-check` 7 项全绿：fix-plan 189 行 / queue 53KB / 35 条 / 5 类 / 悬空引用 0。35→35 条（新增 S-20 ↔ 归档 S-15）。
+
+### 下一轮起手
+1. **第 37 轮 = 修复轮，M-30 一段读数**（0.2s 到该段）：`additionalMcvs.size()` + 每台 `type/owner/houseClass/techLevel`。
+   解开则同轮把 S-17 接进 regress（PASS=12）、M-13 结案、U-19/20/21/23 解锁；解不开且要跨模块 → `skirmish-option-semantics`
+   已用满 4 轮，**整线判 blocked + UI 对账 4 条 deferred**。
+2. 比例闸仍在（近 60 提交 `test:`33 / `fix:`14），第 37 轮仍禁新增断言。
+3. M-25 若并发会话已收口，先看它的判据是否已进 regress，别再重复建读数。

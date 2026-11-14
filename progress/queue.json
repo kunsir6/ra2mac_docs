@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 143,
- "updated": "2026-11-14T07:40:00",
+ "version": 144,
+ "updated": "2026-11-14T08:35:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -378,22 +378,6 @@
    "report": "",
    "thread": "C-02"
   },
-
-  {
-   "id": "S-15",
-   "title": "smoke 侧奴隶矿工探针一起清掉，并删掉环境变量本身",
-   "detail": "第 26 轮只清了产品侧八处（净增 −126 行），RuntimeSlaveMinerSmoke.inl 还有 6 处同名打印仍由 CONCORD_SLAVE_EMERGENCE_TRACE 门控，导致这个环境变量删一半、留着像「还能查」。一并清掉后全仓 grep 应为 0。 第 27 轮已清：6 处打印全删（含 step() 的 first-sighting dump 与两处相位打印），改为 describeWorker 把 tick/id/cell/render/moving/phase/status 写进四条 fail 文案。",
-   "root_cause": "第 24 轮一次性取证留下的探针，C-02 已判 blocked，结论在 FIX-25。",
-   "value": "低：清负债，避免把假入口留在代码里",
-   "cost": "改 smoke 侧打印 + 重跑 command/build/render 三条 smoke",
-   "roi": "C",
-   "complexity": "简单",
-   "attempts": 1,
-   "status": "done",
-   "verify": "全仓 grep CONCORD_SLAVE_EMERGENCE_TRACE 为 0；regress 仍 10/1/0 且 command 失败前缀不变",
-   "report": "ra2mac_docs/reports/FIX-28-探针清零第二批.md",
-   "thread": "C-02"
-  },
   {
    "id": "S-16",
    "title": "两栖转移的 env 探针（C-02 线最后一族）",
@@ -558,6 +542,21 @@
    "verify": "isotem.pal 落进 palette-dir 后，用 git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp 编旧二进制，两次 --export-map-tmp-preview 出 PPM 的 sha256 相同；不同则按差异函数定性并登记新条目。",
    "report": "ra2mac_docs/reports/FIX-34-地图预览自带第二份TMP解码器.md",
    "thread": "preview-dedupe"
+  },
+  {
+   "id": "S-20",
+   "title": "多机对战两份大端字节编解码器已漂开（snapshot / match setup 各一套）",
+   "detail": "snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17 与 protocol/RuntimeMultiplayerMatchSetup.cpp:13 各自在匿名命名空间里定义 ByteWriter/ByteReader。第 36 轮逐行 diff：不是复制品是分叉——错误文案前缀不同（snapshot / match setup）、require() 一处带下溢守卫一处不带、方法集不同（writeBool+readBool vs writeByteVector+readByteVector+writeArray）。合并必然改错误文案，清偿轮不许顺手改行为，故登记未做。",
+   "root_cause": "同一条 wire protocol 被两个 TU 各实现一次；快照层先写、对局建立层复制后各自演进，复制当天就已改文案前缀。",
+   "value": "A：两边对敲的线上格式，漂开与分叉同级风险（一侧改了编码另一侧不认）",
+   "cost": "中：新共享头 + 统一错误文案（会碰既有断言文案）+ 一条两实现对敲的等价冒烟",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "共享 codec 后，同一字节流经「快照侧写入 / 对局侧读出」与反向逐字段相同；既有命令/快照冒烟文案改动处单独标断言纠正",
+   "report": "ra2mac_docs/reports/FIX-36-清偿轮-两族克隆实现收口.md",
+   "thread": "preview-dedupe"
   }
  ],
  "decisions": {
@@ -614,6 +613,16 @@
    "queue root/repo 指向不存在的 ai-project（已改回 AiProjects）",
    "C-02g/C-02i 与 fix-plan 状态矛盾（已按 fix-plan 为准修正）",
    "12 条 pending 从未估值：root_cause/cost 为空 → 按 §一.4 不许进排序"
+  ]
+ },
+ "decisions_20261114_r36": {
+  "round": 36,
+  "type": "repay",
+  "summary": "清偿轮：炮塔/炮管与动画层解析两族克隆收口（净增 −103），登记 S-20，3 组同构代码判「不合并」并写清理由",
+  "findings": [
+   "审计连续两轮列着 7 组产品侧同构代码没动：它们大多不是克隆而是已漂开的分叉，判据必须是逐行 diff 而不是 25 行窗口命中。",
+   "清偿轮的价值不在删了多少行，在于「哪些看着重复其实不能合」被写下来——否则下一轮还会再查一遍。",
+   "两份 wire codec 的漂移点之一是 require() 的下溢写法：防御性差异当前不可达，但会在合并时变成真正的行为差异。"
   ]
  }
 }

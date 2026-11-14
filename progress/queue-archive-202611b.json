@@ -277,6 +277,15 @@
    "verify": "blocked 档下工人从建筑内按拍走出，全程不出现无插值的跨格跳变",
    "report": "ra2mac_docs/reports/FIX-25-奴隶矿工离场不该被当成取消入场.md",
    "thread": "C-02"
+  },
+  {
+   "id": "S-15",
+   "round_done": 27,
+   "title": "smoke 侧奴隶矿工探针一起清掉，并删掉环境变量本身",
+   "status": "done",
+   "commit": "8da12fc",
+   "report": "reports/FIX-28-探针清零第二批.md",
+   "archived_by": "第 36 轮（清偿轮）1:1 替换，为新增 S-20 腾位"
   }
  ]
 }
