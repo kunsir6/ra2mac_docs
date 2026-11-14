@@ -14,16 +14,16 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 43 轮，2026-11-15）收口摘要 —— 修复轮**
-> 1. 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-41 两轮）。§八.3 比例闸仍生效 → 本轮**零新增断言**（只加壳）。
-> 2. 基线 `11/1/0`（`20261115-030945`）→ 收口 `11/2/0`（`20261115-031104`，13 条，零 RED-NEW）。
-> 3. **S-22 已完成，但 DoD 有一处偏差（写清）**：第 13 条 `compactgroups` 已接进 regress（`CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1`，0.7s 跑 7 场景）。DoD 原写「PASS=12」，实测 **PASS 仍是 11**——这条首跑即红（`3MTNK_3SHAD` 预存红），不硬凑绿灯。
-> 4. DoD 第二条「重放 M-25 试改判红」**本轮没做**（要整编源码、会与并发 WIP 冲突），改为两道负向验证：换掉前缀里的**首个失败场景** → `cause-changed`；只把**失败计数** 1→2 → 同样 `cause-changed`。M-25 那种（tank_first 变 `arrival_timeout`、计数变 2）两个维度都变，必被抓。
-> 5. 新登记 **S-23**：第 13 条首跑暴露的真红 `3MTNK_3SHAD ground_final_not_compact`（3 台 MTNK 落成半径 2，3 格只需 Chebyshev 半径 1）。
-> 6. 质量四数：源码仓库**零提交**（净增 0）；90,626 / 42,542 / 30,794 三文件全持平；断言 0 / 产品 0；TODO 0。文档净增 +8/−1。
-> 7. 清单：`ledger-check` **九项全绿**；`S-21` 归档腾位给 `S-23`（1:1）。
-> 8. 下轮：**第 44 轮 = 修复轮**，主目标 `M-28`（新造工程师/间谍原地晃动，S 级用户可感）或 `S-23`；`C-02i` 仍未取数，按第 42 轮约定**移入 deferred**。
-
+> **本轮（第 44 轮，2026-11-15）收口摘要 —— 修复轮**
+> 1. 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-41 三轮）。主目标 **S-23**：`3MTNK_3SHAD` 为什么收在半径 2。
+> 2. **根因确认**：地面 3 台 MTNK 的目标格与空中 3 架 SHAD **完全同格**（(32,28)/(33,28)/(31,29)），而 SHAD 终态 `airborne=0`（落地）→ 地面格被占，坦克被兜底挪到半径 2 且不回填。`settled=1116`，不是超时。
+> 3. **分配器不是修点**：同一条冒烟要求「地面层必须用中心格」且「空中层必须用中心格」，两层共格是**被要求**的；分离共享会让 `air_target_center_unused` 变红 = 改软判据。修法在落位侧。
+> 4. **取证永久化**：`RuntimeCompactGroupDensitySmoke.inl` +69/−1，新增 `ground_target_unreached` / `ground_target_reclaimed`，只在 `groundScattered` 时输出。`reclaimed` 本轮**零触发** → 否掉「先停再推」这个候选。13 场景仍 12 过 1 红，known-red 前缀照旧命中。
+> 5. **新登记 S-25**：`--command-smoke-test` 首败即断，C-02i 在第 54/60 步 → 后面 **19 步从未执行**，而前缀只钉首条失败文案，所以没人发现尾巴是死的。本轮只登记不动代码。
+> 6. **纠正三轮误判**：`ninja -n` 报 1,642 全量不是「并发改 cmake 重配」，是 `build-product-arm/.ninja_deps` **尾部截断**（`premature end of file; recovering`）；反证=x86_64 同刻 `no work to do`。全量实测 **4:17**，不是「四十分钟」。
+> 7. 质量四数：净增 **+68**（仅本轮自有改动）；90,652(并发 WIP +26)/42,542/30,794；断言 0 / 产品 0；TODO 0。
+> 8. dist：**重编**（arm 全量 + x86_64 增量 → lipo → pack-dist），三轮来第一次由真 HEAD 树编出的包。
+> 9. 下轮：**第 45 轮 = 修复轮**，S-23 修法 (a)（飞行器静默是否该保持 airborne），判据现成（13 场景 0.7s）。
 ---
 
 ## 一、待修复 —— 简单
@@ -45,9 +45,10 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| S-23 | 3 台 MTNK 收在半径 2 而不是 3x3 | 第 13 条 `compactgroups` 首跑即红：`3MTNK_3SHAD` 终态 `groundRadius=2`，而 3 个地面格只需 Chebyshev 半径 1（同一批 `5MTNK`/`12MTNK` 都是半径 1~2 的合法值） | 目标格分配器对「3 台同型载具 + 3 架同目标飞行器」给了 5x5 的环；候选：①地面层可用格按最近环取，但 air 层占用被一起算进避让 ②`tanksFirst` 分批下发使第二批在第一批之外再开一圈 | **A**：`arrival_timeout` 那类真回归之外，这是「编队收得散不散」的唯一在线门禁，修好等于给第 13 条一个真绿基线 | 中：先只读计量（每台的目标格 + 分配时的候选环），再改分配器；失败可整块回退 | **B** | 中等 | 0 | 待修复（第 43 轮登记） | `3MTNK_3SHAD` 的 `groundRadius=1` 且 `ground_final_cells` 不退化；同批 6 例保持 PASS | `reports/FIX-43-regress接入混合编队收敛门禁.md` §三 |
+| S-23 | 3 台 MTNK 收在半径 2 而不是 3x3 | 第 13 条 `compactgroups` 里 `3MTNK_3SHAD` 终态 `groundRadius=2`；地面 3 台的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD **完全同格**，SHAD 终态 `airborne=0` | **已确认**：落位侧冲突——飞行器到达后落地（airborne 0）重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格且不回填。`ground_target_reclaimed` 零触发 → 不是「先停再推」。分配器共格是被要求的（两层都必须用中心格），**不是修点** | **A**：这是「编队收得散不散」的唯一在线门禁，修好才有真绿基线 | 中：改落位分支（飞行器静默保持 airborne，或落地避开地面已认领格）；13 场景 0.7s 即时验 | **A** | 中等 | 1 | **根因已确认（第 44 轮），待实施修法** | `3MTNK_3SHAD` 的 `groundRadius=1` 且 `ground_final_cells` 不退化；同批 12 例保持 PASS；known-red 该行可注销 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` |
 | M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes；第 35 轮 queue 侧对齐 done，剩余 `unholy` 段拆出为 **M-30**（不在本条续命）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 | S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp:13` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一处带下溢守卫一处不带 ③方法集不同（`writeBool/readBool` vs `writeByteVector/readByteVector/writeArray`） | **A**：两边对敲的 wire format，漂开与分叉同级风险 | 中：新头文件 + 统一错误文案（会碰既有断言文案）+ 加一条两实现对敲的单测 | **A** | 中等 | 0 | 待修复（第 36 轮登记；**必须先取得「允许改错误文案」的窗口**，清偿轮不许顺手改行为） | 一份共享 codec + `CONCORD_*` 双实现等价冒烟：同一字节流两边解码结果逐字段相同 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三 |
+| S-25 | `--command-smoke-test` 首败即断，掩蔽后面 19 步 | `command` 是 60 步链式冒烟，C-02i 在第 54 步；它一红，后续 19 步（factory-exit / air-navigation / missiles / electric-attack / 中立驻军 / 收割机稳定性 / 主机侧十余条）**从未执行** | 结构原因：每步都是「失败即打印并 return 1」；known-red 前缀只钉第一条失败文案，**它稳所以没人发现尾巴是死的** | **A**：19 步在 regress 里目前零覆盖；哪天 C-02i 修好，这 19 步会同时点亮，旧红会以「修完突然红一片」的形态出现 | 中：要动 60 个分支（改成累加失败 + 收尾统一打印 `N failed; 首个`），或先只把 C-02i 挪到链尾（6 行） | **A** | 中等 | 0 | 待修复（第 44 轮登记） | 链尾 19 步每轮真的执行（日志里能看到它们的输出行）；失败汇总改成 `N failed; 首个失败: X` 且前缀钉两个维度 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` §五 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -176,7 +177,7 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 **S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜S-18 菜单挂机 37GB 内存爆炸（`505024d`，光标同步移进 autoreleasepool）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）
 
-更早 5 条（S-16 / S-15 / S-14 / C-02h / C-02g）正文已压回 `reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径。
+更早 6 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g）正文已压回 `reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径。
 
 **第 30 轮审计遗留**：原 12 条 queue-only 条目缺根因与成本。**第 34 轮已全部清零**——但实测是
 **16 条**而不是 11 条：审计那 11 条漏了 8 条「fix-plan 条目的队列侧镜像」（`ON-2-06≈S-08`、
@@ -192,6 +193,7 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 44 | 2026-11-15 | S-23 根因确认：地面目标格被落地飞行器占着；登记 S-25（command 链掩蔽 19 步）；纠正 .ninja_deps 误判 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` |
 | 43 | 2026-11-15 | regress 第 13 条：混合编队收敛进门禁（S-22）；首跑暴露 3MTNK_3SHAD 真红（S-23） | `reports/FIX-43-regress接入混合编队收敛门禁.md` |
 | 42 | 2026-11-15 | 清偿：RUNLOG 归档（8,178→640 行）+ 重复代码口径落库（S-21，复现 140/5） | `reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md` |
 | 41 | 2026-11-15 | 审计：重复代码指标三轮三个数（口径无脚本）；regress 12 条不覆盖混合编队收敛 | `reports/AUDIT-41.md` |
