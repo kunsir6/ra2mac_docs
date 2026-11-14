@@ -41,7 +41,8 @@ usage() {
   cat <<'EOF'
 ConcordRTS 回归编排器
   --only id[,id]   只跑指定用例（core menu loading skirmish attest render
-                   interaction command build campaign result skirmishbuild）
+                   interaction command build campaign result skirmishbuild
+                   compactgroups）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
   --out <dir>      指定输出目录（默认 progress/regress/<时间戳>）
   -h               本帮助
@@ -213,6 +214,11 @@ run_case result      300 ""                                     "--result-presen
 # 第 12 条（S-17）：真遭遇战整链路。它才是「遭遇战能不能开起来」的门，
 # skirmish 那条只验 UI。第 38 轮 M-31 夹具修正后首次整条 rc=0。
 run_case skirmishbuild 300 ""                                   "--skirmish-build-smoke-test"
+# 第 13 条（S-22，第 43 轮）：混合编队收敛。`command` 主档跑不到这段——第 41 轮实测
+# M-25 的试改让 `12E1_2MTNK_tank_first` 从 PASS 变 `arrival_timeout`，而 12 条门禁一字未变。
+# 该冒烟 0.7 秒跑 7 个场景，单跑一次即可。失败文案带「N failed; 首个失败场景: 原因」，
+# 所以第 4 列前缀连**计数**和**首个失败场景名**一起钉住：换掉任一个都会判 cause-changed。
+run_case compactgroups 120 "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1" "--command-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
