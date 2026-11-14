@@ -751,3 +751,30 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   包内 `source=8e62b4d`；`wip=concurrent(11)` 明示树上有并发会话的未提交改动被一起编进包。
 - **教训**：`git status` 里那两个 07:0x 的文件看着像「刚刚还在改」，实际是**昨天**的 07:0x——
   用 `%H:%M:%S` 看 mtime 会丢掉日期，判定「并发会话是否还活着」必须带日期。
+
+## 第 48 轮（2026-11-15，修复轮 → 重排）
+
+- 轮型：修复轮（无 brake / 无 attempts≥3 / 无腐烂预算；距 AUDIT-46 两轮）。**主目标 M-25**，动手后触发 §七.1
+  （根因假设被实测推翻）→ 剩余锚点作废，只做诊断与重排。**产品代码零改动**（改法整文件回退）。
+- **假设**：既然「放行 + 无挤压」会打红 `12E1_2MTNK_tank_first`，那就只放行**停着的**友军步兵格
+  （无 `Move` 行为、`renderMoveActive=0`）——用户现场描述正是「几个大兵坐下之后别的兵种过不去」。
+- **改法**（`RuntimeSessionNavigation.cpp` +67/−1，单 TU）：新增 `runtimeCellHoldsOnlyParkedFriendlyInfantry`，
+  三入口统一（`runtimeCellIsPassableUncached` 的 exact-miss 与主 occupied 两处 + 寻路快照 passable 循环；
+  快照里只在 crush 已判否之后才问，避免给每次 crush 命中叠一遍全表扫描）。
+- **读数**：M-25 判据转绿 `emptyCell=1 friendlyInfantryCell=1`，但 `compactgroups` 的
+  `12E1_2MTNK_tank_first` 转红 `arrival_timeout`（`MTNK#1 want(32,28) got(32,26) holder=E1#3`）。
+- **死因（本轮唯一实质收获）**：判别式在**规划时刻**（寻路）判断了**落位时刻**（到达后才停住）才成立的性质。
+  步兵到达后变 parked 并占住坦克的目标格；坦克此时重新规划被放行穿过该格，但终点格的 crush 恒否 →
+  `ground_target_unreached`、`settled=-1`。**唯一干净的分界是「谁有权占这一格」**，属落位分配器 + 运动层协同。
+- **重排**：M-25 复杂度 中等→**复杂**、cost 中高→**高**，必须「通行 + 挤压 + 分配器分层」两半同时上，
+  单独成轮先写方案，不再接受「更窄判别式」这类绕行。M-25 从 queue-only 升进 fix-plan §三。
+- 质量四数：净增 **0**；90,611 / 42,542 / 30,794 三文件持平；断言 0 / 产品 0；TODO 0。
+- 回归：基线 `12/1/0`（`20261115-074349`）→ 收口 `12/1/0`（`20261115-075413`），13 条，`command` 前缀逐字未变，
+  `compactgroups` 回退后 13/13。
+- dist：源码 HEAD 未变（`8e62b4d`），arm 切片按回退后的树**全量重编 1642 目标 3m53s**（并发 WIP 改了 detail 头）
+  → 与 06:39 的 x86_64 切片 lipo → adhoc → pack-dist。门禁：双架构 / 两切片 minos 12.0 / plist 12.0 /
+  icon 96.2 / 包内 smoke rc=0 / Rosetta rc=0。
+- **教训**：①「更窄的判别式」不等于「更小的风险」——它把仲裁从落位阶段偷搬到规划阶段，而落位阶段没有对端；
+  ②判据（格子级）绿与回归（编队级）绿是两条独立证据，缺一条就不许出结论；这也再次说明 `regress.sh`
+  13 条里 `compactgroups` 是这一族唯一在线的探测器。
+- 下轮：M-25 单独成轮**先写方案**；`unit-behavior` 只剩 1 个子项槽位，下一轮给不出方案级结论就整线收口。

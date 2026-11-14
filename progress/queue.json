@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v154",
-  "updated": "2026-11-15T06:45+08:00",
+  "version": "v155",
+  "updated": "2026-11-15T07:55+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -366,13 +366,13 @@
     {
       "id": "M-25",
       "title": "步兵密集站位后其他单位走不过去（看着有空地，实际被占满）",
-      "detail": "用户实测并确认：几个步兵站在一起后其他单位彻底过不去（不是减速），视觉上还有空地。根因已确认并写进 root_cause；本轮试过「放行只站友军步兵的格子」，判据转绿但让 12E1_2MTNK_tank_first 从 PASS(1870 拍收敛) 退化成 arrival_timeout —— 只解除寻路否决、没有挤压能力，等于把「过不去」换成「卡成一团」。已整文件回退（RuntimeSessionNavigation.cpp 零改动），只留判据 smoke。下一步是补 displacement：载具 commit 进格前把友军步兵挪到最近空闲子格。",
+      "detail": "用户实测并确认：几个步兵站在一起后其他单位彻底过不去（不是减速），视觉上还有空地。根因已确认并写进 root_cause；本轮试过「放行只站友军步兵的格子」，判据转绿但让 12E1_2MTNK_tank_first 从 PASS(1870 拍收敛) 退化成 arrival_timeout —— 只解除寻路否决、没有挤压能力，等于把「过不去」换成「卡成一团」。已整文件回退（RuntimeSessionNavigation.cpp 零改动），只留判据 smoke。下一步是补 displacement：载具 commit 进格前把友军步兵挪到最近空闲子格。第 48 轮再试「只放行停着的步兵（无 Move 行为、renderMoveActive=0）」：判据 friendlyInfantryCell=1 转绿，但 tank_first 仍 arrival_timeout（MTNK 目标格被 parked 步兵占着）——判别式在规划时刻问了落位时刻的性质，已回退，M-25 改判复杂、单独成轮先写方案。",
       "root_cause": "载具通行判定最后一支用 runtimeCanEnterAndCrushCell，而同阵营目标恒 false（不压友军），于是「友军步兵挡路」在寻路层等价于一堵墙；步兵 mover 有 infantryHasSubcell 分支不受影响，所以现场是「步兵能过、载具过不去」。",
       "value": "A：用户实测「看着有空地却过不去」，是操作层最直接的阻塞感",
-      "cost": "中高：要先在 setRuntimeObjectCell 之外加一条「谁挡了这格」读数，再改通行判定",
+      "cost": "高：必须两半同时上——①通行放行 ②commit 前挤压（findRuntimePassableCellNear 半径 1~2）+ 分配器按兵种分层目标格；任一半单独上都会打红 12E1_2MTNK_tank_first",
       "roi": "B",
-      "complexity": "中等",
-      "attempts": 1,
+      "complexity": "复杂",
+      "attempts": 2,
       "status": "pending",
       "verify": "判据（已建，当前红）：CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1 <bin> --command-smoke-test 必须输出 friendlyInfantryCell=1。验收必须同时跑 CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY（12E1_2MTNK_tank_first 是回归探测器，regress.sh 覆盖不到），以及 regress.sh。",
       "report": "ra2mac_docs/reports/M-25-载具被友军步兵挡死-根因与否定.md",
@@ -733,5 +733,19 @@
     ],
     "kept": "S-24 留 blocked（.inl 仍是并发会话未跟踪文件）；S-25 移 deferred.md；并发 11 项 WIP 一个 hunk 未动",
     "next": "M-25/M-28 仍被并发会话占着，先看其进度；否则接 S-27（磁盘保留策略，伴生）或 S-08 出口解耦（M-03 前置）"
+  },
+  "decisions_20261115_r48": {
+    "round": "48",
+    "type": "修复轮 → 重排（§七.1 根因假设被实测推翻）",
+    "target": "M-25 载具被友军步兵挡死",
+    "findings": [
+      "改法：只放行「停着的友军步兵格」（无 Move 行为且 renderMoveActive=0），三个入口统一（unresolved/miss 两处 + 快照 passable 循环），+67/−1 单 TU。",
+      "读数：vehicle pass-through 转绿（emptyCell=1 friendlyInfantryCell=1），但 compactgroups 的 12E1_2MTNK_tank_first 转红 arrival_timeout（MTNK#1 want(32,28) holder=E1#3）。",
+      "死因：判别式在规划时刻（寻路）判断了落位时刻（到达后停住）才成立的性质——步兵到达后变 parked 并占住坦克的目标格，坦克被放行后仍无法落位（终点格 crush 恒否）。",
+      "结论：唯一干净的分界是「谁有权占这一格」，属落位分配器 + 运动层的协同，不是通行判定能判的。M-25 复杂度 中等->复杂、cost 中高->高，单独成轮先写方案。",
+      "产品代码零改动（整文件回退），源码仓库 HEAD 仍 8e62b4d；回归基线 12/1/0（20261115-074349）。"
+    ],
+    "kept": "M-28/M-26 不碰（RuntimeSessionWorld.cpp 与 RuntimeProductionOperations.h 在并发 678 行 WIP 里）；S-24 仍 blocked（判据 .inl 未进 HEAD）",
+    "next": "M-25 单独成轮先写方案（通行 + 挤压 + 分配器分层，两半同时上）；unit-behavior 只剩 1 个子项槽位，下一轮若仍给不出方案级结论则整线收口"
   }
 }
