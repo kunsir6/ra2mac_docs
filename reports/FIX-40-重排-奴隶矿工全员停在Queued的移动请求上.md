@@ -1,4 +1,4 @@
-# 第 40 轮（2026-11-14）——重排：五名奴隶矿工全部停在「已解析的队列 Move」上
+# 第 40 轮（2026-11-14）——重排：五名奴隶矿工全部停在 `Queued` 的移动请求上
 
 **轮型**：修复轮（无 brake、无 attempts≥3、腐烂预算未触发；AUDIT-35 之后四轮，审计轮落在第 41 轮）。
 §八.3 比例闸仍在（近 5 轮 `test:`3 / `fix:`1 = 3.0×）→ 禁新增断言，只许改产品行为或清偿。
@@ -52,12 +52,15 @@ w2 ph=1 cargo=0/0  mis=Guard mv=0 cell=24,10 body=24,10 dc=1     db=1     beh=mo
    `w2/w3` 的离场目标也写着 `24,12` —— 它们要去的地方被一台满载的同伴占着。
 2. **两个人的回家目标写着 `22,10`**，正是炼油厂自己的格子（`home=7@22,10`）。`allowedOccupiedObjectId`
    允许它们进自家地基（`entry=1` 一直成立），但距离 1~1.4 格就再也没靠近过。
-3. **所有人的行为都停在 `Queued` 且 `renderMoveActive=0`**。`Queued` 在本项目里的含义是
-   「路径已解析、等着被推进」（`applyRuntimeMovePathResult` 成功分支 `RuntimeSessionNavigation.cpp:6846`
-   就是把它设成 `Queued` 并 `replaceRuntimeBehaviorPath`），**不是「还没算路径」**。
-   所以这五个人的 `behavior.path` 很可能非空，却没有任何东西把它们推进成 `Moving`。
+3. **所有人的行为都停在 `Queued` 且 `renderMoveActive=0`**。⚠️ `Queued` 在本项目里有**两个**生产者：
+   `submitRuntimeMovePathRequest`（`RuntimeSessionNavigation.cpp:6738`，请求已提交、路径还没算）与
+   `applyRuntimeMovePathResult` 成功分支（`:6846`，路径已解析、等推进）。本轮读数只打了行为状态、
+   **没打 `pathRequestPending` / `path.size()`**，所以「路径给了但没人推」与「请求挂在队列里没人消费」
+   **还没分开**——这正是下一轮要给的那条读数（本文标题里的「已解析」是待验假设，不是结论）。
+   可以确定的两件事：①不是「没地方可去」——`entry=1` 全程成立、目标格都在 1~1.4 格内；
+   ②不是「还在等冷却」——冷却分支会把状态写成 `Blocked`（`:6623`），而这五个人是 `Queued`。
 
-也就是说：这不是奴隶矿工专属的交付逻辑问题，而是**「Queued + 有路径」这个状态在某些互锁几何下不再被运动层推进**。
+也就是说：这不是奴隶矿工专属的交付逻辑问题，而是**「已提交/已解析的移动请求在某些互锁几何下不再前进」**。
 它是 movement 层的共性风险，不是 `RuntimeSessionProduction.cpp` 能关起门来的事——这正好解释了
 为什么 C-02 这条线连拆 9 个子项都修不完：每次都在生产/任务侧找原因，而停摆发生在运动层。
 
