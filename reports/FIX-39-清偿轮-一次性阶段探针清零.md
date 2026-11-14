@@ -100,3 +100,17 @@
 - 源码 `refactor(render):` 删掉两处一次性阶段探针（S41 场景绘制、帷幕遮挡候选）
 - 文档 `docs:` 本报告 + 计划收口摘要
 - 文档 `queue:` 队列 v146（RUNLOG + decisions）
+
+## 八、dist 产物（本轮已更新）
+
+```
+77e75e7 2026-11-14T22:36:49 regress=pass11/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 wip=concurrent(11 entries in tree)
+```
+
+- 链路：arm64 全量重编（RC=0）→ x86_64 增量（3 步，RC=0）→ `lipo -create` → adhoc 重签 →
+  `pack-dist.sh --bin build-universal/concord_runtime`。
+- 门禁：`lipo -archs` = `x86_64 arm64`；两切片 `minos` 均 12.0 且与 plist 一致；
+  `arch -x86_64 …/concord_runtime --smoke-test` rc=0（合并后与包内各验一次）；pack 内部门禁全过
+  （icon diff 96.2/255、plist 身份、包内 smoke rc=0）。
+- `wip=concurrent`：工作区仍有并发会话的 11 项（compat 文本层 6 项 + 2 个未跟踪 smoke + `RuntimeShell` 的 8 行接线），
+  本轮零触碰；这些改动已随本轮构建进入二进制，与上一轮同一口径。
