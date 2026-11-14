@@ -14,16 +14,15 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 45 轮，2026-11-15）收口摘要 —— 修复轮**
-> 1. 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-41 四轮）。主目标 **S-13**：结构守卫为什么从没跑过。
-> 2. **旧估值被推翻**：完整检查链只有 Windows 版（`Run-StructureChecks.ps1` 要 pwsh7 + clang-cl + CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成）。「约 30 分钟补两条基线」是错的。
-> 3. **接上不需要构建产物的两段**：`tools/structure/run.sh` 跑守卫 366 例合成夹具（1.4s）+ 例外表路径存在性；给了 `--inventory/--trace` 才跑完整 scan，缺产物打印跳过原因。
-> 4. **死条目精确 16 条 / 3 文件**：U-15 的两个 Raster 文件 15 条 + **第 39 轮自己删的探针** `RuntimeScenePaintTrace.inl` 1 条。删完 `stale file paths 0`，负向验证（塞假路径）rc=1。
-> 5. **口径纠正**：例外表 5,267 条按 `file 3983 / target 923 / test 345` 分三类；首次数成「1,284 条悬空」是把自己的 `target:`/`test:` 名字当路径。1,268 条离线不可验，一个字没动。
-> 6. **登记 S-26**：把 inventory/trace 生产者搬上 macOS（CMake file-api + `ctest --show-only=json-v1` 本来就有）。这条落地前，守卫的日常价值只有本轮装的两段。
-> 7. 质量四数：净增 +37（两个脚本 +206 / 基线 −169）；90,652(并发 WIP +26)/42,542/30,794；断言 0 / 产品 0；TODO 0。
-> 8. dist：**不重编**，复用并发会话 04:18 的全量重编产物重新 pack；本轮三个 commit 全是工具/数据，产品代码与 HEAD 逐行相同（stamp 标 `delta=tooling-only`）。
-> 9. 下轮：**第 46 轮 = 修复轮**，建议接 **S-26** 或 S-23 修法 (a)（后者属 `S-回归门禁` 主线第 3/4 槽）。**不许**再开 C-02 任何子项。
+> **本轮（第 46 轮，2026-11-15）收口摘要 —— 审计轮**
+> 1. 轮型：审计轮（§零.4，距 AUDIT-41 满 5 轮）。产品代码零改动、零新增断言、源码仓库零提交。报告 `reports/AUDIT-46.md`。
+> 2. **头条：连续 8 轮 / 12 小时零产品代码行**——最后一次产品行为改动仍是 R37 的 `e32136b`；R41~R45 的 4 个源码提交全是 `chore:`（诊断 +69、工具 +213、基线 −169）。
+> 3. 近 60 提交 `test:`31 / `fix:`10 = **3.10×**（A41 2.75×）：比例闸挡得住「写断言」，挡不住「什么都不做」。
+> 4. 清单九项全绿（242 行 / 66KB / 35 条 / 5 类）；修 2 条数据错误（`S-24.report` 把章节号写进路径字段、known-red 第 2 列 `carrying` 已从 1 漂到 0）；登记 **S-27**（磁盘 6.6GB 无保留策略）↔ 1:1 归档 S-13。
+> 5. **重复代码指标首次可复现**：`dup-scan.py --ref 77e75e7` = 140 组 / 产品侧 5，与冻结基线逐字一致；工作区 141/5 的 +1 是并发 WIP，不在 HEAD。
+> 6. known-red 读数漂移定位到 04:19→05:03（并发 WIP 重编所致），三态判定完全看不见——第 4 列只钉首句文案。
+> 7. dist：HEAD 未变（`f97d1b1`）⇒ **不重编**（arm 切片 05:23 已被并发 WIP 重编，照十.3 lipo 会把更新的 WIP 烘进包）；门禁逐条复核通过（双架构 / minos 12.0×2 / plist 12.0 / icon 96.2 / 原生 + Rosetta rc=0）。
+> 8. 下轮：**第 47 轮 = 产品行为轮**，起手 `M-28` → `S-23` 修法 (a)。`S-回归门禁` 子项已满 4（S-22/S-23/S-24/S-25），做完 S-23 整线收口，**禁开第 5 个**。
 
 ---
 
@@ -35,6 +34,7 @@
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 | S-24 | 载具穿步兵冒烟未进门禁 | M-25 的判据已存在且现在红（`vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`），但 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件 | 门禁接线的前置是「被测冒烟在 HEAD 里」；未跟踪文件接进门禁，干净树重建后该环境变量消失 → 退回跑主档，以别的文案红出来，制造永久假 `cause-changed` | **A**：M-25 是用户已确认的 S 级缺陷，判据有了却不每轮跑，等于修完也可能静默退化 | 低：.inl 进 HEAD 后加一条 `run_case`（0.4s）+ 转绿前的 known-red 前缀 | **A** | 简单 | 0 | **blocked**（前置=.inl 进 HEAD） | regress 出现第 14 条 `vehiclepass`；接上时若红则登记前缀，M-25 修好后转 PASS 且前缀可注销 | `reports/FIX-43-regress接入混合编队收敛门禁.md` §六 |
+| S-27 | 回归产物与旧交付包没有保留策略 | `progress/regress` 148 个目录 **3.4GB**（单次 26MB，每轮 3~5 次）；`dist/.archive` 34 个旧包 **3.2GB**（单个 96MB）。两者都不入库，也不在任何门禁里 | `regress.sh` 每次新建时间戳目录、`pack-dist.sh` 每次把旧包移入 `.archive`，两处只写不删；`ledger-check.sh` 只管文本账不管磁盘账 | **C**：不影响用户，只吃本机磁盘（约 130MB/轮 + 96MB/次打包） | 低：`regress.sh` 收尾保留最近 20 次 + 每天首跑；`.archive` 保留最近 5 个。≤10 行 | **C** | 简单 | 0 | 待修复（第 46 轮登记；**只作清偿轮伴生小项，不许单独成轮**） | 连跑 25 次 regress 后目录数 ≤22 且最近一次产物仍在；重复打包 6 次后 `.archive` ≤5 个包且最新包仍登记在 LaunchServices | `reports/AUDIT-46.md` §三.6 |
 
 ## 二、待修复 —— 中等
 
@@ -194,6 +194,7 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 46 | 2026-11-15 | 审计：连续 8 轮零产品行；重复代码首次可复现；登记 S-27（磁盘） | `reports/AUDIT-46.md` |
 | 45 | 2026-11-15 | S-13 结案：结构守卫接上 macOS 可跑的两段（夹具 366 例 + 基线路径存在性），16 条死条目清零；登记 S-26 | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` |
 | 44 | 2026-11-15 | S-23 根因确认：地面目标格被落地飞行器占着；登记 S-25（command 链掩蔽 19 步）；纠正 .ninja_deps 误判 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` |
 | 43 | 2026-11-15 | regress 第 13 条：混合编队收敛进门禁（S-22）；首跑暴露 3MTNK_3SHAD 真红（S-23） | `reports/FIX-43-regress接入混合编队收敛门禁.md` |
