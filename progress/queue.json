@@ -720,7 +720,7 @@
       "ninja -n 报 1,642 全量的真因是 build-product-arm/.ninja_deps 尾部截断（premature end of file; recovering），不是并发改 cmake；反证=x86_64 同刻 no work to do。全量实测 4:17。这个误判让三轮放弃源码修复。"
     ],
     "regress": "11/2/0（13 条，零 RED-NEW；compactgroups 前缀仍命中）",
-    "gate": "第 45 轮 = 修复轮，主目标 S-23 修法 (a)；可先做 S-25 的『把 C-02i 挪到链尾』6 行版作为伴生"
+    "gate": "第 45 轮 = 修复轮，主目标 S-23 修法 (a)；可先做 S-25 的『把 C-02i 挪到链尾』6 行版作为伴生。**注意 S-回归门禁已到 4 子项上限**（S-22 done / S-23 / S-24 / S-25），按 §六.3 不许再开第 5 个；本轮新增 S-25 用的是 1:1 归档（S-21）的额度，再要加必须先整体收口这条主线。"
   },
   "decisions_20261115_r45": {
     "round": "45",
