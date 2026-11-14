@@ -104,3 +104,20 @@ w2 ph=1 cargo=0/0  mis=Guard mv=0 cell=24,10 body=24,10 dc=1     db=1     beh=mo
   与 HEAD 一致（见 BUILD-STAMP）。宁可保留一份真实对应 HEAD 的包，也不把「改了探针又删掉」的中间态当成新版本。
 - **代价**：C-02 这条线从「生产侧收尾」升级成「运动层共性停摆」后，它的修复成本会高于此前所有子项之和；
   如果 (b) 成立且牵连面 >2 模块，按 §七 它可能整体转 deferred。
+
+## 八、dist 产物与门禁读数（本轮收口实测）
+
+```
+dist/BUILD-STAMP.txt:
+77e75e7 2026-11-14T23:54:42 regress=pass11/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 wip=concurrent(11 entries in tree)
+```
+
+- 完整打包链本轮**照跑**（arm 全量重编 → x86_64 → lipo → ad-hoc 重签 → `pack-dist.sh --bin build-universal/concord_runtime`），
+  产物 `dist/尤里红警.app` 96 MB，`bundle-id org.concord.rts.yuri`、显示名「尤里红警」。
+- 门禁逐条：`lipo -archs` = `x86_64 arm64`；两切片 `minos` 均 **12.0** 且与 plist `LSMinimumSystemVersion` 一致；
+  `arch -x86_64 … --smoke-test` **rc=0**（交叉切片单独验过，不是盲区）；
+  `pack-dist` 自身门禁：`icon diff-vs-generic=96.2/255`、plist 身份、包内 `--smoke-test rc=0` 全过。
+- 回归用**编完的新二进制**重跑：`PASS=11 KNOWN-RED=1 RED-NEW=0`（`20261114-235343`），红点前缀未变。
+- 因为本轮源码零改动（HEAD 仍是 `77e75e7`），这份包与上一份**代码等价**；重打是为了满足「dist 必须是当前 HEAD 编出来的」，
+  并顺带验证了全量重编后的两切片仍能过 smoke。`wip=concurrent(11)`：工作区里并发会话的 11 项改动被一起编进了包
+  （与此前几轮同一口径），本轮未触碰它们。
