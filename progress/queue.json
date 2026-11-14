@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v148",
-  "updated": "2026-11-15T01:38+08:00",
+  "version": "v149",
+  "updated": "2026-11-15T02:48+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -537,11 +537,11 @@
       "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
       "roi": "C",
       "complexity": "简单",
-      "attempts": 0,
-      "status": "pending",
+      "attempts": 1,
+      "status": "done",
       "thread": "S-审计度量",
-      "verify": "bash ra2mac_docs/scripts/dup-scan.py 在 R41 的树上输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致",
-      "report": "reports/AUDIT-41.md §二.3"
+      "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
+      "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
     },
     {
       "id": "S-22",
@@ -680,5 +680,18 @@
     ],
     "regress": "11/1/0",
     "gate": "第 42 轮 = 清偿轮（比例闸 3.0× 强制）；第 43 轮接 S-22 进 regress（不算新增断言，冒烟已存在）；M-25 修法单独成轮先写方案"
+  },
+  "decisions_20261115_r42": {
+    "round": 42,
+    "type": "paydown",
+    "summary": "清偿轮：源码仓库零提交（并发 11 项 WIP 未触碰）。两笔治理债结清——RUNLOG 归档（8,178→640 行）并加第 8 项门禁；S-21 落库 scripts/dup-scan.py，--ref 77e75e7 精确复现 140 组 / 产品侧 5 组。",
+    "findings": [
+      "RUNLOG 之前是清单之外唯一没有门禁的膨胀源（516KB/8,178 行），与 S-14 当年的 fix-plan 同形：没有东西去量的指标一定长成最大一块。",
+      "dup-scan 第一次实现直接 walk 工作区得到 280 组——build-product-*/ 里有生成副本，同一份源码命中两次；改用 git ls-files 回到 140。口径必须写进脚本，否则下轮审计会把假数当「代码变烂」。",
+      "固定步长 10 有别名盲区：RuntimeShell.cpp:50231 与 :52676 前 25 行逐字相同（25/25），偏移 2445 非 10 倍数 → 默认口径漏报；查这类要 --step 1。",
+      "ninja -n 仍要求 1,642 目标全量（并发改 cmake/PlatformApple.cmake 触发重配）；本轮源码零改动 ⇒ 现包仍是 HEAD 产物，dist 未重编。"
+    ],
+    "regress": "11/1/0",
+    "gate": "第 43 轮 = 修复轮，主目标 S-22（regress 接第 13 条，不算新增断言）；M-25 单独成轮先写方案；C-02i 若 R44 前不取数直接移 deferred.md"
   }
 }
