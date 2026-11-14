@@ -8106,3 +8106,18 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   12 个数字全是手术前弄脏的值 → 夹具侧/产品侧未定，下轮先造一份真 v10 夹具分流。
 - 主线：`skirmish-option-semantics` 判 **done**（2 子项，无真产品缺陷）；新开 `persistence-roundtrip`（M-31）。
 - 回归 `10/1/0`（`20261114-171407`），零新回归；净增 +77；断言改写 2 / 新增 0；TODO 0。
+
+## 第 38 轮（2026-11-14，修复轮）
+- 主目标 M-31 结案（`42db147`，夹具侧）：legacy 段把 v14 存档改 `Version=10` 却留着 16 字段的
+  行为记录（第 14/15 是 moveSegmentFrom），而 v9~v13 的解析器只接受 12 字段 → `invalid behavior record`
+  是对的，撒谎的是夹具。降版本时把 `[Behaviors]` 截到 12 字段后**整条链路首次 rc=0**：
+  `objects 14 -> 38 credits=195571`、`slaveMiner=0->11/cargo3/4/$625`。
+- **S-17 落地**：`regress.sh` 第 12 条 `skirmishbuild`（5s），首接即真绿；
+  `PASS=11 KNOWN-RED=1 RED-NEW=0`（`20261114-214655`），唯一红仍是 `command` 前缀未变。
+- 结案 M-13（判据由第 12 条长期满足）；`persistence-roundtrip` 主线判 **done**（2 轮/1 子项）。
+- 新线索：`command` 那条 known-red（`cargo=4 credits=0`）与真开局读数矛盾——同一二进制在真遭遇战里
+  真的进账 $625。下轮按「夹具侧」重取证，顺带重估 C-02i 的 blocked 判定。
+- 质量四数：净增 +70；RuntimeShell 90,630（+79，含并发 WIP 9 行）；新增断言 0、产品代码 0；TODO 0。
+- 清单体检：fix-plan 224 行 / queue 57KB / 35 条 / 5 类 / 悬空引用 0；35→35 条（两条结案，未新增）。
+- 教训：`ninja -C <dir>` 的目录在 `ConcordRTS/` 下，不在项目根；`| tail` 会把失败吞成 rc=0。
+
