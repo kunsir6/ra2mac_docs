@@ -8135,7 +8135,7 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   99% 相同但属冻结证据且不进 CMake；左右指针冒烟 ~300 行同段是两份夹具的全状态快照；
   P11 探针在 Windows 专用路径（mac 侧无覆盖）；产品侧逐字重复静态函数本轮扫描 **0 组**。
 - 质量四数：净增 −27；90,626(−4)/42,542/30,794；断言 0、产品 0；TODO 0、一次性探针 2 族→0。
-- 清单：fix-plan 226 行 / queue 57KB / 35 条 / 5 类；`ledger-check` 七项全绿；本轮无新增条目，无需 1:1 替换。
+- 清单：fix-plan 225 行 / queue 56KB / 35 条 / 5 类；`ledger-check` 七项全绿；本轮无新增条目，无需 1:1 替换。
 - **操作层发现（本轮最贵）**：`ninja` 启动即报 `warning: premature end of file; recovering`，
   随后 arm64 全量重编 **1642 个目标**（并发会话上次被中断把 `build-product-arm/.ninja_log` 写坏了）。
   增量退化成全量，打包预算被吃掉约 20 分钟。下轮见到这条 warning 直接按全量 15~20 分钟排锚点。

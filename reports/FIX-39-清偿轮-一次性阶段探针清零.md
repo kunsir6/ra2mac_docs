@@ -74,7 +74,7 @@
 
 ## 五、清单体检
 
-- `fix-plan.md` 228 行（≤400）；`queue.json` 57KB（≤120KB）；tasks 35 条（≤120）；rules 5 类；`ledger-check.sh` 七项全绿。
+- `fix-plan.md` **225 行**（≤400，`ledger-check` 实测）；`queue.json` **56KB**（≤120KB）；tasks 35 条（≤120）；rules 5 类；`ledger-check.sh` 七项全绿。
 - 状态矛盾：0（`command` 已知红与 `C-02i` blocked 的口径一致，都是「交付段缺一条读数」）。
 - 悬空报告引用：0（本轮新增报告即本文件）。
 - 重复条目：0。
