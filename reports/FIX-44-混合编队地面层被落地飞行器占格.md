@@ -133,9 +133,15 @@ ninja explain: stored deps info out of date for 'CMakeFiles/.../IniFile.cpp.o' (
 ## 十、dist 门禁读数（本轮**重编**）
 
 ```
-114453a 2026-11-15T04:18:37 regress=pass11/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
-rosetta=rc0 pack=full-rebuild(arm-full-4m17s+x86-incr-2m51s) wip=concurrent(11 entries in tree)
+f97d1b1 2026-11-15T04:27:19 regress=pass11/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+rosetta=rc0 pack=full-rebuild(arm-full-4m17s+x86-incr-2m51s+relink)
+wip=concurrent(11 entries in tree, HEAD moved 114453a->f97d1b1 mid-round)
 ```
+
+**打包期间 HEAD 被并发会话推进了两次**（`c84f14b`/`4e395b5`/`f97d1b1`，都只动 `tools/structure/`）。
+第一次包是 `114453a` 的，为了让 stamp 与 HEAD 严格一致，重跑了两切片 + lipo + pack-dist，
+最终包对应 `f97d1b1`。这三条提交不参与 `concord_runtime` 的编译，重打的包内容逐字节同前一次，
+但「stamp 与 HEAD 一致」这条门禁只有在重打之后才真的成立。
 
 | 门禁 | 读数 |
 |---|---|
@@ -143,7 +149,7 @@ rosetta=rc0 pack=full-rebuild(arm-full-4m17s+x86-incr-2m51s) wip=concurrent(11 e
 | `vtool -show-build` 两切片 minos | arm64 `12.0` / x86_64 `12.0` ✅ |
 | `Info.plist:LSMinimumSystemVersion` | `12.0`（三处一致，pack-dist 第 ⑦ 步硬门禁已过）✅ |
 | `arch -x86_64 … --smoke-test` | `rc=0` ✅ |
-| pack-dist 自身门禁 | `displayName=尤里红警` / `id=org.concord.rts.yuri` / icon `96.2/255` / 包内 `--smoke-test rc=0` / `source=114453a` ✅ |
+| pack-dist 自身门禁 | `displayName=尤里红警` / `id=org.concord.rts.yuri` / icon `96.2/255` / 包内 `--smoke-test rc=0` / `source=f97d1b1` ✅ |
 | 回归（新 arm 二进制） | `PASS=11 KNOWN-RED=2 RED-NEW=0`（`20261115-041711`，13 条） |
 
 **`wip=concurrent(11 entries in tree)` 照旧写着**：并发会话的 11 项未提交改动仍在工作区，
