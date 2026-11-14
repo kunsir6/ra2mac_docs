@@ -129,3 +129,23 @@ ninja explain: stored deps info out of date for 'CMakeFiles/.../IniFile.cpp.o' (
 （`5SHAD`/`5JUMPJET` 两个场景的 airborne 时间线可当免费读数），再改落位分支。
 判据现成：`compactgroups` 13 场景全 PASS（0.7 秒），跑一次就知道有没有连带。
 `M-28` 仍未被碰过（本轮没腾出时间），仍是 unit-behavior 最后一个槽位的候选。
+
+## 十、dist 门禁读数（本轮**重编**）
+
+```
+114453a 2026-11-15T04:18:37 regress=pass11/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+rosetta=rc0 pack=full-rebuild(arm-full-4m17s+x86-incr-2m51s) wip=concurrent(11 entries in tree)
+```
+
+| 门禁 | 读数 |
+|---|---|
+| `lipo -archs`（包内二进制） | `x86_64 arm64` ✅ |
+| `vtool -show-build` 两切片 minos | arm64 `12.0` / x86_64 `12.0` ✅ |
+| `Info.plist:LSMinimumSystemVersion` | `12.0`（三处一致，pack-dist 第 ⑦ 步硬门禁已过）✅ |
+| `arch -x86_64 … --smoke-test` | `rc=0` ✅ |
+| pack-dist 自身门禁 | `displayName=尤里红警` / `id=org.concord.rts.yuri` / icon `96.2/255` / 包内 `--smoke-test rc=0` / `source=114453a` ✅ |
+| 回归（新 arm 二进制） | `PASS=11 KNOWN-RED=2 RED-NEW=0`（`20261115-041711`，13 条） |
+
+**`wip=concurrent(11 entries in tree)` 照旧写着**：并发会话的 11 项未提交改动仍在工作区，
+本轮零触碰，所以这个包是「HEAD + 那 11 项」编出来的。这是第 42 轮起就存在的口径，
+不是本轮新引入的偏差；本轮至少把「arm 切片落后 16 小时」这层风险消掉了（两切片都是刚编的）。
