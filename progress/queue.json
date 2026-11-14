@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": 144,
- "updated": "2026-11-14T08:35:00",
+ "version": "v145",
+ "updated": "2026-11-14",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -379,21 +379,6 @@
    "thread": "C-02"
   },
   {
-   "id": "S-16",
-   "title": "两栖转移的 env 探针（C-02 线最后一族）",
-   "detail": "RuntimeSessionNavigation.cpp 的 runtimeTransportTraceEnabled / traceTransportBoarding / traceRuntimeTransportUnload / runtimeTransportTraceTick 与 21 条调用语句，是第 15~22 轮逐段取证留下的。第 27 轮已删（−105 行），并收掉三处因此变成空壳的结构。",
-   "root_cause": "C-02 主线第 25 轮判 blocked，取现结论已写死在 FIX-26，这族探针没有第二次用途。",
-   "value": "低：清负债；顺带把「if 的唯一条语句被删」这类语法风险集中暴露一次。",
-   "cost": "单文件 105 行删除 + 一次构建 + 一次回归",
-   "roi": "C",
-   "complexity": "简单",
-   "attempts": 1,
-   "status": "done",
-   "verify": "全仓 grep traceRuntimeTransport 为 0；构建通过；regress 10/1/0 且 command 前缀不变",
-   "report": "ra2mac_docs/reports/FIX-28-探针清零第二批.md",
-   "thread": "C-02"
-  },
-  {
    "id": "M-22",
    "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
    "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
@@ -441,22 +426,22 @@
   {
    "id": "M-25",
    "title": "步兵密集站位后其他单位走不过去（看着有空地，实际被占满）",
-   "detail": "用户实测：几个大兵站在一起之后，其他兵种就过不去了，视觉上明明还有空间。待证假设：占位按整格登记而非按子格/软碰撞，N 个兵站在相邻格就把走廊格子全占了；且路径规划只判断「格被占」不做挤过/绕行协商。原版 RA2 里密集步兵只降低通行速度，不阻断整条路。先与 FIX-19（卸载终态是被站着的人占满环）对账，可能是同一族根因。",
-   "root_cause": "待证：占位按整格登记而非子格/软碰撞，N 个兵站相邻格就把走廊格全占；路径规划只判「格被占」不做挤过协商（与 FIX-19 卸载环同族，先对账）",
+   "detail": "用户实测并确认：几个步兵站在一起后其他单位彻底过不去（不是减速），视觉上还有空地。根因已确认并写进 root_cause；本轮试过「放行只站友军步兵的格子」，判据转绿但让 12E1_2MTNK_tank_first 从 PASS(1870 拍收敛) 退化成 arrival_timeout —— 只解除寻路否决、没有挤压能力，等于把「过不去」换成「卡成一团」。已整文件回退（RuntimeSessionNavigation.cpp 零改动），只留判据 smoke。下一步是补 displacement：载具 commit 进格前把友军步兵挪到最近空闲子格。",
+   "root_cause": "载具通行判定最后一支用 runtimeCanEnterAndCrushCell，而同阵营目标恒 false（不压友军），于是「友军步兵挡路」在寻路层等价于一堵墙；步兵 mover 有 infantryHasSubcell 分支不受影响，所以现场是「步兵能过、载具过不去」。",
    "value": "A：用户实测「看着有空地却过不去」，是操作层最直接的阻塞感",
    "cost": "中高：要先在 setRuntimeObjectCell 之外加一条「谁挡了这格」读数，再改通行判定",
    "roi": "B",
    "complexity": "中等",
-   "attempts": 0,
+   "attempts": 1,
    "status": "pending",
-   "verify": "构造 3 个步兵站成一排的 fixture，令第 4 个步兵从侧面穿到对面；断言位移 > 0 且最终到达目标格（不是只在原地重规划）。读数放 setRuntimeObjectCell 之外量。",
-   "report": "",
+   "verify": "判据（已建，当前红）：CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1 <bin> --command-smoke-test 必须输出 friendlyInfantryCell=1。验收必须同时跑 CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY（12E1_2MTNK_tank_first 是回归探测器，regress.sh 覆盖不到），以及 regress.sh。",
+   "report": "ra2mac_docs/reports/M-25-载具被友军步兵挡死-根因与否定.md",
    "thread": "unit-behavior"
   },
   {
    "id": "M-26",
    "title": "伞兵落地前点不中（空降过程中不可选中）",
-   "detail": "用户实测：空投的伞兵在落地之前无法被选中。**先决问题（必须先答，可能是正确行为）**：原版 RA2 的伞兵下落过程中到底能不能选中、能不能下令？如果不能，这条不是缺陷，应改成「确认原版口径 + 补一条断言」而不是修。若能：已查 airborne 在 RuntimeShell.cpp 里只出现在哈希/渲染/统计，**从不参与命中筛选**，所以更可能是 hit test 用地面脚点、与下落中的视觉位置错位（同类先例 FIX-06 的两条口径）。",
+   "detail": "用户实测并确认：空投的伞兵在落地之前无法被选中，**这是缺陷**（原版下落中可选中/可下令）。已查：airborne 在 RuntimeShell.cpp 里只出现在哈希/渲染/统计，从不参与命中筛选；因此检视方向是 hit test 的坐标口径——下落中的视觉位置带 z 偏移，而命中框可能仍用地面脚点，或者投影阶段就把 airborneForeground 的身体 hitClip 掐掉了（见 hasBodyHitClip 那段）。同类先例：FIX-06（选择框与命中框的两条口径）。",
    "root_cause": "先决问题未答：原版伞兵下落过程中能否选中/下令——不能则是正确行为，应改成「确认口径 + 补断言」而不是修。若能：airborne 从不参与命中筛选，更可能是 hit test 用地面脚点与视觉位置错位",
    "value": "B：伞兵落地前点不中，属操作手感；也可能本来就是原版行为，先答口径",
    "cost": "低：先答原版口径（无参考盘则只能查文档/录屏），再决定改哪一侧",
@@ -516,16 +501,16 @@
   {
    "id": "M-30",
    "title": "整链路 unholy 段：三台 MCV 到底有没有发放",
-   "detail": "M-29 之后整链路只剩这一段（`option semantics` 的 `unholy` 位仍 no）。第 35 轮审计定位：这条同时是 M-13 / S-17 / U-19/20/21/23 / S-08 共 8 条条目唯一的公共前置——它们各自的 cost 写着「低/中」，合起来是「同一条链没通」。改法：在 unholy 断言的求值处打出 `additionalMcvs.size()`、每台的 `type/owner/houseClass/techLevel`、以及发放入口的返回值，一次运行（该冒烟 0.2s 即到该段）裁定三种。",
+   "detail": "第 37 轮结案（断言纠正，`d2fff47`）：unholy 段要求 techLevel==0，而发放走 spawnRuntimeUnholyAllianceMcvs（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。改为数据推导条件 + 反向控制；整链路首过 option semantics。",
    "root_cause": "待证三种：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空或类型被装配期过滤 ②发放走了但 owner 判成对方 ③techLevel/建造前提挡在发放入口。三种改法相反，先读一次数。",
    "value": "高：解开它 = 真遭遇战取证（M-13）+ 第 12 条回归（S-17）+ UI 对账 4 条 + S-08 读数，共 8 条共用同一道门。",
    "cost": "低：一处只读打印 + 一次运行；不改产品行为。",
    "roi": "A",
    "complexity": "简单",
-   "attempts": 0,
-   "status": "pending",
+   "attempts": 1,
+   "status": "done",
    "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
-   "report": "ra2mac_docs/reports/AUDIT-35.md",
+   "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
    "thread": "skirmish-option-semantics"
   },
   {
@@ -557,6 +542,21 @@
    "verify": "共享 codec 后，同一字节流经「快照侧写入 / 对局侧读出」与反向逐字段相同；既有命令/快照冒烟文案改动处单独标断言纠正",
    "report": "ra2mac_docs/reports/FIX-36-清偿轮-两族克隆实现收口.md",
    "thread": "preview-dedupe"
+  },
+  {
+   "id": "M-31",
+   "title": "legacy 存档的字符串手术被载入拒绝（invalid behavior record）",
+   "detail": "整链路 legacy 段把 v14 库存档改 Version=10 再删五段瞬态，期望载入清回基线；实测载入整体失败，12 个数字全是手术前弄脏的值。",
+   "root_cause": "未定：可能 Behaviors 记录布局随版本演进，也可能载入对版本/段不一致的拒绝文案过粗",
+   "value": "中：S-17 接进 regress 的下一道门",
+   "cost": "低：造一份真 v10 夹具，一次运行即可分流",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "该段载入成功且 12 个瞬态集合回到基线；失败文案能区分版本不符/记录损坏",
+   "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
+   "thread": "persistence-roundtrip"
   }
  ],
  "decisions": {
@@ -602,8 +602,8 @@
  },
  "archive": {
   "path": "progress/queue-archive-202611.json",
-  "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json",
-  "tasks_archived": 0
+  "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json",
+  "tasks_archived": 1
  },
  "decisions_20261113_r30": {
   "round": 30,
@@ -624,5 +624,16 @@
    "清偿轮的价值不在删了多少行，在于「哪些看着重复其实不能合」被写下来——否则下一轮还会再查一遍。",
    "两份 wire codec 的漂移点之一是 require() 的下溢写法：防御性差异当前不可达，但会在合并时变成真正的行为差异。"
   ]
+ },
+ "decisions_20261114_r37": {
+  "round": 37,
+  "type": "修复轮",
+  "main": "M-30 结案（断言纠正 d2fff47）+ 读档残留特效（产品修 e32136b，读数 379f06b）",
+  "threads": {
+   "skirmish-option-semantics": "done（M-29+M-30，无真产品缺陷）",
+   "persistence-roundtrip": "新开，1 轮 / 1 子项 M-31"
+  },
+  "regress": "10/1/0（20261114-171407）",
+  "gate": "比例闸仍在：本轮 test: 2 / fix: 1，下轮不许新增断言"
  }
 }

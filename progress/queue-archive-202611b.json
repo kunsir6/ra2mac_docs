@@ -1,5 +1,5 @@
 {
- "note": "第 30 轮审计批归档（只读追溯）：已结案超出窗口 + 被取代/合并的条目。与 queue-archive-202611.json（第 25 轮全量快照）互补。 第 31 轮：M-24 移出主清单（→ progress/deferred.md），本体归档于此。 第 35 轮：C-02h（done，C-02 主线已整体 blocked）归档，1:1 替换新增的 M-30。",
+ "note": "第 30 轮审计批归档（只读追溯）：已结案超出窗口 + 被取代/合并的条目。与 queue-archive-202611.json（第 25 轮全量快照）互补。 第 31 轮：M-24 移出主清单（→ progress/deferred.md），本体归档于此。 第 35 轮：C-02h（done，C-02 主线已整体 blocked）归档，1:1 替换新增的 M-30。 ｜ 第 37 轮归档 1 条（S-16）",
  "tasks": [
   {
    "id": "M-21",
@@ -286,6 +286,14 @@
    "commit": "8da12fc",
    "report": "reports/FIX-28-探针清零第二批.md",
    "archived_by": "第 36 轮（清偿轮）1:1 替换，为新增 S-20 腾位"
+  },
+  {
+   "id": "S-16",
+   "title": "两栖转移的 env 探针（C-02 线最后一族）",
+   "status": "done",
+   "archived": "2026-11-14",
+   "round": 37,
+   "reason": "已结案超窗口，1:1 替换 M-31"
   }
  ]
 }

@@ -8094,3 +8094,15 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
    已用满 4 轮，**整线判 blocked + UI 对账 4 条 deferred**。
 2. 比例闸仍在（近 60 提交 `test:`33 / `fix:`14），第 37 轮仍禁新增断言。
 3. M-25 若并发会话已收口，先看它的判据是否已进 regress，别再重复建读数。
+
+## 第 37 轮（2026-11-14，修复轮）
+- 主目标 M-30 结案（`d2fff47`，断言纠正）：`unholy` 段要求 `techLevel==0`，而发放走
+  `spawnRuntimeUnholyAllianceMcvs`（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。
+  改为「每个非本方车厂各一台 + owner 全为对面 + 非该模式探针必须为空」。整链路首过 option semantics，
+  打出 `Skirmish start … objects=14`。
+- 连带产品修复（`e32136b`）：读档不清 `impactEffects` → 上一局火花飘在新地图上；在
+  `commitRuntimeLoadedState` 末尾清一次。往返段首次执行并通过。读数（`379f06b`）把 12 条谓词拆成逐项布尔。
+- 新阻塞 M-31：legacy 段把 v14 存档改 `Version=10` 后被载入拒绝（`invalid behavior record`），
+  12 个数字全是手术前弄脏的值 → 夹具侧/产品侧未定，下轮先造一份真 v10 夹具分流。
+- 主线：`skirmish-option-semantics` 判 **done**（2 子项，无真产品缺陷）；新开 `persistence-roundtrip`（M-31）。
+- 回归 `10/1/0`（`20261114-171407`），零新回归；净增 +77；断言改写 2 / 新增 0；TODO 0。
