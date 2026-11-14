@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v149",
-  "updated": "2026-11-15T02:48+08:00",
+  "version": "v150",
+  "updated": "2026-11-15T03:13+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -379,21 +379,6 @@
       "thread": "C-02"
     },
     {
-      "id": "S-17",
-      "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
-      "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。三道门：M-22 已修（规则能读出来）、M-23 已修（模式矩阵 35/35）、**M-29 仍红**——完整链路 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，位置在模式矩阵之前，说明这条用例从来没跑到过我们跟了 3 轮的那一段。不许登记 known-red。 [第38轮结案]",
-      "root_cause": "该冒烟首次被跑就红在 option semantics（30 谓词，20 项 no），一直没人接门禁。",
-      "value": "中：一条用例接入 = 真遭遇战链路从此有门。",
-      "cost": "低：regress 加一行 + 口径说明。",
-      "roi": "C",
-      "complexity": "简单",
-      "attempts": 0,
-      "status": "done",
-      "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
-      "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md",
-      "thread": "skirmish-mode-rules"
-    },
-    {
       "id": "M-25",
       "title": "步兵密集站位后其他单位走不过去（看着有空地，实际被占满）",
       "detail": "用户实测并确认：几个步兵站在一起后其他单位彻底过不去（不是减速），视觉上还有空地。根因已确认并写进 root_cause；本轮试过「放行只站友军步兵的格子」，判据转绿但让 12E1_2MTNK_tank_first 从 PASS(1870 拍收敛) 退化成 arrival_timeout —— 只解除寻路否决、没有挤压能力，等于把「过不去」换成「卡成一团」。已整文件回退（RuntimeSessionNavigation.cpp 零改动），只留判据 smoke。下一步是补 displacement：载具 commit 进格前把友军步兵挪到最近空闲子格。",
@@ -452,21 +437,6 @@
       "verify": "造 1 个工程师后静置 600 拍：断言身体位置变化 ≤ 1 子格，且状态字段是 Idle/Guard 而不是 Moving；同时记录 Move 指令条数，必须为 0。",
       "report": "",
       "thread": "unit-behavior"
-    },
-    {
-      "id": "M-29",
-      "title": "UnholyAlliance 的验收样本（NAPOWR）是探针自己编的",
-      "thread": "skirmish-option-semantics",
-      "detail": "第 32 轮读数一次否掉三个候选：模式只授予 9 栋对面「基础建筑」（GAPILE/NAHAND/YABRCK、GAREFN/NAREFN、AMRADR/NARADR、GAAIRC、NAPSIS），不含电站；真实玩家目录 loadedCatalog=46 且不含任何苏军条目；三台 MCV 走 rules 层 runtimeUnholyAllianceAdditionalMcvTypes 而非模式 ini 目录段。改法后 ownerFactory 转 yes；整链路仍红在 `unholy` 段的 MCV 发放。第 35 轮审计：本条（验收样本）已改完，剩余段拆出为 M-30，不在这条上续命。",
-      "root_cause": "样本钉了 NAPOWR/YAPOWR，而零售UnholyAlliance从不授予电站；旧断言把「目录里必须有 AMCV/SMCV/PCV」当发放条件，同样是编出来的前提（发放走 rules 层）。",
-      "value": "高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义。",
-      "cost": "低：已改完（+63−46 单文件单函数），剩 unholy 段一条只读读数。",
-      "roi": "A",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（第 32 轮已达成）；unholy 段转由 M-30 承担",
-      "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
     },
     {
       "id": "M-30",
@@ -546,17 +516,47 @@
     {
       "id": "S-22",
       "title": "regress 12 条不覆盖混合编队收敛",
-      "detail": "M-25 的试改让 12E1_2MTNK_tank_first 从 PASS 变 arrival_timeout，而 regress.sh 仍 11/1/0 一字未变 → 一个能让混合编队彻底不收敛的改动可以通过唯一那道门。",
+      "detail": "M-25 的试改让 12E1_2MTNK_tank_first 从 PASS 变 arrival_timeout，而 regress.sh 仍 11/1/0 一字未变 → 一个能让混合编队彻底不收敛的改动可以通过唯一那道门。 ｜ 第 43 轮落地：regress.sh 第 13 条 `compactgroups`（CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1，0.7s/7 场景），known-red 前缀 `Compact groups: 1 failed; 3MTNK_3SHAD: ground_final_not_compact`。**DoD 偏差（不改原文）**：PASS 仍是 11 而不是 12——该条首跑即红（3MTNK_3SHAD 预存红），不硬凑；第二条 DoD「重放 M-25 试改」未做（要整编源码、会与并发 WIP 冲突），改为两道负向验证（换首个失败场景 / 只改计数 → 均 cause-changed）。",
       "root_cause": "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY 冒烟一直存在但没接进门禁；regress 只跑 command 主档。",
       "value": "A：往后每一轮的「无回归」声明都建立在被证伪的门禁上。",
       "cost": "低：regress.sh 加一条 + 首跑若红则登记 known-red 前缀；接入前先量单次耗时。",
       "roi": "A",
       "complexity": "简单",
+      "attempts": 1,
+      "status": "done",
+      "thread": "S-回归门禁",
+      "verify": "regress 输出 PASS=12，新增一条覆盖 arrival_timeout / ground_final_not_compact；把 M-25 的试改重放一次能被判红",
+      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md"
+    },
+    {
+      "id": "S-23",
+      "title": "3MTNK_3SHAD 终态落在半径 2 而不是 3x3",
+      "detail": "第 43 轮接入第 13 条后首跑即红：7 场景 6 PASS，只有 3MTNK_3SHAD（3 台 MTNK + 3 架 SHAD 同目标）打出 ground_final_not_compact，groundRadius=2；3 个地面格只需 Chebyshev 半径 1（同批 5MTNK=1、12MTNK=2 都在合法范围）。settled=1116 已收敛，不是超时。",
+      "root_cause": "目标格分配器对「3 台同型载具 + 3 架同目标飞行器」给了 5x5 的环。候选：①地面候选格按最近环取，但 air 层占用被一起算进避让 ②tanksFirst 分批下发让第二批在第一批之外再开一圈。**未验证**，先只读计量（每台目标格 + 分配时候选环）。",
+      "value": "A：这是「编队收得散不散」唯一的在线门禁；修好才有真绿基线，否则第 13 条长期靠 known-red 前缀兜着。",
+      "cost": "中：先加只读计量再改分配器，单模块多文件，失败可整块回退。",
+      "roi": "B",
+      "complexity": "中等",
       "attempts": 0,
       "status": "pending",
       "thread": "S-回归门禁",
-      "verify": "regress 输出 PASS=12，新增一条覆盖 arrival_timeout / ground_final_not_compact；把 M-25 的试改重放一次能被判红",
-      "report": "reports/M-25-载具被友军步兵挡死-根因与否定.md §4"
+      "verify": "3MTNK_3SHAD 的 groundRadius=1 且 ground_final_cells 不退化；同批另外 6 例保持 PASS；known-red 该行可注销",
+      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md §三"
+    },
+    {
+      "id": "S-24",
+      "title": "载具穿步兵冒烟未进门禁（且现在是红的）",
+      "detail": "M-25 的判据已存在：CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1 --command-smoke-test，输出 `vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`（对照组绿、缺陷本体红）。但 RuntimeVehicleInfantryPassThroughSmoke.inl 仍是并发会话的未跟踪文件，所以第 43 轮**没有**把它接进 regress —— 干净树重建后该环境变量不存在，command 主档会以别的失败文案红出来，制造永久假 cause-changed。",
+      "root_cause": "门禁接线的前置是「被测冒烟在 HEAD 里」；现在它只活在 WIP 和三方二进制里（当前 arm 二进制的 mtime 23:53 已把该 WIP 编进去）。",
+      "value": "A：M-25 是目前唯一用户已确认的 S 级缺陷，判据有了却不让它每轮跑，等于修完也可能静静退化。",
+      "cost": "低：那 .inl 随 M-25 一起提交后，regress 加一条 run_case + known-red 前缀（转绿前），0.4 秒。",
+      "roi": "A",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "blocked",
+      "thread": "S-回归门禁",
+      "verify": "regress 出现第 14 条 `vehiclepass`；接上时该条若非绿则登记前缀，M-25 修好后转 PASS 且前缀可注销",
+      "report": "reports/FIX-43-regress接入混合编队收敛门禁.md §六"
     }
   ],
   "decisions": {
@@ -693,5 +693,19 @@
     ],
     "regress": "11/1/0",
     "gate": "第 43 轮 = 修复轮，主目标 S-22（regress 接第 13 条，不算新增断言）；M-25 单独成轮先写方案；C-02i 若 R44 前不取数直接移 deferred.md"
+  },
+  "decisions_20261115_r43": {
+    "round": 43,
+    "type": "fix",
+    "summary": "修复轮：regress 第 13 条 `compactgroups` 上线（混合编队收敛进门禁，0.7s/7 场景）。源码仓库零提交、零新增断言。基线 11/1/0 → 收口 11/2/0（13 条，零 RED-NEW）。",
+    "findings": [
+      "第 13 条首跑即红：3MTNK_3SHAD ground_final_not_compact（groundRadius=2，3 格只需半径 1）→ 第 41 轮的「12 条门禁对混合编队是盲的」这句话反过来也成立：接上它就立刻照出一条从未被量的真红。登记 S-23。",
+      "前缀门禁必须把「失败计数」也钉进去。该冒烟的失败文案是 `N failed; 首个失败场景: 原因`，若前缀只写场景名，M-25 那种「tank_first 也挂掉」会变成 2 failed 但仍包含首失败子串 → 判成 KNOWN-RED 静默吞掉。两道负向验证（换场景名 / 只改计数 1→2）都正确报 cause-changed。",
+      "DoD 的「PASS=12」与实际冲突时，正确做法是保留原文并写偏差，不是把断言改软（§八.1）。本轮 PASS 仍 11。",
+      "接入前必须确认冒烟在 HEAD 里：`RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件，所以载具穿步兵那条**没有**接进 regress（否则干净树重建后该环境变量不存在，command 主档会以别的失败文案红出来，制造假 cause-changed）。",
+      "ninja -n 仍报 1,642 目标全量（并发改 cmake/PlatformApple.cmake）；本轮源码零改动 ⇒ dist 不重编，复用两切片重装配。"
+    ],
+    "regress": "11/2/0（13 条：新增 compactgroups 为 KNOWN-RED）",
+    "gate": "第 44 轮 = 修复轮，主目标 M-28（新造工程师/间谍原地晃动，S 级）或 S-23；C-02i 仍未取数 → 按第 42 轮约定移 deferred.md；M-25 修法单独成轮先写方案"
   }
 }

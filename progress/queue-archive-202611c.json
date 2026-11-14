@@ -1,5 +1,5 @@
 {
-  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换本轮新增的 S-21/S-22。",
+  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。",
   "tasks": [
     {
       "id": "M-22",
@@ -30,6 +30,36 @@
       "status": "done",
       "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
       "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
+    },
+    {
+      "id": "M-29",
+      "title": "UnholyAlliance 的验收样本（NAPOWR）是探针自己编的",
+      "thread": "skirmish-option-semantics",
+      "detail": "第 32 轮读数一次否掉三个候选：模式只授予 9 栋对面「基础建筑」（GAPILE/NAHAND/YABRCK、GAREFN/NAREFN、AMRADR/NARADR、GAAIRC、NAPSIS），不含电站；真实玩家目录 loadedCatalog=46 且不含任何苏军条目；三台 MCV 走 rules 层 runtimeUnholyAllianceAdditionalMcvTypes 而非模式 ini 目录段。改法后 ownerFactory 转 yes；整链路仍红在 `unholy` 段的 MCV 发放。第 35 轮审计：本条（验收样本）已改完，剩余段拆出为 M-30，不在这条上续命。",
+      "root_cause": "样本钉了 NAPOWR/YAPOWR，而零售UnholyAlliance从不授予电站；旧断言把「目录里必须有 AMCV/SMCV/PCV」当发放条件，同样是编出来的前提（发放走 rules 层）。",
+      "value": "高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义。",
+      "cost": "低：已改完（+63−46 单文件单函数），剩 unholy 段一条只读读数。",
+      "roi": "A",
+      "complexity": "中等",
+      "attempts": 1,
+      "status": "done",
+      "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（第 32 轮已达成）；unholy 段转由 M-30 承担",
+      "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
+    },
+    {
+      "id": "S-17",
+      "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
+      "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。三道门：M-22 已修（规则能读出来）、M-23 已修（模式矩阵 35/35）、**M-29 仍红**——完整链路 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，位置在模式矩阵之前，说明这条用例从来没跑到过我们跟了 3 轮的那一段。不许登记 known-red。 [第38轮结案]",
+      "root_cause": "该冒烟首次被跑就红在 option semantics（30 谓词，20 项 no），一直没人接门禁。",
+      "value": "中：一条用例接入 = 真遭遇战链路从此有门。",
+      "cost": "低：regress 加一行 + 口径说明。",
+      "roi": "C",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "done",
+      "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
+      "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md",
+      "thread": "skirmish-mode-rules"
     }
   ]
 }
