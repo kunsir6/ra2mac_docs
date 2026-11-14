@@ -1,0 +1,35 @@
+{
+  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换本轮新增的 S-21/S-22。",
+  "tasks": [
+    {
+      "id": "M-22",
+      "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
+      "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
+      "root_cause": "模式规则解析绕开 MIX 归档层，只认松散文件；资产管线故意把条目留在归档里（引擎按 ID 递归扫描），两条口径不一致。",
+      "value": "S：用户可见——9 个模式从静默无效变为生效；同时解开 M-13 / S-17。",
+      "cost": "中低：单点函数加一条归档回退；MixArchive 已实现加密索引与按名查找。",
+      "roi": "S",
+      "complexity": "中等",
+      "attempts": 1,
+      "status": "done",
+      "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
+      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md",
+      "thread": "skirmish-mode-rules"
+    },
+    {
+      "id": "M-23",
+      "title": "遭遇战冒烟 AI 开局 MCV 不展开",
+      "thread": "skirmish-mode-rules",
+      "detail": "第 31 轮结案：**断言纠正，不是产品缺陷**（按八.2 口径不计入已修复）。加 reason 出参后一次读出 `mcvs=1 owner=SkirmishPlayer2 #18 AMCV->GACNST item=GACNST planned=91,128 status=MCV turning to deploy yard=no` —— 有 MCV、认得类型、目录项在、落点找得到，计划里三个候选成因全被否。requestRuntimeMcvDeployment 在朝向到位前只挂 McvDeployTurning 并返回 true，真正换算在 advanceRuntimeMcvDeployTurns（每拍），而冒烟在短路求值后同步判 yard，必然读不到。改为按 max(30, framesToTicks(32)) 有界等待（同 RuntimeUnholyStartSmoke 的写法）。读数：模式矩阵 cases passed=35 failed=0（第一次跑到尾）。commit 4abfee7 + cc53d95。",
+      "root_cause": "未验证。先给返回值加三来源文案（ids/cell/item/planned/requested/owner），一次运行裁定。",
+      "value": "高：模式规则修好后的下一道门，不修则 S-17/M-13 永远接不上门禁。",
+      "cost": "低：先加一行失败文案（默认静默、不留环境变量），再一次运行定性。",
+      "roi": "A",
+      "complexity": "中等",
+      "attempts": 1,
+      "status": "done",
+      "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
+      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
+    }
+  ]
+}

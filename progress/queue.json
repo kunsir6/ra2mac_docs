@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v147",
-  "updated": "2026-11-14T23:58+08:00",
+  "version": "v148",
+  "updated": "2026-11-15T01:38+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -205,7 +205,7 @@
       "root_cause": "tickAdvanced 直接置 repaintRequested，缓存复用被判据自身短路——所以「本帧有没有真的改画面」必须由 reusedScene 记，不能由帧间隔推",
       "value": "中：为脏区驱动提供基线数字",
       "cost": "低：已接入（cf1903b，+30 行），只差一次真实会话跑完读 performance/latest.txt",
-      "roi": "C（仪器已装、读数取不到：第 35 轮审计纠正——原写「待估」，但 root_cause/cost 第 34 轮已补满）",
+      "roi": "C",
       "complexity": "简单",
       "attempts": 1,
       "status": "blocked",
@@ -379,36 +379,6 @@
       "thread": "C-02"
     },
     {
-      "id": "M-22",
-      "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
-      "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
-      "root_cause": "模式规则解析绕开 MIX 归档层，只认松散文件；资产管线故意把条目留在归档里（引擎按 ID 递归扫描），两条口径不一致。",
-      "value": "S：用户可见——9 个模式从静默无效变为生效；同时解开 M-13 / S-17。",
-      "cost": "中低：单点函数加一条归档回退；MixArchive 已实现加密索引与按名查找。",
-      "roi": "S",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
-      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md",
-      "thread": "skirmish-mode-rules"
-    },
-    {
-      "id": "M-23",
-      "title": "遭遇战冒烟 AI 开局 MCV 不展开",
-      "thread": "skirmish-mode-rules",
-      "detail": "第 31 轮结案：**断言纠正，不是产品缺陷**（按八.2 口径不计入已修复）。加 reason 出参后一次读出 `mcvs=1 owner=SkirmishPlayer2 #18 AMCV->GACNST item=GACNST planned=91,128 status=MCV turning to deploy yard=no` —— 有 MCV、认得类型、目录项在、落点找得到，计划里三个候选成因全被否。requestRuntimeMcvDeployment 在朝向到位前只挂 McvDeployTurning 并返回 true，真正换算在 advanceRuntimeMcvDeployTurns（每拍），而冒烟在短路求值后同步判 yard，必然读不到。改为按 max(30, framesToTicks(32)) 有界等待（同 RuntimeUnholyStartSmoke 的写法）。读数：模式矩阵 cases passed=35 failed=0（第一次跑到尾）。commit 4abfee7 + cc53d95。",
-      "root_cause": "未验证。先给返回值加三来源文案（ids/cell/item/planned/requested/owner），一次运行裁定。",
-      "value": "高：模式规则修好后的下一道门，不修则 S-17/M-13 永远接不上门禁。",
-      "cost": "低：先加一行失败文案（默认静默、不留环境变量），再一次运行定性。",
-      "roi": "A",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
-      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
-    },
-    {
       "id": "S-17",
       "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
       "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。三道门：M-22 已修（规则能读出来）、M-23 已修（模式矩阵 35/35）、**M-29 仍红**——完整链路 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，位置在模式矩阵之前，说明这条用例从来没跑到过我们跟了 3 轮的那一段。不许登记 known-red。 [第38轮结案]",
@@ -552,11 +522,41 @@
       "cost": "低：造一份真 v10 夹具，一次运行即可分流",
       "roi": "A",
       "complexity": "中等",
-      "attempts": 0,
+      "attempts": 1,
       "status": "done",
       "verify": "该段载入成功且 12 个瞬态集合回到基线；失败文案能区分版本不符/记录损坏",
       "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
       "thread": "persistence-roundtrip"
+    },
+    {
+      "id": "S-21",
+      "title": "重复代码指标没有脚本，三轮三个数",
+      "detail": "AUDIT-30/35/41 各按「写死的口径」重测，得 125/139/140 组、产品侧 11/7/5 组。差别来自「同文件相隔 <25 行的窗口要不要折叠」这类话原文没写死 → 每轮审计都在给同一个量编新数（与 S-14 清单体量同形）。",
+      "root_cause": "口径只存在于报告散文里，没有可执行实现。",
+      "value": "中：审计结论的可比性；后续清偿轮的删除对象靠它排序。",
+      "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
+      "roi": "C",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "pending",
+      "thread": "S-审计度量",
+      "verify": "bash ra2mac_docs/scripts/dup-scan.py 在 R41 的树上输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致",
+      "report": "reports/AUDIT-41.md §二.3"
+    },
+    {
+      "id": "S-22",
+      "title": "regress 12 条不覆盖混合编队收敛",
+      "detail": "M-25 的试改让 12E1_2MTNK_tank_first 从 PASS 变 arrival_timeout，而 regress.sh 仍 11/1/0 一字未变 → 一个能让混合编队彻底不收敛的改动可以通过唯一那道门。",
+      "root_cause": "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY 冒烟一直存在但没接进门禁；regress 只跑 command 主档。",
+      "value": "A：往后每一轮的「无回归」声明都建立在被证伪的门禁上。",
+      "cost": "低：regress.sh 加一条 + 首跑若红则登记 known-red 前缀；接入前先量单次耗时。",
+      "roi": "A",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "pending",
+      "thread": "S-回归门禁",
+      "verify": "regress 输出 PASS=12，新增一条覆盖 arrival_timeout / ground_final_not_compact；把 M-25 的试改重放一次能被判红",
+      "report": "reports/M-25-载具被友军步兵挡死-根因与否定.md §4"
     }
   ],
   "decisions": {
@@ -602,8 +602,8 @@
   },
   "archive": {
     "path": "progress/queue-archive-202611.json",
-    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json",
-    "tasks_archived": 1
+    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23，done，主线叙事见 fix-plan §四）至 queue-archive-202611c.json",
+    "tasks_archived": 3
   },
   "decisions_20261113_r30": {
     "round": 30,
@@ -667,5 +667,18 @@
     ],
     "regress": "11/1/0",
     "gate": "本轮 0 条 test:/fix: 提交（重排轮不动代码）；比例闸仍为 3.0×，第 41 轮审计轮不写代码，第 42 轮才排那条 behavior.path 读数"
+  },
+  "decisions_20261115_r41": {
+    "round": 41,
+    "type": "audit",
+    "summary": "审计轮：产品零改动、零断言、零源码提交。头条是「重复代码指标三轮三个数」（口径无脚本），第二条是「regress 12 条不覆盖混合编队收敛」（M-25 试改的实测证据）",
+    "findings": [
+      "重复代码窗口 125/139/140 组、产品侧 11/7/5 组——差别不在代码而在口径（同文件 <25 行窗口折叠与否）。逐行复核 5 组后只有 S-20 是真债，其余是 .h/.cpp 声明重叠与 28 行冒烟样板。",
+      "regress.sh 对「混合编队不收敛」这一整类改动是盲的：M-25 试改 11/1/0 不变，而 12E1_2MTNK_tank_first 已经从 PASS 变 arrival_timeout。",
+      "质量四数：近 5 轮净增 +17；Shell 90,626（+150，全在断言段）/ MapRenderer 42,542（−36）/ World 30,794（0）；近 60 提交 test:33/fix:12=2.75×（A35 是 2.36×，继续恶化）。",
+      "dist 未重打：ninja -n 要求全量 1642 目标（并发会话改 PlatformApple.cmake 触发 cmake 重配），重编会把 11 项未提交 WIP 烘进包；现包 stamp 已是 77e75e7 且门禁逐条复核通过。"
+    ],
+    "regress": "11/1/0",
+    "gate": "第 42 轮 = 清偿轮（比例闸 3.0× 强制）；第 43 轮接 S-22 进 regress（不算新增断言，冒烟已存在）；M-25 修法单独成轮先写方案"
   }
 }
