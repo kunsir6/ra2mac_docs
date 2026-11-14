@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v153",
-  "updated": "2026-11-15T06:05+08:00",
+  "version": "v154",
+  "updated": "2026-11-15T06:45+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -486,22 +486,22 @@
     {
       "id": "S-23",
       "title": "3MTNK_3SHAD 终态落在半径 2 而不是 3x3",
-      "detail": "第 43 轮接入第 13 条后首跑即红：7 场景 6 PASS，只有 3MTNK_3SHAD（3 台 MTNK + 3 架 SHAD 同目标）打出 ground_final_not_compact，groundRadius=2；3 个地面格只需 Chebyshev 半径 1（同批 5MTNK=1、12MTNK=2 都在合法范围）。settled=1116 已收敛，不是超时。 ｜ 第 44 轮：根因已在落位侧确认（飞行器落地占地面格），取证已永久化进冒烟；修法 (a) 飞行器静默保持 airborne / 落地避开地面已认领格，(b) 地面单位被挤开后回填——实测 (b) 单独不够。下轮实施。",
+      "detail": "第 43 轮接入第 13 条后首跑即红：7 场景 6 PASS，只有 3MTNK_3SHAD（3 台 MTNK + 3 架 SHAD 同目标）打出 ground_final_not_compact，groundRadius=2；3 个地面格只需 Chebyshev 半径 1（同批 5MTNK=1、12MTNK=2 都在合法范围）。settled=1116 已收敛，不是超时。 ｜ 第 44 轮：根因已在落位侧确认（飞行器落地占地面格），取证已永久化进冒烟；修法 (a) 飞行器静默保持 airborne / 落地避开地面已认领格，(b) 地面单位被挤开后回填——实测 (b) 单独不够。第 47 轮实施：runtimeJumpjetShouldLand 加「认领礼让」——本格被另一地面单位的 Move 目标占着时推迟落地；compactgroups 13/13 全绿，回归 12/1/0。收窄处：只认 Move，追击/AreaGuard 不参与。",
       "root_cause": "**第 44 轮实测确认（落位侧冲突）**：地面 3 台 MTNK 的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD 完全同格；SHAD 终态 airborne=0（落地），重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格（半径 2）且不回填。新增取证 ground_target_reclaimed 零触发 → 不是「先停好再被推走」，冲突发生在坦克到达之前。分配器共格是**被要求的**：同一冒烟的两条判据分别要求地面层与空中层都必须使用中心格，分离共享会把 air_target_center_unused 打红。",
       "value": "A：这是「编队收得散不散」唯一的在线门禁；修好才有真绿基线，否则第 13 条长期靠 known-red 前缀兜着。",
       "cost": "中：先加只读计量再改分配器，单模块多文件，失败可整块回退。",
       "roi": "B",
       "complexity": "中等",
       "attempts": 1,
-      "status": "pending",
+      "status": "done",
       "thread": "S-回归门禁",
       "verify": "3MTNK_3SHAD 的 groundRadius=1 且 ground_final_cells 不退化；同批另外 6 例保持 PASS；known-red 该行可注销",
-      "report": "reports/FIX-44-混合编队地面层被落地飞行器占格.md"
+      "report": "reports/FIX-47-飞行器落地礼让地面单位.md"
     },
     {
       "id": "S-24",
       "title": "载具穿步兵冒烟未进门禁（且现在是红的）",
-      "detail": "M-25 的判据已存在：CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1 --command-smoke-test，输出 `vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`（对照组绿、缺陷本体红）。但 RuntimeVehicleInfantryPassThroughSmoke.inl 仍是并发会话的未跟踪文件，所以第 43 轮**没有**把它接进 regress —— 干净树重建后该环境变量不存在，command 主档会以别的失败文案红出来，制造永久假 cause-changed。",
+      "detail": "M-25 的判据已存在：CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1 --command-smoke-test，输出 `vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`（对照组绿、缺陷本体红）。但 RuntimeVehicleInfantryPassThroughSmoke.inl 仍是并发会话的未跟踪文件，所以第 43 轮**没有**把它接进 regress —— 干净树重建后该环境变量不存在，command 主档会以别的失败文案红出来，制造永久假 cause-changed。第 47 轮 S-回归门禁 主线已收口，本条作为该线唯一未接门禁的判据保留 blocked。",
       "root_cause": "门禁接线的前置是「被测冒烟在 HEAD 里」；现在它只活在 WIP 和三方二进制里（当前 arm 二进制的 mtime 23:53 已把该 WIP 编进去）。",
       "value": "A：M-25 是目前唯一用户已确认的 S 级缺陷，判据有了却不让它每轮跑，等于修完也可能静静退化。",
       "cost": "低：那 .inl 随 M-25 一起提交后，regress 加一条 run_case + known-red 前缀（转绿前），0.4 秒。",
@@ -512,21 +512,6 @@
       "thread": "S-回归门禁",
       "verify": "regress 出现第 14 条 `vehiclepass`；接上时该条若非绿则登记前缀，M-25 修好后转 PASS 且前缀可注销",
       "report": "reports/FIX-43-regress接入混合编队收敛门禁.md"
-    },
-    {
-      "id": "S-25",
-      "title": "--command-smoke-test 首败即断，掩蔽后面 19 步",
-      "detail": "command 是 60 步链式冒烟，C-02i（奴隶矿工）在第 54 步；它一红，后面 19 步（feature-details / factory-exit / air-navigation / missiles / electric-attack / vertical-bomb / 中立驻军 / 收割机稳定性 / 主机侧十余条）从未执行。known-red 前缀只钉第一条失败文案（Command smoke failed: slave miner），它稳所以没人发现尾巴是死的。",
-      "root_cause": "每步都是「失败即打印并 return 1」的短路结构；收尾只打印首条失败，链尾状态不可见。",
-      "value": "A：19 步在 regress 里目前零覆盖；且哪天 C-02i 修好，这 19 步会同时点亮，旧红会以「修完突然红一片」的形态出现。",
-      "cost": "中：改成累加失败 + 收尾统一打印 `N failed; 首个失败: X` 要动 60 个分支；先只把 C-02i 挪到链尾只需 6 行。",
-      "roi": "A",
-      "complexity": "中等",
-      "attempts": 0,
-      "status": "pending",
-      "thread": "S-回归门禁",
-      "verify": "链尾 19 步每轮真的执行（日志里看得到它们的输出行）；失败汇总变成 `N failed; 首个失败: X`，前缀钉两个维度。",
-      "report": "reports/FIX-44-混合编队地面层被落地飞行器占格.md"
     },
     {
       "id": "S-26",
@@ -734,5 +719,19 @@
     ],
     "kept": "dist 不重编——本轮 commit 全是 Python/JSON，复用并发会话 04:18 的全量重编产物重新 pack，stamp 标 delta=tooling-only",
     "next": "第 46 轮建议接 S-26 或 S-23 修法 (a)"
+  }
+,
+  "decisions_20261115_r47": {
+    "round": "47",
+    "type": "修复轮",
+    "target": "S-23 飞行器落地礼让地面单位",
+    "findings": [
+      "根因在落位侧，不在分配侧（第 44 轮已钉）：两层按设计共享中心格，落地飞行器把该格变成地面占用。",
+      "落地判定只有一个口 runtimeJumpjetShouldLand；把「静默就不落地」当修法会改坏零售行为（直升机该落），改为「本格被另一地面单位的 Move 目标认领时推迟」。",
+      "compactgroups 13/13 全绿，command 前缀逐字未变，回归 11/2/0 -> 12/1/0。",
+      "收窄：只认 kind==Move，追击/AreaGuard 的落点不参与（已知行为差异，写进 FIX-47 §六）。"
+    ],
+    "kept": "S-24 留 blocked（.inl 仍是并发会话未跟踪文件）；S-25 移 deferred.md；并发 11 项 WIP 一个 hunk 未动",
+    "next": "M-25/M-28 仍被并发会话占着，先看其进度；否则接 S-27（磁盘保留策略，伴生）或 S-08 出口解耦（M-03 前置）"
   }
 }

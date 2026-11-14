@@ -732,3 +732,22 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 质量四数：净增 +105（近 5 轮，全是 chore）；HEAD 90,611 / 42,542 / 30,794（工作区 90,652 / 42,542 / 31,026 全是 WIP）；断言 0 / 产品 0；TODO 0。
 - dist：HEAD 未变（`f97d1b1`）⇒ **不重编**（arm 切片已被并发 WIP 重编到 05:23，照十.3 lipo 会把比 HEAD 更新的 WIP 烘进包）；
   门禁逐条复核：双架构 / 两切片 minos 12.0 / plist 12.0 / icon 96.2 / 原生 + Rosetta smoke rc=0。
+
+## 第 47 轮（2026-11-15，修复轮）
+
+- 轮型：修复轮（无 brake / 无 attempts≥3 / 无腐烂预算；距 AUDIT-46 一轮）。**主目标 S-23**，产品行为改动一处（`8e62b4d`，14 行）。
+- **上轮结论落地**：AUDIT-46 判定「连续 8 轮零产品代码行」，本轮是转回产品行为的第一轮。
+- **改法**：`runtimeJumpjetShouldLand`（`RuntimeSessionNavigation.cpp:9767`）在查地形之前加一道**礼让检查**——
+  本格若被另一个地面单位的 `Move` 目标认领（且它 alive/非空中/未 Complete），本次不落地，下一拍再判。
+  没取「静默就不落地」（会改坏直升机该落的零售行为），也没改分配器（两层共享中心格是被别条判据要求的）。
+- **读数**：`compactgroups` `1 failed` → `cases=13 passed=13 failed=0`；全量回归 `11/2/0` → **`12/1/0`**（零 RED-NEW），
+  `command` 前缀逐字未变。`known-red.tsv` 同步注销 `compactgroups`（11 行）。
+- **主线收口**：`S-回归门禁` 子项 4/4 已满、用了 3 轮 → 判 **done**；`S-24` 留 blocked（前置在并发会话的未跟踪 `.inl` 里），
+  `S-25` 移 `deferred.md` 并写下重开条件。**禁开第 5 个子项**。
+- 质量四数：净增 **+14**（单 TU 产品代码）；90,611 / 42,542 / 30,794 三文件全持平；断言 0 / 产品 +14；TODO 0。
+- 清单：fix-plan 266 行 / queue 66KB / 34 条 / 5 类；九项门禁全绿。
+- dist：**重编**（arm 1,642 目标 3m58s → x86 增量 2m35s → lipo → adhoc → pack-dist）。
+  stamp `8e62b4d 2026-11-15T06:40:13 regress=pass12/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0`，
+  包内 `source=8e62b4d`；`wip=concurrent(11)` 明示树上有并发会话的未提交改动被一起编进包。
+- **教训**：`git status` 里那两个 07:0x 的文件看着像「刚刚还在改」，实际是**昨天**的 07:0x——
+  用 `%H:%M:%S` 看 mtime 会丢掉日期，判定「并发会话是否还活着」必须带日期。
