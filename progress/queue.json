@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v146",
-  "updated": "2026-11-14T23:45+08:00",
+  "version": "v147",
+  "updated": "2026-11-14T23:58+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -654,5 +654,18 @@
     ],
     "regress": "11/1/0",
     "gate": "本轮 0 条 test: 提交，比例闸压力下降；下轮可新增读数"
+  },
+  "decisions_20261114_r40": {
+    "round": 40,
+    "type": "resequence",
+    "summary": "修复轮按 §七 转「重排」：C-02i/command 的 ①/② 两条候选被同一次读数同时推翻，停摆其实在运动层；源码零改动、HEAD 不变",
+    "findings": [
+      "「对象有行为」被当成「它在被处理」：任务步 RuntimeSessionProduction.cpp:7325-7336 见到 behaviors 里有记录就 return false，交付分支（7339）根本没机会跑——dc=0 db=0 的工人照样不交货。",
+      "Queued 在本项目的含义是「路径已解析、等着被推进」（applyRuntimeMovePathResult 成功分支就设它 + replaceRuntimeBehaviorPath），不是「还没算路径」；五个人全停在这个状态且 renderMoveActive=0，240 拍不动。",
+      "cargo 终态仍是 4，说明交付分支一次都没跑过 —— 「容量吞掉入库」这条候选（②）可以彻底排除，不用再去查 resourceStorageCapacity。",
+      "满载者站在唯一矿格上、另三人的离场目标也是那一格：这是互锁几何，不是某个人的状态机错，所以九个 C-02 子项都在生产侧找不到它。"
+    ],
+    "regress": "11/1/0",
+    "gate": "本轮 0 条 test:/fix: 提交（重排轮不动代码）；比例闸仍为 3.0×，第 41 轮审计轮不写代码，第 42 轮才排那条 behavior.path 读数"
   }
 }

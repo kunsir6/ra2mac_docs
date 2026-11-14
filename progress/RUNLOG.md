@@ -8140,3 +8140,22 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   随后 arm64 全量重编 **1642 个目标**（并发会话上次被中断把 `build-product-arm/.ninja_log` 写坏了）。
   增量退化成全量，打包预算被吃掉约 20 分钟。下轮见到这条 warning 直接按全量 15~20 分钟排锚点。
 - 顺延：`command` 唯一 known-red 的夹具侧取证（要新增一条读数 = test: 类，撞比例闸），下一轮第一件事。
+
+## 第 40 轮（2026-11-14，修复轮→按 §七 转「重排」）
+- 轮型：修复轮（无 brake / 无 attempts≥3 / 腐烂预算未触发；AUDIT-35 后四轮，审计轮在第 41 轮）。
+  §八.3 比例闸仍在（近 5 轮 `test:`3 / `fix:`1 = 3.0×）→ 禁新增断言。
+- **主目标 C-02i/`command` 的 ①/② 被同一次读数同时推翻**。读数方式：`CONCORD_SLAVE_PROBE` 门控的每 120 拍
+  一行（phase/cargo/mission/renderMoveActive/承诺格/身体格/到地基距离/行为 kind,state,target），取完当场删除，
+  **源码零改动、零新增断言**。
+- 终态（tick 5131 与 5371 逐字相同）：五名工人的行为全是 `Queued`（=路径已解析、等推进）且
+  `renderMoveActive=0`，240 拍一格不动；`w6` 已满足 `dc=0 db=0` 仍不交货——因为任务步在
+  `RuntimeSessionProduction.cpp:7325-7336` 见到「对象有行为」就 `return false`，走不到 7339 的交付分支。
+  `cargo` 一直是 `4` → 交付分支一次没跑过，「容量吞掉入库」（②）彻底排除。
+- **机制**：满载者站在唯一矿格 `24,12` 上，另三人的离场目标也是那一格 → 互锁几何；停摆发生在**运动层**
+  （Queued + 有路径却没人推进），不是奴隶矿工的任务逻辑。这解释了九个 C-02 子项为什么都在生产侧找不到它。
+- 重排：C-02i 维持 blocked、重写「还缺什么」（`behavior.path` 是否为空 + Queued+path 为何不被消费）；
+  估值 收益 A→A / 成本 中→高 / 性价比 **A→B**；若 (b) 成立属新主线 `movement-stall`，不在 C-02 下开第 10 个子项。
+- 质量四数：净增 **0**；`RuntimeShell.cpp` 90,626（0）；断言 0 / 产品 0；TODO 0、探针 +1−1 净 0 存活。
+- 清单：fix-plan 235 行 / queue 59KB / 35 条 / 5 类，七项门禁全绿；无新增条目，未触发 1:1 替换。
+- 操作层：`build-product-arm/.ninja_log` 本轮**再次**被写坏（`premature end of file` → 全量重编 1642 目标两次），
+  与第 39 轮同一症状；并发会话仍持有 7 文件 +339 行 WIP，本轮零触碰。
