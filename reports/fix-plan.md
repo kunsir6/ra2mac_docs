@@ -14,15 +14,15 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 46 轮，2026-11-15）收口摘要 —— 审计轮**
-> 1. 轮型：审计轮（§零.4，距 AUDIT-41 满 5 轮）。产品代码零改动、零新增断言、源码仓库零提交。报告 `reports/AUDIT-46.md`。
-> 2. **头条：连续 8 轮 / 12 小时零产品代码行**——最后一次产品行为改动仍是 R37 的 `e32136b`；R41~R45 的 4 个源码提交全是 `chore:`（诊断 +69、工具 +213、基线 −169）。
-> 3. 近 60 提交 `test:`31 / `fix:`10 = **3.10×**（A41 2.75×）：比例闸挡得住「写断言」，挡不住「什么都不做」。
-> 4. 清单九项全绿（242 行 / 66KB / 35 条 / 5 类）；修 2 条数据错误（`S-24.report` 把章节号写进路径字段、known-red 第 2 列 `carrying` 已从 1 漂到 0）；登记 **S-27**（磁盘 6.6GB 无保留策略）↔ 1:1 归档 S-13。
-> 5. **重复代码指标首次可复现**：`dup-scan.py --ref 77e75e7` = 140 组 / 产品侧 5，与冻结基线逐字一致；工作区 141/5 的 +1 是并发 WIP，不在 HEAD。
-> 6. known-red 读数漂移定位到 04:19→05:03（并发 WIP 重编所致），三态判定完全看不见——第 4 列只钉首句文案。
-> 7. dist：HEAD 未变（`f97d1b1`）⇒ **不重编**（arm 切片 05:23 已被并发 WIP 重编，照十.3 lipo 会把更新的 WIP 烘进包）；门禁逐条复核通过（双架构 / minos 12.0×2 / plist 12.0 / icon 96.2 / 原生 + Rosetta rc=0）。
-> 8. 下轮：**第 47 轮 = 产品行为轮**，起手 `M-28` → `S-23` 修法 (a)。`S-回归门禁` 子项已满 4（S-22/S-23/S-24/S-25），做完 S-23 整线收口，**禁开第 5 个**。
+> **本轮（第 47 轮，2026-11-15）收口摘要 —— 修复轮**
+> 1. 轮型：修复轮（无 brake / 无 attempts≥3 / 无腐烂预算；距 AUDIT-46 一轮）。**主目标 S-23**，产品行为改动一处，`8e62b4d`。
+> 2. **上轮结论**：连续 8 轮零产品代码行，AUDIT-46 判定 R47 起必须转产品行为轮。
+> 3. **本轮变化**：`runtimeJumpjetShouldLand` 加「礼让」判据——本格被另一地面单位的 `Move` 目标认领时推迟落地。`compactgroups` 13/13 全绿，回归 `11/2/0` → **`12/1/0`**（零 RED-NEW）。
+> 4. **`S-回归门禁` 主线整体收口（判 done）**：S-22 / S-23 已交付并有第 13 条长期兜住；S-24（前置=`S-24.inl` 进 HEAD，被别人握着）留 blocked、S-25（命令链 60 分支改造）移 `deferred.md`。见 §九。
+> 5. 质量四数：净增 **+14**（单 TU 产品代码）；90,611 / 42,542 / 30,794 三文件全持平；断言 0 / 产品 +14；TODO 0。
+> 6. 清单九项全绿（247 行 / 69KB / 35 条 / 5 类）；`compactgroups` 已从 `known-red.tsv` 注销（状态与报告同步）。
+> 7. dist：**重编**（arm 1,642 目标 3m58s + x86 增量 2m35s → lipo → adhoc → pack-dist），双切片 minos 12.0、icon 96.2、原生 + Rosetta smoke rc=0，stamp `src=8e62b4d`。
+> 8. **下轮起手**：`M-25` / `M-28` 仍被并发会话占着（两份未跟踪 `.inl` + 678 行 WIP），先看它的进度再决定；否则接 `S-27`（磁盘保留策略，伴生）或 `M-03` 的前置 `S-08` 出口解耦。
 
 ---
 
@@ -45,7 +45,7 @@
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
-| S-23 | 3 台 MTNK 收在半径 2 而不是 3x3 | 第 13 条 `compactgroups` 里 `3MTNK_3SHAD` 终态 `groundRadius=2`；地面 3 台的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD **完全同格**，SHAD 终态 `airborne=0` | **已确认**：落位侧冲突——飞行器到达后落地（airborne 0）重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格且不回填。`ground_target_reclaimed` 零触发 → 不是「先停再推」。分配器共格是被要求的（两层都必须用中心格），**不是修点** | **A**：这是「编队收得散不散」的唯一在线门禁，修好才有真绿基线 | 中：改落位分支（飞行器静默保持 airborne，或落地避开地面已认领格）；13 场景 0.7s 即时验 | **A** | 中等 | 1 | **根因已确认（第 44 轮），待实施修法** | `3MTNK_3SHAD` 的 `groundRadius=1` 且 `ground_final_cells` 不退化；同批 12 例保持 PASS；known-red 该行可注销 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` |
+| S-23 | 3 台 MTNK 收在半径 2 而不是 3x3 | 第 13 条 `compactgroups` 里 `3MTNK_3SHAD` 终态 `groundRadius=2`；地面 3 台的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD **完全同格**，SHAD 终态 `airborne=0` | **已确认**：落位侧冲突——飞行器到达后落地（airborne 0）重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格且不回填。`ground_target_reclaimed` 零触发 → 不是「先停再推」。分配器共格是被要求的（两层都必须用中心格），**不是修点** | **A**：这是「编队收得散不散」的唯一在线门禁，修好才有真绿基线 | 中：改落位分支（飞行器静默保持 airborne，或落地避开地面已认领格）；13 场景 0.7s 即时验 | **A** | 中等 | 1 | **已完成（`8e62b4d`，产品修复；第 44 轮定位、第 47 轮实施）** | `3MTNK_3SHAD` 的 `groundRadius=1` 且 `ground_final_cells` 不退化；同批 12 例保持 PASS；known-red 该行可注销 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md`、`reports/FIX-47-飞行器落地礼让地面单位.md` |
 | M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes；第 35 轮 queue 侧对齐 done，剩余 `unholy` 段拆出为 **M-30**（不在本条续命）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
 | S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp:13` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一处带下溢守卫一处不带 ③方法集不同（`writeBool/readBool` vs `writeByteVector/readByteVector/writeArray`） | **A**：两边对敲的 wire format，漂开与分叉同级风险 | 中：新头文件 + 统一错误文案（会碰既有断言文案）+ 加一条两实现对敲的单测 | **A** | 中等 | 0 | 待修复（第 36 轮登记；**必须先取得「允许改错误文案」的窗口**，清偿轮不许顺手改行为） | 一份共享 codec + `CONCORD_*` 双实现等价冒烟：同一字节流两边解码结果逐字段相同 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三 |
 | S-26 | 结构守卫的 inventory/trace 生产者只有 Windows 版 | 第 45 轮查明：`Run-StructureChecks.ps1` 要 `pwsh 7` + `clang-cl` + MSVC 前端 + CTest；`--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。本机两者都没有，所以**完整 scan 一次都没跑过**，1,268 条 `target:`/`test:` 例外也离线不可验 | 取证链整条绑在 Windows 工具链上；守卫本体是纯 Python，被它自己缺失的输入挡住 | **A**：这条不落地，结构守卫的日常价值只有第 45 轮装的两段（夹具自检 + 路径存在性），分层漂移仍无人守 | 中：CMake 在本机本来就能出 file-api codemodel，`ctest --show-only=json-v1` 能给用例注册表——不必照搬 PowerShell，但要对齐 `inventory.tests` 的字段形状 | **B** | 中等 | 0 | 待修复（第 45 轮登记；**不许**为了跑通而放宽 `--baseline` 的 policy） | `bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中） | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` §五 |
@@ -170,13 +170,35 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 ---
 
+## 附三、S-回归门禁 主线：整体收口判定（第 47 轮，判 **done**）
+
+**账目**：第 43~47 轮共 3 轮（R43 / R44 / R47）、子项 4/4 已满（S-22 done / S-23 done / S-24 blocked / S-25 移出），
+**用满即收口，不再开第 5 个子项**。
+
+- **S-22**（R43）：regress 第 13 条 `compactgroups` 接入，13 例 0.7~1s。它接上就照出真红，这是门禁该有的作用。
+- **S-23**（R44 定位 / R47 实施，`8e62b4d`）：地面层与空中层按设计共享中心格，落地飞行器把该格变成地面占用，
+  正在赶往的坦克被兜底挪到半径 2。改法：落地前礼让「本格被另一地面单位的 `Move` 目标认领」。
+  13 例全绿，回归 `12/1/0`。
+- **S-24** 留 **blocked**（前置=`RuntimeVehicleInfantryPassThroughSmoke.inl` 进 HEAD，现在仍是并发会话的未跟踪文件；
+  未跟踪文件接进门禁，干净树重建后会以别的文案红出来，制造永久假 `cause-changed`）。
+- **S-25** 移 `progress/deferred.md`（重开条件见该文件）：它是 `--command-smoke-test` 60 个分支的聚合改造，
+  与「门禁覆盖」不是同一件事，继续挂在线上只会变成第二条 C-02。
+
+**判 done 的依据**：本线的用户价值是「编队收敛有在线门禁，且这条门禁真会红」，两者都已交付
+（第 13 条 + 一条真缺陷被它照出来并修掉）。
+
+**代价（写清）**：`command` 链尾部 19 步仍然零覆盖（S-25 deferred）；载具穿步兵（M-25 的判据）仍不在门禁里，
+也就是说 M-25 修好之后若退化，回归看不见。
+
+---
+
 ## 七、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-**S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）
+**S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜M-22 游戏模式规则从归档读取（`2c7f1ea`，模式冒烟阻塞点前移一道门）
 
 更早 6 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g）正文已压回 `reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径。
 
@@ -194,6 +216,7 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 47 | 2026-11-15 | S-23 结案：飞行器落地礼让正在赶往同格的地面单位；`compactgroups` 13/13，回归 `12/1/0`；`S-回归门禁` 主线收口 | `reports/FIX-47-飞行器落地礼让地面单位.md` |
 | 46 | 2026-11-15 | 审计：连续 8 轮零产品行；重复代码首次可复现；登记 S-27（磁盘） | `reports/AUDIT-46.md` |
 | 45 | 2026-11-15 | S-13 结案：结构守卫接上 macOS 可跑的两段（夹具 366 例 + 基线路径存在性），16 条死条目清零；登记 S-26 | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` |
 | 44 | 2026-11-15 | S-23 根因确认：地面目标格被落地飞行器占着；登记 S-25（command 链掩蔽 19 步）；纠正 .ninja_deps 误判 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` |
