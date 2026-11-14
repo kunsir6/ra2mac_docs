@@ -8121,3 +8121,22 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 清单体检：fix-plan 224 行 / queue 57KB / 35 条 / 5 类 / 悬空引用 0；35→35 条（两条结案，未新增）。
 - 教训：`ninja -C <dir>` 的目录在 `ConcordRTS/` 下，不在项目根；`| tail` 会把失败吞成 rc=0。
 
+
+## 第 39 轮（2026-11-14，清偿轮）
+- 轮型：清偿轮。判据是 §八.3 比例闸——近 5 轮（R34~R38）`test:` 3 条 / `fix:` 1 条 = **3.0×**。
+  §0.3 与 §8.3 同时生效 → 禁新增断言，只许删/合。审计轮未到（AUDIT-35 之后仅三轮）。
+- 主目标：删两处 mac 侧一次性阶段探针，产品行为零变化，净增 **−27**。
+  1. `RuntimeScenePaintTrace.inl`（19 行，S41 direct-scene 分配失败的私有打印）+ `RuntimeShell.cpp`
+     的 include 与三个调用点。该探针挂在 `frameProbeWin32->failSceneAllocation` 上，但那个字段
+     仍被 `RuntimeMainFrameContract.inl:139` 用作 fallback 注入——**探针不是字段存在的理由**。
+  2. `RuntimeBehindMarkerRender.inl` 里 `CONCORD_BEHIND_MARKER_TRACE` 的 4 行候选清单打印；
+     函数本体与 `stats.behindMarker*` 三计数一字未动。
+- 判「不能删/不能合」四处（写进报告 §三）：三份 `tools/diagnostics/{s33,s41,s43}/VisibleObserver.cpp`
+  99% 相同但属冻结证据且不进 CMake；左右指针冒烟 ~300 行同段是两份夹具的全状态快照；
+  P11 探针在 Windows 专用路径（mac 侧无覆盖）；产品侧逐字重复静态函数本轮扫描 **0 组**。
+- 质量四数：净增 −27；90,626(−4)/42,542/30,794；断言 0、产品 0；TODO 0、一次性探针 2 族→0。
+- 清单：fix-plan 226 行 / queue 57KB / 35 条 / 5 类；`ledger-check` 七项全绿；本轮无新增条目，无需 1:1 替换。
+- **操作层发现（本轮最贵）**：`ninja` 启动即报 `warning: premature end of file; recovering`，
+  随后 arm64 全量重编 **1642 个目标**（并发会话上次被中断把 `build-product-arm/.ninja_log` 写坏了）。
+  增量退化成全量，打包预算被吃掉约 20 分钟。下轮见到这条 warning 直接按全量 15~20 分钟排锚点。
+- 顺延：`command` 唯一 known-red 的夹具侧取证（要新增一条读数 = test: 类，撞比例闸），下一轮第一件事。

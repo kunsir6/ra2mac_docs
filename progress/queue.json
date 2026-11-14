@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v145",
-  "updated": "2026-11-14T22:00+08:00",
+  "version": "v146",
+  "updated": "2026-11-14T23:45+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -641,5 +641,18 @@
     "S-17 落地：regress 第 12 条 skirmishbuild，PASS=11 KNOWN-RED=1 RED-NEW=0（12 条）。",
     "M-13 结案（判据由第 12 条长期满足）；persistence-roundtrip 主线判 done（2 轮/1 子项）。",
     "线索：command 那条 known-red 与真开局读数矛盾（同一二进制 slaveMiner 进账 $625）→ 下轮按夹具侧重取证，重估 C-02i。"
-  ]
+  ],
+  "decisions_20261114_r39": {
+    "round": 39,
+    "type": "repay",
+    "summary": "清偿轮（§8.3 比例闸：近 5 轮 test:3 / fix:1 = 3.0×）：删两处 mac 侧一次性阶段探针（净增 −27），并写下四处「看着该删其实不能删」",
+    "findings": [
+      "探针挂在某个探针字段上，不等于该字段只为此存在：RuntimeMainFrameContract 仍在用 failSceneAllocation 做 fallback 注入，删的是打印不是能力。",
+      "产品侧逐字重复的静态函数本轮扫描为 0 组（1031 个 .cpp/.inl/.mm，函数体归一化后精确哈希）——剩下的同构全是已漂开的分叉，与第 36 轮结论一致。",
+      "三份 tools/diagnostics/{s33,s41,s43}/VisibleObserver.cpp 只差 9 行，却是各阶段证据工具且不进 CMake：合并会让历史证据不可复现，任何删除都拿不到 smoke 兜底。",
+      "并发会话被中断会把 build-product-arm/.ninja_log 写坏，ninja 报 premature end of file 后静默全量重编 1642 目标，增量构建失效。"
+    ],
+    "regress": "11/1/0",
+    "gate": "本轮 0 条 test: 提交，比例闸压力下降；下轮可新增读数"
+  }
 }
