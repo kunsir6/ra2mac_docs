@@ -8147,8 +8147,8 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - **主目标 C-02i/`command` 的 ①/② 被同一次读数同时推翻**。读数方式：`CONCORD_SLAVE_PROBE` 门控的每 120 拍
   一行（phase/cargo/mission/renderMoveActive/承诺格/身体格/到地基距离/行为 kind,state,target），取完当场删除，
   **源码零改动、零新增断言**。
-- 终态（tick 5131 与 5371 逐字相同）：五名工人的行为全是 `Queued`（=路径已解析、等推进）且
-  `renderMoveActive=0`，240 拍一格不动；`w6` 已满足 `dc=0 db=0` 仍不交货——因为任务步在
+- 终态（tick 5131 与 5371 逐字相同）：五名工人的行为全停在 `Queued` 且
+  `renderMoveActive=0`，240 拍一格不动（`Queued` 有两个生产者：待解析/已解析，本轮读数未分开）；`w6` 已满足 `dc=0 db=0` 仍不交货——因为任务步在
   `RuntimeSessionProduction.cpp:7325-7336` 见到「对象有行为」就 `return false`，走不到 7339 的交付分支。
   `cargo` 一直是 `4` → 交付分支一次没跑过，「容量吞掉入库」（②）彻底排除。
 - **机制**：满载者站在唯一矿格 `24,12` 上，另三人的离场目标也是那一格 → 互锁几何；停摆发生在**运动层**

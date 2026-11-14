@@ -661,7 +661,7 @@
     "summary": "修复轮按 §七 转「重排」：C-02i/command 的 ①/② 两条候选被同一次读数同时推翻，停摆其实在运动层；源码零改动、HEAD 不变",
     "findings": [
       "「对象有行为」被当成「它在被处理」：任务步 RuntimeSessionProduction.cpp:7325-7336 见到 behaviors 里有记录就 return false，交付分支（7339）根本没机会跑——dc=0 db=0 的工人照样不交货。",
-      "Queued 在本项目的含义是「路径已解析、等着被推进」（applyRuntimeMovePathResult 成功分支就设它 + replaceRuntimeBehaviorPath），不是「还没算路径」；五个人全停在这个状态且 renderMoveActive=0，240 拍不动。",
+      "Queued 有两个生产者：submitRuntimeMovePathRequest（待解析）与 applyRuntimeMovePathResult 成功分支（已解析）——读数没打 pathRequestPending/path.size() 就没法区分「给了不推进」与「请求没人消费」；能确定的是冷却分支会写成 Blocked，所以这五人不是被冷却挡住的。",
       "cargo 终态仍是 4，说明交付分支一次都没跑过 —— 「容量吞掉入库」这条候选（②）可以彻底排除，不用再去查 resourceStorageCapacity。",
       "满载者站在唯一矿格上、另三人的离场目标也是那一格：这是互锁几何，不是某个人的状态机错，所以九个 C-02 子项都在生产侧找不到它。"
     ],
