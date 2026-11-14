@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v151",
-  "updated": "2026-11-15T04:16+08:00",
+  "version": "v152",
+  "updated": "2026-11-15T04:26+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -351,16 +351,16 @@
     {
       "id": "S-13",
       "title": "结构守卫基线列着 U-15 已删的两个文件",
-      "detail": "tools/structure/structure-baseline.json 仍是人工审过的旧清单，U-15 删文件后没回写；守卫不在构建链里，本机也没有它的 --inventory/--trace 产物，所以从没跑过、没人发现。第一步是查清产物由谁生成，别先改 json。",
+      "detail": "tools/structure/structure-baseline.json 是人工审过的精确清单，删文件后没人回写；守卫不在构建链里。第 45 轮查明真因：完整检查链的入口是 `.ps1`（`--inventory` 由 `Get-TestInventory.ps1` 生成、`--trace` 是那轮 configure 的 jsonl），macOS 上三个产物都不存在，所以从没跑过。已接上不需要构建产物的两段并清掉 16 条死条目。",
       "root_cause": "structure-baseline.json 是人工审过的精确清单，U-15 删文件后没人回写；守卫本身没有 --inventory/--trace 入口脚本，不在构建链里",
       "value": "低：守卫不参与判定，脏基线只会在下次运行时误报",
-      "cost": "低：先查清产物由谁生成再重生成基线，约 30 分钟",
+      "cost": "中高（第 45 轮推翻「约 30 分钟」：完整检查链只有 Windows 版，`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest；本轮只做不需要构建产物的两段，完整 scan 拆出 S-26）",
       "roi": "C",
-      "complexity": "简单",
+      "complexity": "中等",
       "attempts": 0,
-      "status": "pending",
-      "verify": "守卫能跑通且 baseline 与当前源码树一致（无 stale 条目）",
-      "report": "",
+      "status": "done",
+      "verify": "`bash tools/structure/run.sh --strict` rc=0 且 `stale file paths 0`（366 例夹具 OK）；塞一条假路径进基线副本必须 rc=1。**偏差**：完整 scan 仍需 Windows 侧产物，拆出 S-26",
+      "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
       "thread": "S-结构守卫"
     },
     {
@@ -437,21 +437,6 @@
       "verify": "造 1 个工程师后静置 600 拍：断言身体位置变化 ≤ 1 子格，且状态字段是 Idle/Guard 而不是 Moving；同时记录 Move 指令条数，必须为 0。",
       "report": "",
       "thread": "unit-behavior"
-    },
-    {
-      "id": "M-30",
-      "title": "整链路 unholy 段：三台 MCV 到底有没有发放",
-      "detail": "第 37 轮结案（断言纠正，`d2fff47`）：unholy 段要求 techLevel==0，而发放走 spawnRuntimeUnholyAllianceMcvs（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。改为数据推导条件 + 反向控制；整链路首过 option semantics。",
-      "root_cause": "待证三种：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空或类型被装配期过滤 ②发放走了但 owner 判成对方 ③techLevel/建造前提挡在发放入口。三种改法相反，先读一次数。",
-      "value": "高：解开它 = 真遭遇战取证（M-13）+ 第 12 条回归（S-17）+ UI 对账 4 条 + S-08 读数，共 8 条共用同一道门。",
-      "cost": "低：一处只读打印 + 一次运行；不改产品行为。",
-      "roi": "A",
-      "complexity": "简单",
-      "attempts": 1,
-      "status": "done",
-      "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
-      "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
-      "thread": "skirmish-option-semantics"
     },
     {
       "id": "S-19",
@@ -557,6 +542,21 @@
       "thread": "S-回归门禁",
       "verify": "链尾 19 步每轮真的执行（日志里看得到它们的输出行）；失败汇总变成 `N failed; 首个失败: X`，前缀钉两个维度。",
       "report": "reports/FIX-44-混合编队地面层被落地飞行器占格.md"
+    },
+    {
+      "id": "S-26",
+      "title": "结构守卫的 inventory/trace 生产者只有 Windows 版",
+      "detail": "第 45 轮查明：`Run-StructureChecks.ps1` 要 pwsh7 + clang-cl + MSVC 前端 + CTest；`--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。本机两者都没有，完整 scan 一次都没跑过，1,268 条 `target:`/`test:` 例外离线不可验。",
+      "root_cause": "取证链整条绑在 Windows 工具链上；守卫本体是纯 Python，被它自己缺失的输入挡住",
+      "value": "A：这条不落地，结构守卫的日常价值只有第 45 轮装的两段（夹具自检 + 路径存在性），分层漂移仍无人守",
+      "cost": "中：CMake 在本机本来就能出 file-api codemodel，`ctest --show-only=json-v1` 能给用例注册表——不必照搬 PowerShell，但要对齐 `inventory.tests` 的字段形状",
+      "roi": "B",
+      "complexity": "中等",
+      "attempts": 0,
+      "status": "pending",
+      "verify": "`bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中）",
+      "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
+      "thread": "S-结构守卫"
     }
   ],
   "decisions": {
@@ -721,5 +721,18 @@
     ],
     "regress": "11/2/0（13 条，零 RED-NEW；compactgroups 前缀仍命中）",
     "gate": "第 45 轮 = 修复轮，主目标 S-23 修法 (a)；可先做 S-25 的『把 C-02i 挪到链尾』6 行版作为伴生"
+  },
+  "decisions_20261115_r45": {
+    "round": "45",
+    "type": "修复轮",
+    "target": "S-13 结构守卫",
+    "findings": [
+      "完整检查链只有 Windows 版：Run-StructureChecks.ps1 要 pwsh7+clang-cl+CTest；--inventory 由 Get-TestInventory.ps1 生成，--trace 是 configure-trace.jsonl。macOS 上三个产物都不存在 → 守卫从没跑过。",
+      "死条目精确 16 条 / 3 文件：U-15 的两个 Raster 文件 15 条 + 第 39 轮（77e75e7）自删探针 RuntimeScenePaintTrace.inl 1 条。",
+      "口径纠正：例外表 5,267 条按 file 3983 / target 923 / test 345 分三类；首次数成「1,284 条悬空」是把自己的 target:/test: 名字当了路径。1,268 条离线不可验，一个字没动。",
+      "bash 3.2 + set -u：空数组展开 ${a[@]} 报 unbound variable（run.sh 第一版当场踩到）。"
+    ],
+    "kept": "dist 不重编——本轮 commit 全是 Python/JSON，复用并发会话 04:18 的全量重编产物重新 pack，stamp 标 delta=tooling-only",
+    "next": "第 46 轮建议接 S-26 或 S-23 修法 (a)"
   }
 }

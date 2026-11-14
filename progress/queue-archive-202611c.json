@@ -75,6 +75,21 @@
       "thread": "S-审计度量",
       "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
       "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
+    },
+    {
+      "id": "M-30",
+      "title": "整链路 unholy 段：三台 MCV 到底有没有发放",
+      "detail": "第 37 轮结案（断言纠正，`d2fff47`）：unholy 段要求 techLevel==0，而发放走 spawnRuntimeUnholyAllianceMcvs（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。改为数据推导条件 + 反向控制；整链路首过 option semantics。",
+      "root_cause": "待证三种：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空或类型被装配期过滤 ②发放走了但 owner 判成对方 ③techLevel/建造前提挡在发放入口。三种改法相反，先读一次数。",
+      "value": "高：解开它 = 真遭遇战取证（M-13）+ 第 12 条回归（S-17）+ UI 对账 4 条 + S-08 读数，共 8 条共用同一道门。",
+      "cost": "低：一处只读打印 + 一次运行；不改产品行为。",
+      "roi": "A",
+      "complexity": "简单",
+      "attempts": 1,
+      "status": "done",
+      "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
+      "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
+      "thread": "skirmish-option-semantics"
     }
   ]
 }
