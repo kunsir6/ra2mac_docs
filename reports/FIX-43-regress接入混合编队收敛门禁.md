@@ -128,3 +128,25 @@ S-22 的验收条件是第 41 轮写下的两句，本轮**没有**改动它（�
   在当前源码不可编译窗口（并发 WIP）里做等于盲改。
 - 放弃「把 regress 扩到 14 条」：第 13 条已经证明「接上就红」，再加一条红只会把门禁的信号稀释。
   先把已接的两条（`command` / `compactgroups`）变成可持续的信号，再谈扩面。
+
+## 七、dist 门禁读数（本轮未重编，重装配）
+
+源码仓库零提交 ⇒ 两个切片与上一轮逐字节相同（lipo 输出 sha256 与旧 `build-universal` 一致），
+但对用户可见的包仍按 §十二 全链重跑一遍，确保双击到的是 HEAD。
+
+```
+77e75e7 2026-11-15T03:14:11 regress=pass11/known2/new0 arch=arm64+x86_64 minos=12.0
+icon=96.2 rosetta=rc0 pack=reused-slices(slices-built-2353/2354) wip=concurrent(11 entries in tree)
+```
+
+| 门禁 | 读数 |
+|---|---|
+| `lipo -archs`（包内二进制） | `x86_64 arm64` ✅ |
+| `vtool -show-build` 两切片 minos | arm64 `12.0` / x86_64 `12.0` ✅ |
+| `Info.plist:LSMinimumSystemVersion` | `12.0`（与上两者一致，pack-dist 第 ⑦ 步硬门禁已过）✅ |
+| `arch -x86_64 … --smoke-test`（Rosetta 验交叉切片） | `rc=0` ✅ |
+| pack-dist 自身门禁 | `displayName=尤里红警` / `id=org.concord.rts.yuri` / icon `diff-vs-generic=96.2/255`（>8）/ 包内 `--smoke-test rc=0` ✅ |
+
+**为什么不是「重新构建」**：`ninja -n` 仍要求 1,642 目标全量（并发会话改 `cmake/PlatformApple.cmake`
+触发 cmake 重配）。本轮源码零改动，重编不会让包更接近 HEAD，只会把 11 项未提交 WIP 全部烘进去，
+可追溯性更差。切片时间 `2353/2354` 与上一轮相同，`wip=` 标记照旧写着并发 WIP 的存在。
