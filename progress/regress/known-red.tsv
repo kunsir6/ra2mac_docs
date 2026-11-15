@@ -9,3 +9,4 @@
 # 2026-11-11 EVO-02 分诊后不再有 triage-pending；分诊表见 reports/EVO-02-红基线分诊.md
 # 新增 RED-NEW 时**不要**直接往这里塞——先看日志，确认不是自己弄坏的。
 command	第 24 轮修掉出舱 blocked 档：工人不是被重叠重定位推走，而是「取消入场恢复」（recoverRuntimeCancelledStructureEntry）把站在自己炼油厂地基里的矿工用半径 6 搜索搬到空地——离场 Move 的目标格因墙圈未开而不可达（path=0 即刻完成），目标还会被兜底改回自己脚下，于是被当成失败的入场。改为奴隶矿工的身体由任务步负责（Returning/Stored/SeekingOre 都不恢复）后，blocked 档转绿。现阻塞：runRuntimeSlaveMinerSmokeProbe 后续段「workers did not dig, carry full loads and deposit credits」（digging=1 carrying=0 cargo=4 credits=0——读数会随树变，见 AUDIT-46 §三.5），属另一段夹具，与本轮改动无关。该段自第 13 轮起从未被执行到	code-red:needs-metering	slave miner: workers did not dig, carry full loads and deposit credits
+vehiclepass	M-25 的产品缺陷本身（不是夹具问题）：载具走向只站友军步兵的格时被当硬阻挡。判据 2026-11-14 由并发会话写就，第 58 轮才随 782e194 进 HEAD 并接入门禁。M-25 主线已判 blocked（三次负结果，见 reports/FIX-50 §四），本条在修复前恒红；它的价值是两个：①锁住「空地必须可走」的对照组（夹具一坏先红这一支）②M-25 修好时自动转绿、前缀可注销。	code-red	vehicle pass-through failed: vehicle refuses a cell occupied only by friendly infantry

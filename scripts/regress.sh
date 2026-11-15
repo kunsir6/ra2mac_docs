@@ -42,7 +42,7 @@ usage() {
 ConcordRTS 回归编排器
   --only id[,id]   只跑指定用例（core menu loading skirmish attest render
                    interaction command build campaign result skirmishbuild
-                   compactgroups）
+                   compactgroups vehiclepass）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
   --out <dir>      指定输出目录（默认 progress/regress/<时间戳>）
   -h               本帮助
@@ -326,6 +326,15 @@ run_case compactgroups 120 "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1" "--comm
 # 编码漂开不会编译报错，只会在联机时以「对面拒收」出现。0.07 秒跑完，
 # 失败文案是「Multiplayer snapshot v15 smoke: memory=… canonical=… 」逐项 yes/no。
 run_case multiplayer 120 ""                                      "--multiplayer-snapshot-v15-smoke-test"
+# 第 15 条（S-24，第 58 轮）：载具穿友军步兵。M-25 是用户实测确认的 S 级缺陷
+# （「看着有空地却彻底过不去」），判据 2026-11-14 就写好了，但一直只活在一份
+# **未跟踪**的 .inl 里 —— 未跟踪文件接进门禁，干净树重建后会以别的文案红出来，
+# 制造永久假 cause-changed，所以 S-24 从第 47 轮挂到第 57 轮。第 58 轮把 .inl
+# 纳入版本库（782e194）后才允许接线。
+# 判据是格级的：同一辆车对「空地」必须可走（对照组，夹具坏了先红这一支），
+# 对「只站友军步兵的格」修复前应为可走。接上时它本来就是红的 → 按 known-red
+# 登记，前缀钉住 `friendlyInfantryCell=0` 这一行；M-25 修好后转 PASS 并注销前缀。
+run_case vehiclepass 120 "CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1" "--command-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
