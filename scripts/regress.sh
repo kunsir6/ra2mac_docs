@@ -90,24 +90,43 @@ case "${DIRTY_N:-}" in ''|*[!0-9]*) DIRTY_N=0 ;; esac
 BIN_VER=$("$BIN" --version 2>/dev/null)
 COMPILED_RAW=""
 ARCH_RAW=""
+BUILT_RAW=""
 while IFS= read -r vline; do
   case "$vline" in
     "compiled: "*) COMPILED_RAW=${vline#compiled: } ;;
+    "built: "*)    BUILT_RAW=${vline#built: } ;;
     "arch: "*)     ARCH_RAW=${vline#arch: } ;;
   esac
 done <<< "$BIN_VER"
+# S-37：判定必须用 built（二进制落盘时刻），不许用 compiled（版本 TU 编译时刻）。
+# 增量构建不重编那个 TU，第 63 轮实测落后 3.7 小时而报告头一声没吭。
+BUILT_EPOCH=0
+case "${BUILT_RAW:-}" in
+  ''|unknown) ;;
+  *) BUILT_EPOCH=$(LANG=C date -j -f "%Y-%m-%dT%H:%M:%S" "$BUILT_RAW" +%s 2>/dev/null) ;;
+esac
+case "${BUILT_EPOCH:-}" in ''|*[!0-9]*) BUILT_EPOCH=0 ;; esac
+# 兜底：老二进制没有 built 行时退回 stat mtime（同一件事，只是绕开自报）
+if [ "$BUILT_EPOCH" -eq 0 ]; then BUILT_EPOCH=$BIN_EPOCH; fi
 COMPILED_EPOCH=0
 case "${COMPILED_RAW:-}" in
   '') ;;
-  *) COMPILED_EPOCH=$(LANG=C date -j -f "%b %e %Y %H:%M:%S" "$COMPILED_RAW" +%s 2>/dev/null) ;;
+  *) COMPILED_EPOCH=$(LANG=C date -j -f "%b %e %Y %H:%M:%S" "${COMPILED_RAW%% (*}" +%s 2>/dev/null) ;;
 esac
 case "${COMPILED_EPOCH:-}" in ''|*[!0-9]*) COMPILED_EPOCH=0 ;; esac
 
 SRC_LABEL=$HEAD_SHA
 WIP_NOTE=""
-if [ "$COMPILED_EPOCH" -gt 0 ] && [ "$HEAD_CT" -gt 0 ] && [ $((COMPILED_EPOCH - HEAD_CT)) -gt 5 ]; then
+# 两向都要判（S-37「只查一侧」第三次）：
+#  ① 树脏 → 二进制里必然含未提交改动（旧口径用 compiled 反推，靠的是「TU 恰好被重编」这个巧合）
+#  ② 二进制早于 HEAD 提交时刻 → 它不可能含 HEAD，报告结论不能归给这个 hash
+if [ "$DIRTY_N" -gt 0 ]; then
   SRC_LABEL="$HEAD_SHA+WIP"
-  WIP_NOTE="被测二进制编译于 $(date -r "$COMPILED_EPOCH" +%Y-%m-%dT%H:%M:%S)，晚于 HEAD 提交时刻 ${HEAD_ISO} 约 $((COMPILED_EPOCH - HEAD_CT))s —— 它含未提交改动，本报告的结论不能直接归给 $HEAD_SHA"
+  WIP_NOTE="工作区 dirty=$DIRTY_N 个文件，被测二进制含未提交改动 —— 本报告的结论不能直接归给 $HEAD_SHA"
+fi
+STALE_NOTE=""
+if [ "$BUILT_EPOCH" -gt 0 ] && [ "$HEAD_CT" -gt 0 ] && [ $((HEAD_CT - BUILT_EPOCH)) -gt 60 ]; then
+  STALE_NOTE="被测二进制 built=$(date -r "$BUILT_EPOCH" +%Y-%m-%dT%H:%M:%S) 早于 HEAD 提交时刻 ${HEAD_ISO} 约 $((HEAD_CT - BUILT_EPOCH))s —— 它不含 ${HEAD_SHA}，先重建再谈结论"
 fi
 DIST_WARN=""
 for app in "$ROOT"/dist/*.app; do
@@ -149,10 +168,11 @@ fi
 echo "== ConcordRTS 回归 =="
 echo "   bin     $BIN"
 echo "   sha256  $BIN_SHA   mtime=$BIN_MTIME   size=$BIN_SIZE"
-echo "   source  $SRC_LABEL   提交 $HEAD_ISO   dirty=$DIRTY_N   compiled=${COMPILED_RAW:-unknown}   arch=${ARCH_RAW:-$BIN_ARCH}"
+echo "   source  $SRC_LABEL   提交 $HEAD_ISO   dirty=$DIRTY_N   built=${BUILT_RAW:-unknown}   arch=${ARCH_RAW:-$BIN_ARCH}"
 echo "   data    $DATA"
 echo "   out     $OUT"
 [ -n "$WIP_NOTE" ] && echo "   警告    $WIP_NOTE"
+[ -n "$STALE_NOTE" ] && echo "   警告    $STALE_NOTE"
 [ -n "$BUILD_WARN" ] && echo "   警告    构建树状态不是 clean（跑 build-health.sh 看全貌）：$BUILD_WARN"
 [ -n "$DIST_WARN" ] && echo "   警告    $DIST_WARN"
 echo
@@ -350,8 +370,9 @@ MD=$OUT/report.md
 {
   printf '# 回归结果 %s\n\n' "$STAMP"
   printf -- '- 二进制 `%s`\n- sha256(前16) `%s`   mtime `%s`\n- 数据根 `%s`\n' "$BIN" "$BIN_SHA" "$BIN_MTIME" "$DATA"
-  printf -- '- 源码 `%s`（提交时刻 %s）工作区 dirty=%s  被测二进制自报 arch=%s compiled=%s\n' "$SRC_LABEL" "$HEAD_ISO" "$DIRTY_N" "${ARCH_RAW:-?}" "${COMPILED_RAW:-unknown}"
+  printf -- '- 源码 `%s`（提交时刻 %s）工作区 dirty=%s  被测二进制自报 arch=%s built=%s  compiled(下界)=%s\n' "$SRC_LABEL" "$HEAD_ISO" "$DIRTY_N" "${ARCH_RAW:-?}" "${BUILT_RAW:-unknown}" "${COMPILED_RAW:-unknown}"
   [ -n "$WIP_NOTE" ] && printf -- '- 警告：%s\n' "$WIP_NOTE"
+  [ -n "$STALE_NOTE" ] && printf -- '- 警告：%s\n' "$STALE_NOTE"
   [ -n "$BUILD_WARN" ] && printf -- '- 警告：构建树状态不是 clean：%s\n' "$BUILD_WARN"
   [ -n "$DIST_WARN" ] && printf -- '- 警告：%s\n' "$DIST_WARN"
   printf '\n| 用例 | 结果 | 耗时 | 证据 | 已知原因 |\n|---|---|---|---|---|\n'

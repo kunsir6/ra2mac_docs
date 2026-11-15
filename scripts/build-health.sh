@@ -71,16 +71,23 @@ probe() {
   rm -f "$log"
 
   local state=clean note=""
+  # 分母必须是**图里所有目标数**，不能用 ninja 进度行的 `[3/3]` 右半边——那是「本次剩余」，
+  # 只改一个 TU 时它也是 [2/2]，于是「待办 2/2 超过 30%」每次增量都成立，告警等于噪声（R64 实测）。
+  local graph=0
+  graph=$("$NINJA" -C "$SRC/$dir" -t targets all 2>/dev/null | wc -l | tr -d ' ')
+  case "${graph:-}" in ''|*[!0-9]*) graph=0 ;; esac
   if [ "$rc" -ne 0 ]; then
     state=CORRUPT; note="ninja -n 自身退出码 $rc：$last"
   elif [ "$trunc" -gt 0 ]; then
     state=CORRUPT; note=".ninja_deps 截断（$trunc 行告警）→ 加 -d explain 可直接看脏因"
-  elif [ "$total" -gt 0 ] && [ $((todo * 100)) -gt $((total * 30)) ]; then
-    state=WARN; note="待办 $todo/$total 超过 30%，但没有截断告警"
+  elif [ "$total" -gt 0 ] && [ "$todo" -ge "$total" ] && [ "$total" -gt 200 ]; then
+    state=CORRUPT; note="待办看起来是全量（$todo/$total）→ 先查 .ninja_deps 再决定是否重编"
+  elif [ "$graph" -gt 0 ] && [ $((todo * 100)) -gt $((graph * 30)) ]; then
+    state=WARN; note="待办 $todo/$graph 超过 30%，但没有截断告警"
   elif [ "$todo" -eq 0 ]; then
     state=clean; note="no work to do"
   else
-    state=clean; note="增量 $todo/$total"
+    state=clean; note="增量 $todo/$graph"
   fi
 
   printf '  %-22s %-8s %s\n' "$dir" "$state" "$note"
