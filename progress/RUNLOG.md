@@ -1082,3 +1082,38 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   重复代码 **136/3**（HEAD 146/13 → 回冻结基线 140/5 以内）。
 - regress：`PASS=14 KNOWN-RED=2 RED-NEW=0` / 16 条（23:06:16）。构建树两目录 clean。
 - 下轮（63）：S-36 的 8 型 grep 级判定（可能让 campaign 门禁变红，单独 `test:` commit）；或 S-08 帧诊断出口解耦。
+
+## 2026-11-16 第 63 轮（修复轮）
+
+- 轮型：**修复轮**（无 brake、无在办 attempts≥3、腐烂预算未触发〔R62 净增 −137〕、距 AUDIT-61 两轮）。
+  主目标 M-03 / ON-2-06 世界 idle 空转重绘。**结论是负结果**，按 `§七`（根因假设被实测推翻）把剩余
+  时间转成重排。报告 `reports/FIX-63-空转重绘的根因假设被推翻.md`。
+- **S-08 结案**：三行读数一直在 `ConcordRTS-GameData/local_data/performance/latest.txt`（真会话 226 秒、
+  7492 帧、`复用 13 / 重绘 7479 / 最长连续复用 1`、33 次/秒、`renderMs=16`）。卡它 18 轮的不是技术，
+  是 DoD 写「等一次真开局」却没写**产物落在哪个路径**——门开了没人去看。这条口径已写进本表。
+- **删了什么（`25b6c53`，+14/−1）**：`RuntimeShell.cpp` 里
+  `advanceRuntimeUiPresentation(state); if (tickAdvanced) { state.repaintRequested = true; }`
+  ——100 行之前已经有 `if (simulationChanged || waterWakeChanged)` 的细判据，这处无条件兜底把它整体作废，
+  而 `reuseCachedFrame` 的第一项条件就是 `!repaintRequested`。保留两处兜底：对战分支每拍重绘
+  （画面由桥接泵提交，改动面在别的 TU）、本机分支每 30 拍强制重绘一次（漏报改动最坏延迟 1/3 秒）。
+- **假设被推翻**：同一探针（`--skip-main-menu --skip-skirmish-menu`，起窗后 18s 采
+  `top -l 2 -stats cpu -pid`）改前 **21.1%** / 改后 **20.8%**，两两截图不同（未冻帧）。
+  真来源是 `simulationChanged` 的语义——它汇总的是**模拟侧**变化（effects/economy/triggers/动画 tick/移动），
+  对战里 AI 一直在动所以每拍为真；**模拟变了 ≠ 画面变了**。M-03 的签名门必须建在「画了什么」上。
+  三条候选未定量：①动画计时器每拍递增而 SHP 帧号按 delay 才变 ②位姿亚格内推进落在同一像素
+  ③`continuousRuntimeFrame` 每帧都 Invalidate（`reuseCachedFrame` 为真也要 blit）。
+- **拿不到的那一档**：本轮能自动造出的场景只有带 AI 的那种，而「人静置（无单位移动）」才是该省的一档；
+  Accessibility 未授权、合成键鼠被丢，不能按键暂停 → 这一档的读数本环境做不出来，M-03 判「假设被推翻 + 新假设未定量」，
+  **不是已修复**。
+- 质量四数：源码净增 **+13**；`RuntimeShell.cpp` **90,633**（+13）/ 42,542（0）/ 31,056（0）；
+  断言 0 vs 产品 +13；TODO 0。regress `PASS=14 KNOWN-RED=2 RED-NEW=0`（00:19:01，16 条逐条不变）。
+- 清单：208 行 / 39 条 / 62KB / 十三项（提交后）全绿；主线账目补 **M-03（2 轮 / 2 子项，在办）**，
+  「仍在办的主线：无」改掉了——上一轮那句其实从 R61 起就不再成立。
+- dist：`25b6c53 2026-11-16T00:22:41 regress=pass14/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+  rosetta=rc0 pack=incremental+lipo-universal buildtree=clean wip=none round=R63`。
+  arm 2:36 / x86_64 2:28 / lipo+签名+pack 约 1 分钟。
+- 用时约 75 分钟（00:11→01:26）：**探索占了 35 分钟**（先按「最省的一处兜底」假设去定位，再为「怎么自动量」
+  试了 interaction / skirmishbuild 两种冒烟——都不落诊断文件）。教训：这个仓库的帧诊断只对**窗口会话收尾**
+  落盘，任何「自动量 paint 数」的设想都要先验「跑完会不会写文件」。
+- 下轮（64）：优先挑一条能产出用户可观察行为的（`U-20` 载入画面地图预览 / `U-21` 主菜单右侧小屏 / `U-23` shroud 羽化）；
+  M-03 只许先补「画面签名 vs 实际像素」逐帧对账；S-36 是现成的伴生中等项。

@@ -14,17 +14,22 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 62 轮，2026-11-15）收口摘要 —— 清偿轮**
-> 1. 轮型：清偿轮（`§五.2` 腐烂预算 + 比例闸 2.0× 触发）。源码 `897de11` 一处删除，本表结构性压缩。
-> 2. **删了什么**：`RuntimeShell.cpp` 的战役动作类型白名单重复实现（−140/+3）。同一份事实被维护两处，
->    case 集已漂开 8 型；删后 `--campaign-smoke-test` 输出逐字不变。
-> 3. **本表压缩**：八段「主线整体收口判定」共 199 行 → `## 四、主线账目` 一张 9 行表（原文进
->    `reports/archive/fix-plan-mainlines-202611.md`）。表里同时给出两级计数，排队先查它。全文 377→197 行。
-> 4. **S-35 结案 + 口径纠正**：dup-scan 报的「三份」实为 2 份动作白名单 + 1 份事件白名单。残留（coverage
->    侧多声明 8 个执行侧未实现的类型）拆出 **S-36**，等价替换。
-> 5. **下轮起手**：R63 按 `§五.2` 已清偿完，可开修复轮；`§四.2` 建议先做 S-34（README 回归现状改生成）+ 一条 S 级。
+> **本轮（第 63 轮，2026-11-16）收口摘要 —— 修复轮（负结果，按 `§七` 转重排）**
+> 1. 轮型：修复轮。主目标 M-03 / ON-2-06 空转重绘；**结论是负结果**，报告
+>    `reports/FIX-63-空转重绘的根因假设被推翻.md`。
+> 2. **S-08 结案**：`performance/latest.txt` 的三行读数一直在（真会话 226s / 7492 帧），
+>    `复用 13 / 重绘 7479`、33 次/秒、`renderMs=16`。卡它的是 DoD 写「等一次真开局」却没写产物路径。
+> 3. **删了什么**：`RuntimeShell.cpp` 里「tick 推进即置 repaintRequested」的无条件兜底（+14/−1，`25b6c53`），
+>    它把 100 行之前 `simulationChanged || waterWakeChanged` 的细判据整体作废。保留对战分支每拍重绘 +
+>    本机每 30 拍强制重绘兜底。
+> 4. **假设被推翻**：同一探针静置 18s，CPU **21.1% → 20.8%**（噪声），截图未冻帧。
+>    冗余不在兜底，而在 `simulationChanged` 的语义——它汇总的是**模拟侧**变化，对战里每拍都为真。
+>    M-03 的签名门必须建在「画了什么」上，不是「模拟变了什么」。
+> 5. **下轮起手**：M-03 只许先补「画面签名 vs 实际像素」的逐帧对账，不许直接改 `continuousRuntimeFrame`；
+>    优先挑一条能产出用户可观察行为的条目（`U-20`/`U-21`/`U-23`）。
 
 > **历史收口摘要索引（一行一轮，原文见 `reports/fix-plan-archive.md`）**：
+> R62 清偿：战役动作白名单去重（−140/+3，`897de11`）+ 主线账目段 199 行压成 9 行表，登记 S-36｜
 > R61 审计：EVO 主线判 done（②③ 移 deferred）+ S-24 补判 done + 重复代码首次可复现归因（`e29e63c`）｜
 > R60 M-26 伞兵下落中可选：真因是 `cleanRuntimeSelection()` 每拍踢出选中，不是命中框（`e382dae`）｜
 > R59 清单自证：`refs-in-queue`（S-32）照出 M-25 根因报告从未入库 + 交付说明书三处事实过时（S-33）｜
@@ -38,7 +43,7 @@
 
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | attempts | 状态 | 验收条件 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | `tickAdvanced` 直接置 `repaintRequested`；**`reuseCachedFrame` 早已算出并传进 `recordRuntimeCompletedFrameDiagnostics`，但只用于把绘制阶段记 0，从未累加**。第 35 轮查明「有仪表无读数」的结构原因：出口 `writeRuntimeFrameDiagnosticsReport` 只被 `runRuntimeWindowSession` 收尾调用（`RuntimeShell.cpp:90368`），且 `sessionFrames==0` 直接 return | 中：M-03 的唯一基线 | 低：出口已存在，只差一次真会话（被 M-30 挡） | **B** | 简单 | 1 | **待修复**（`cf1903b` 仪器已装、离线探针验过。**第 56 轮审计复查**：重开条件①「M-30 绿后跑一次真开局」自 R38 就成立〔`skirmishbuild` 进 regress，rc=0、objects 14→38〕、M-30 已 `d2fff47` 结案——门开了 18 轮没人回写；剩余真活=把出口拆成 `flushRuntimeFrameDiagnosticsReport()` 供无窗口路径调） | `performance/latest.txt` 出现「复用帧/重绘帧/最长连续复用帧」三行且与实际相符 | `reports/FIX-35-帧诊断记复用与重绘.md` §一、`reports/AUDIT-35.md` §三.3 |
+| S-08 | 世界重绘只读计量 | 帧循环每 tick 无条件 `InvalidateRect`+`UpdateWindow`，不知多少次真改画面 | `tickAdvanced` 直接置 `repaintRequested`；**`reuseCachedFrame` 早已算出并传进 `recordRuntimeCompletedFrameDiagnostics`，但只用于把绘制阶段记 0，从未累加** | 中：M-03 的唯一基线 | 低：出口已存在 | **B** | 简单 | 1 | **已完成（第 63 轮判）**：`ConcordRTS-GameData/local_data/performance/latest.txt`（2026-11-15 20:42，真会话 226s/7492 帧）已有「复用缓存帧 13 / 重绘帧 7479 / 最长连续复用帧 1」，与 33 次/秒、`renderMs=16` 自洽。出口对**窗口会话**有效，`sessionFrames==0` 的早退只挡冒烟路径 | `performance/latest.txt` 出现三行且与实际相符 | `reports/FIX-35-帧诊断记复用与重绘.md` §一、`reports/FIX-63-空转重绘的根因假设被推翻.md` §一 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 | S-24 | 载具穿步兵冒烟未进门禁 | M-25 的判据已存在且现在红（`vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`），但 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件 | 门禁接线的前置是「被测冒烟在 HEAD 里」；未跟踪文件接进门禁，干净树重建后该环境变量消失 → 退回跑主档，以别的文案红出来，制造永久假 `cause-changed` | **A**：M-25 是用户已确认的 S 级缺陷，判据有了却不每轮跑，等于修完也可能静默退化 | 低：.inl 进 HEAD 后加一条 `run_case`（0.4s）+ 转绿前的 known-red 前缀 | **A** | 简单 | 0 | **已完成（第 61 轮补判）**：前置「`.inl` 进 HEAD」已随 R58 `782e194` 成立，regress 第 15 条 `vehiclepass` 在跑且红项带前缀门禁（`known-red 2 条，0 条无前缀`）。**注意**：done 指「判据进了门禁」，M-25 的产品缺陷仍在，靠前缀兜住 | regress 出现第 14 条 `vehiclepass`；接上时若红则登记前缀，M-25 修好后转 PASS 且前缀可注销 | `reports/FIX-43-regress接入混合编队收敛门禁.md` §六 |
@@ -54,7 +59,7 @@
 | # | 标题 | 现象 | 根因假设 | 收益 | 成本 | 性价比 | 复杂度 | attempts | 状态 | 验收条件 | 关联报告 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | EVO-07 | 首次启动引导 + dmg 分发（**R54/R55 主目标，第 56 轮审计补行**） | 包发给别人后三问答不上：数据树放哪、这算哪一版、怎么装；无数据树时 `--smoke-test` 仍 rc=0 | 身份只活在**包外**（`dist/BUILD-STAMP.txt`），包一拷走判据就断；pack-dist 查了 id/icon/minos/包内 smoke，**唯独没查「plist 与包内二进制是否同一版」**；②③ 要新开 AppKit 模态面，本项目不调 `sendEvent`、Accessibility 未授权 → 交互路径本环境不可验证 | **A**：交付物能自证「我是哪一版、数据在哪」 | 四段式：①`--version`+包内 BUILD-INFO（已交 `9477056`）④dmg+说明书入库（已交 `10013d1`/`b4672b5`）；②About ③数据根提示各需一处新模态面 | **A** | 中等 | 2 | **已完成（第 61 轮整体收口，分段交付）**：①④ 交付且有门禁（`pack-dist ⑨` 逐包断身份）；②③ 判据缺失（本项目不调 `sendEvent`）→ 移 `progress/deferred.md`，**重开条件 = C-01 落地后**。未做的行为差异与代价见 AUDIT-61 §六 | ②About 三字段上屏后与 `--version` 一致；③把数据根移走后双击出现可读提示、选目录后能继续启动 | `reports/AUDIT-61.md` §六、`reports/FIX-54-版本身份自证与打包链新门禁.md`、`reports/FIX-55-dmg分发与说明书入库.md` |
-| M-03 | 世界 idle 空转重绘 | 静止时也每 tick 全量重绘，CPU/功耗浪费 | `tickAdvanced` 直接置 `repaintRequested`，缓存复用被判据本身短路 | 中：功耗与风扇 | 场景签名门（tick+相机+对象位姿帧号+选中集+资源+遮罩版本），每 30 帧强制重绘兜底 | **B** | 复杂 | 0 | 待修复（方案已写；**必须先有 S-08 读数**，漏字段的后果是冻帧） | 静止 3 秒内提交帧数下降 ≥80% 且画面无冻帧 | 同上 §3 |
+| M-03 | 世界 idle 空转重绘 | 静止时也每 tick 全量重绘：真会话 7492 帧里 7479 帧重绘、33 次/秒、`renderMs≈16ms` | 原假设「`tickAdvanced` 无条件置 `repaintRequested` 是来源」**第 63 轮被实测推翻**：删掉那处兜底后静置 CPU 21.1%→20.8%（噪声）。真来源是 `simulationChanged` 的语义——它汇总**模拟侧**变化（effects/economy/triggers/动画 tick/移动），对战里每拍为真，不等于画面变。三条候选未定量：①动画计时器每拍递增但 SHP 帧号按 delay 才变 ②位姿亚格内推进落在同一像素 ③`continuousRuntimeFrame` 每帧都 Invalidate | 中：功耗与风扇 | 场景签名门必须建在「画了什么」（对象位姿帧号+动画帧号+相机+选中集+遮罩版本），每 30 拍强制重绘兜底 | **B** | 复杂 | 2 | **待修复（第 63 轮假设被推翻，`§七`）**：下一步只许先补「画面签名 vs 实际像素」逐帧对账拿到比例，不许直接改 `continuousRuntimeFrame` | 静止 3 秒内提交帧数下降 ≥80% 且画面无冻帧（人静置档，本环境造不出，需录像比对） | `reports/FIX-63-空转重绘的根因假设被推翻.md` §二 |
 | M-04 | 提交节奏对齐显示刷新 | 帧提交与 60Hz 不同步，偶发丢帧/撕裂 | 用定时器而非 display link | 中：画面平滑度 | 接 CVDisplayLink | **B** | 中等 | 0 | 待修复 | 连续 600 帧间隔抖动 <2ms | `reports/ON-2-02a-呈现节奏计量与主人帧修复.md` |
 | M-05 | 尤里复仇战役未接入 | 战役菜单只有基础版 ra2 任务 | 战役数据库只装了 ra2 的 mission 表 | 中高：资料片内容缺失 | 数据层接入 + 校验 | **B** | 中等 | 0 | 待修复 | YR 战役列表与 retail 任务数一致且能开局 | `reports/Q-04-RA2与YR拆分盘点.md` |
 | M-06 | 日志与崩溃现场落地 | 崩溃后没有现场，只能靠重跑 | 无统一日志出口 | 中：排障效率 | 日志出口 + `--collect-diagnostics=<zip>` | **C** | 中等 | 0 | 待修复 | 人为崩溃后 zip 里含日志与栈 | — |
@@ -92,8 +97,9 @@
 | S-回归门禁 | 4/4（S-22 / S-23 / S-24 / S-25 移出） | 3（R43/44/47） | **done** | `compactgroups` 接入并首跑即照出真红（S-23）；代价：command 链尾 19 步仍零覆盖 | FIX-47 |
 | unit-behavior | 4/4（M-25 blocked、M-26 done、M-28 移出、S-28 blocked） | 3（R48~50） | **blocked** | 三次尝试全是负结果（R44 否决面 / R48 判别式问了落位时刻 / R49 接缝零触发）；还缺 `advanceRuntimeMoveBehavior` 终局否决读数，而改动点正是并发 WIP 的 `RuntimeSessionWorld.cpp` | FIX-50 |
 | 清单治理 | 2（S-14 / S-27） | 2（R25/R50）+ R59 重开 1 轮（S-32） | **done** | 十三项门禁只保证**形状**不保证**内容**——S-27 交付两周材料自相矛盾，门禁一条没报；形状门禁替代不了审计轮 | FIX-26 / AUDIT-51 / FIX-59 |
+| M-03 空转重绘 | 2/4（S-08 done、M-03 attempts 2） | 2（R63 + S-08 计量轮） | **在办** | 第 1 轮（删兜底）假设被推翻，剩余三条候选来源未定量；下一轮只许补逐帧对账，不许再猜第四处代码。到 3 轮无产品行为变化即按 `§六.5` 换赛道 | FIX-63 |
 
-**仍在办的主线：无。** M-25 / S-28 / C-02i / EVO-07 ②③ / M-28 全在 `progress/deferred.md`，重开条件写在那里。
+**仍在办的主线：M-03 空转重绘（2 轮 / 2 子项）**。其余 M-25 / S-28 / C-02i / EVO-07 ②③ / M-28 全在 `progress/deferred.md`，重开条件写在那里。
 **已满额、不许再开第 5 个子项**：C-02（9）、unit-behavior（4）、S-回归门禁（4）、skirmish-mode-rules（4）。
 
 
@@ -136,6 +142,7 @@
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 63 | 2026-11-16 | 修复（负结果，`§七` 重排）：删掉压住细判据的重绘兜底（`25b6c53`），静置 CPU 21.1%→20.8% 证明**假设错**；S-08 结案（读数一直在） | `reports/FIX-63-空转重绘的根因假设被推翻.md` |
 | 62 | 2026-11-15 | 清偿：战役动作白名单去重（S-35，−140/+3）；fix-plan 八段主线收口 199 行 → 9 行账目表；登记 S-36 | `reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md` |
 | 61 | 2026-11-15 | 审计：EVO 主线判 done（②③ 移 deferred）、S-24 补判 done、重复代码首次可复现归因（`--ref` 复跑） | `reports/AUDIT-61.md` |
 | 60 | 2026-11-15 | M-26 结案：伞兵下落中**可选**（用户定口径）。真因是 `cleanRuntimeSelection` 每拍删 `ParadropDrop`，不是命中框错位；命令锁保留，regress 接第 16 条 `paradropsel` | `reports/FIX-60-伞兵下落中可选.md` |
