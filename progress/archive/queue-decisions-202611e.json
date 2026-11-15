@@ -1,0 +1,15 @@
+[
+ {
+  "round": 63,
+  "date": "2026-11-16",
+  "type": "修复轮（负结果）",
+  "lines": [
+   "轮型：修复轮。主目标 M-03/ON-2-06，结论是负结果，按 §七（根因假设被实测推翻）转重排。",
+   "删掉 RuntimeShell.cpp 里「tick 推进即置 repaintRequested」的兜底（25b6c53，+14/−1）：它把 100 行前 simulationChanged||waterWakeChanged 的细判据整体作废；保留对战分支每拍重绘 + 本机每 30 拍强制重绘。",
+   "读数没动：同一探针静置 18s，CPU 21.1%→20.8%，两两截图不同（未冻帧）→ 兜底不是冗余来源。",
+   "真来源：simulationChanged 汇总的是模拟侧变化，对战里每拍为真，不等于画面变。M-03 的签名门必须建在「画了什么」上。",
+   "S-08 结案：读数一直在 latest.txt（复用 13/重绘 7479），卡住它的是 DoD 没写产物路径。",
+   "regress 16 条 14/2/0 逐条不变；dist 25b6c53 universal，rosetta rc=0。"
+  ]
+ }
+]

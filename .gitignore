@@ -16,3 +16,7 @@ __pycache__/
 # 回归每轮产物：20 秒可重建，不入库（数字进 RUNLOG；基线判据是 known-red.tsv + 脚本本身）
 progress/regress/*/
 
+
+# 最近一次回归的一行汇总（S-34）：每次跑 regress 都会变，同 progress/regress/*/ 不入库。
+# 说明书里那段由打包时现场生成；克隆出来的树没有它 → 写「未生成」，不会抄旧数字。
+progress/regress/latest.txt
