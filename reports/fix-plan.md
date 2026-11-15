@@ -14,20 +14,19 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 50 轮，2026-11-15）收口摘要 —— 清偿轮（§零.3 attempts≥3 + §六.5 换赛道）**
-> 1. 轮型：清偿轮。M-25 attempts=3 且子项 4/4 已满 → 同时执行 §六.3② **整体收口判定**，判 **blocked**。
-> 2. **上轮结论**：M-25 定稿为「S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层」，并把接缝从寻路结果侧改到移动推进侧。
-> 3. **本轮变化**：主目标 **S-27 留存策略**——`regress.sh` 每天首跑 + 最近 20 次、`pack-dist.sh` `.archive` 留 5 个；
->    实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak` 堆积
->    （14 份 1.4GB→189MB），并把 (c)(d) 两步固化成新脚本 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。
->    **合计释放 7.3GB**，回归前后均 `12/1/0` 零 RED-NEW。
-> 4. **S-28 未做**（理由写进报告 §一）：调用点在 `RuntimeSessionWorld.cpp:27776`（并发会话 678 行 WIP），
->    arm 侧 `ninja -n` 要 1642 目标全量（`.ninja_deps` 截断），两次迭代吃掉本轮 20 分钟。
-> 5. 质量四数：源码净增 **0**；90,652 / 42,542 / 31,050 三文件**全持平**；断言 0 / 产品 0；TODO 0。
-> 6. 清单九项全绿（299 行 / 34 条 / 5 类）；`decisions_2026*` 14 键归档 12 键，留 R48/R49/R50。
-> 7. dist：HEAD 未变（`8e62b4d`），复用两切片重新 lipo + pack，stamp 标 `pack=reused-slices`。
-> 8. **下轮起手（第 51 轮）= 审计轮**（AUDIT-46 后满五轮）。审计后候选：M-27（侧栏等级星，从未实现，B/中等）、
->    EVO-07（数据根缺失提示 + About，A/中等）——两条都与并发 WIP 无交集。
+> **本轮（第 51 轮，2026-11-15）收口摘要 —— 审计轮（§零.4，AUDIT-46 后整五轮）**
+> 1. 轮型：审计轮。产品代码零改动、零断言、源码仓库零提交。报告 `reports/AUDIT-51.md`。
+> 2. **上轮结论**：S-27 留存策略落地（释放 7.3GB）；unit-behavior 主线判 blocked（4/4 子项、产品行为 0 次）。
+> 3. **本轮变化（头条）**：**blocked 不是「完毕」，是「等一个条件」——而条件开了没人回头**。11 条 blocked 里
+>    **6 条的等门条件已在上游轮次满足**（U-19/U-20/U-21/U-23 的真实开局门 R38 就开了；S-08/EVO-06 的 ①M-30 已 R37 绿）。
+>    另查出 3 处账目错误：S-27 在计划里仍写「待修复」而报告已交付、已完成清单尾部两条重复、1 条引用不在 HEAD。
+> 4. 质量四数（自 AUDIT-46 起 4 轮）：源码净增 **+14**（`8e62b4d` 单文件），另 3 轮零源码提交；
+>    90,652 / 42,542 / 31,050 三文件持平；断言 0 / 产品 +14；TODO 0。近 60 提交 test:30/fix:11 = **2.73×**（AUDIT-46 3.10×）。
+>    **近 5 轮 test:0 / fix:1 → §八.3 比例闸首次解除**，下轮起可以新增断言。
+> 5. 清单：fix-plan 343 行 / queue 61KB / 34 条 / 5 类；门禁 **九项 → 十项**（新增 `refs-head`：引用必须落在 docs HEAD 里）。
+> 6. dist：HEAD 未变（`8e62b4d`），复用两切片重新 lipo + pack（见报告 §六 的「包与 HEAD 之间隔着 678 行 WIP」风险）。
+> 7. **下轮起手（第 52 轮）**：产品行为轮，取 **M-27（侧栏等级星，从未实现）** 或 **EVO-07（数据根提示 + About）**；
+>    两轮内不要再排基建/可观测性（比例闸刚解除，窗口应该给产品行为）。
 
 ---
 
@@ -39,7 +38,6 @@
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 | S-24 | 载具穿步兵冒烟未进门禁 | M-25 的判据已存在且现在红（`vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`），但 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件 | 门禁接线的前置是「被测冒烟在 HEAD 里」；未跟踪文件接进门禁，干净树重建后该环境变量消失 → 退回跑主档，以别的文案红出来，制造永久假 `cause-changed` | **A**：M-25 是用户已确认的 S 级缺陷，判据有了却不每轮跑，等于修完也可能静默退化 | 低：.inl 进 HEAD 后加一条 `run_case`（0.4s）+ 转绿前的 known-red 前缀 | **A** | 简单 | 0 | **blocked**（前置=.inl 进 HEAD） | regress 出现第 14 条 `vehiclepass`；接上时若红则登记前缀，M-25 修好后转 PASS 且前缀可注销 | `reports/FIX-43-regress接入混合编队收敛门禁.md` §六 |
-| S-27 | 回归产物与旧交付包没有保留策略 | `progress/regress` 148 个目录 **3.4GB**（单次 26MB，每轮 3~5 次）；`dist/.archive` 34 个旧包 **3.2GB**（单个 96MB）。两者都不入库，也不在任何门禁里 | `regress.sh` 每次新建时间戳目录、`pack-dist.sh` 每次把旧包移入 `.archive`，两处只写不删；`ledger-check.sh` 只管文本账不管磁盘账 | **C**：不影响用户，只吃本机磁盘（约 130MB/轮 + 96MB/次打包） | 低：`regress.sh` 收尾保留最近 20 次 + 每天首跑；`.archive` 保留最近 5 个。≤10 行 | **C** | 简单 | 0 | 待修复（第 46 轮登记；**只作清偿轮伴生小项，不许单独成轮**） | 连跑 25 次 regress 后目录数 ≤22 且最近一次产物仍在；重复打包 6 次后 `.archive` ≤5 个包且最新包仍登记在 LaunchServices | `reports/AUDIT-46.md` §三.6 |
 
 ## 二、待修复 —— 中等
 
@@ -64,7 +62,7 @@
 | C-01 | 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]` → cursor rect 全失效、`isActive/isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 改主循环 + 回归全部输入断言 | **A** | 复杂 | 0 | 待修复 | 真实鼠标移到按钮上时 cursor 变化、`isKeyWindow` 为真 | `reports/U-12-*`（见 MEMORY「不调 sendEvent」） |
 | C-03 | 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高：存读档可用性 | 高 | **B** | 复杂 | 0 | 待修复 | 存→推进 300 拍→读，两次 simulation hash 相等 | — |
 | C-04 | 全屏原生分辨率渲染 | 呈现表面跟随窗口而不是放大 800x600 | U-14 已把客户区尺寸交给游戏，剩余是表面重建与缩放策略 | 中：全屏清晰度 | 中高 | **B** | 复杂 | 0 | 待修复（U-14 吃掉一半） | 全屏下 view 尺寸 >1600px 时 surface 尺寸同比，单位像素尺寸不变 | `reports/U-14-全屏等于更大视口.md` |
-| M-25 | 载具被友军步兵挡死（看着有空地却过不去） | 几个步兵站在一起后，载具**彻底**过不去（用户实测确认，不是减速）。判据 `vehicle pass-through` 现红：`emptyCell=1 friendlyInfantryCell=0` | 通行判定最后一支 `!runtimeCanEnterAndCrushCell` 对同阵营恒否 → 友军步兵格在寻路层等价于一堵墙（步兵有子格分支所以不受影响）。**第 44 / 48 轮两次实测**：只解除寻路否决会打红 `12E1_2MTNK_tank_first`（`arrival_timeout`），因为落位阶段没有任何让位或回填；第 48 轮再试「只放行停着的步兵」仍在同一处红——判别式在**规划时刻**问了**落位时刻**的性质 | **A**：用户实测的操作阻塞感，直接决定「这一脚开不开得过去」 | 高：必须两半同时上——①通行放行 ②commit 前挤压（`findRuntimePassableCellNear` 半径 1~2）+ 分配器按兵种分层目标格 | **B** | 复杂 | 3 | **blocked**（第 50 轮 §六.3② 整体收口：三次尝试全为负结果——R44 解除否决/R48 只放行停着的步兵/R49 接缝零触发；子项 4/4 已满，禁开第 5 个。重开条件见 `progress/deferred.md` 的 S-28 段） | `friendlyInfantryCell=1` **且** `compactgroups` 13/13 **且** `regress.sh` 零 RED-NEW，三条同时成立 | `reports/M-25-载具被友军步兵挡死-根因与否定.md`、`reports/FIX-48-M-25挤压缺位移-读数与重排.md`、`reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md`、`reports/FIX-50-留存策略与M-25主线收口.md` |
+| M-25 | 载具被友军步兵挡死（看着有空地却过不去） | 几个步兵站在一起后，载具**彻底**过不去（用户实测确认，不是减速）。判据 `vehicle pass-through` 现红：`emptyCell=1 friendlyInfantryCell=0` | 通行判定最后一支 `!runtimeCanEnterAndCrushCell` 对同阵营恒否 → 友军步兵格在寻路层等价于一堵墙（步兵有子格分支所以不受影响）。**第 44 / 48 轮两次实测**：只解除寻路否决会打红 `12E1_2MTNK_tank_first`（`arrival_timeout`），因为落位阶段没有任何让位或回填；第 48 轮再试「只放行停着的步兵」仍在同一处红——判别式在**规划时刻**问了**落位时刻**的性质 | **A**：用户实测的操作阻塞感，直接决定「这一脚开不开得过去」 | 高：必须两半同时上——①通行放行 ②commit 前挤压（`findRuntimePassableCellNear` 半径 1~2）+ 分配器按兵种分层目标格 | **B** | 复杂 | 3 | **blocked**（第 50 轮 §六.3② 整体收口：三次尝试全为负结果——R44 解除否决/R48 只放行停着的步兵/R49 接缝零触发；子项 4/4 已满，禁开第 5 个。重开条件见 `progress/deferred.md` 的 S-28 段） | `friendlyInfantryCell=1` **且** `compactgroups` 13/13 **且** `regress.sh` 零 RED-NEW，三条同时成立 | （另有并发会话一份未跟踪的 M-25 分析，未入库故不链接）、`reports/FIX-48-M-25挤压缺位移-读数与重排.md`、`reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md`、`reports/FIX-50-留存策略与M-25主线收口.md` |
 
 ---
 
@@ -247,15 +245,30 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 
 ---
 
+## 附六、清单治理 主线：整体收口判定（第 51 轮，判 **done**）
+
+**账目**：2 个子项 / 2 轮，**S-14**（`ledger-check.sh` 五项门禁，第 25 轮）、**S-27**（留存策略，第 50 轮）均已交付。
+本轮把门禁补到**十项**（新增 `refs-head`：fix-plan 里 `reports/*.md` 引用必须落在 docs HEAD 内），
+补的正是「本地有、干净树没有」这一类——R50 把那条未跟踪引用记成「悬空引用」但没法治，因为旧检查判的是工作区。
+
+**判 done 的依据**：这条线要的是「清单自己会量自己、超限当场拦」，十项门禁覆盖体量/结构/字段/引用/磁盘，已成立。
+**代价（写清）**：它只保证台账**形状**正确，不保证**内容正确**——S-27 交付两周材料互相矛盾（计划写待修复、
+队列写 pending、报告写已落地），十项门禁一条都没报。形状门禁替代不了审计轮的人工对账，别再想加门禁来解决。
+
+**新增纪律（AUDIT-51 起）**：`blocked` 条目的「重开条件」每**审计轮**逐条复查一次——条件开了就回 `pending`，
+不许挂着当免死金牌。第 51 轮首次执行，查出 11 条里 6 条的门早已开了（见 `reports/AUDIT-51.md` §五）。
+
+---
+
 ## 七、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-**S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）
+**S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）
 
-更早 7 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g / **M-22 游戏模式规则从归档读取**）正文已压回
+更早 9 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g / **M-22 游戏模式规则从归档读取** / 炮塔炮管共享几何 `04e366d` / 动画层四副本收一份 `1563d7a`）正文已压回
 `reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径（第 49 轮归档 M-22，等价替换新增的 S-28）。
 
 **第 30 轮审计遗留**：原 12 条 queue-only 条目缺根因与成本。**第 34 轮已全部清零**——但实测是
@@ -272,6 +285,7 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 51 | 2026-11-15 | 审计：11 条 blocked 里 6 条的等门条件早已满足（没人复查）；S-27 交付后两侧未回写；门禁九→十项（`refs-head`） | `reports/AUDIT-51.md` |
 | 50 | 2026-11-15 | 清偿：留存策略落地（regress 每天首跑+最近 20 次、`.archive` 留 5 个，释放 6.1GB）；unit-behavior 主线判 blocked | `reports/FIX-50-留存策略与M-25主线收口.md` |
 | 49 | 2026-11-15 | 方案：M-25 的挤压原语必须先于通行放行；M-25 attempts=3，拆出前置 S-28（unit-behavior 第 4/4 子项） | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` |
 | 48 | 2026-11-15 | 重排：M-25 的「只放行停着的步兵」判别式被 `tank_first` 打红——规划时刻问不了落位时刻的性质；M-25 改判复杂 | `reports/FIX-48-M-25挤压缺位移-读数与重排.md` |

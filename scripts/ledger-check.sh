@@ -97,5 +97,21 @@ else
   printf 'LEDGER-BREACH  runlog 缺失：%s\n' "$RUNLOG"; fail=1
 fi
 
+# 9. 引用可追溯（第 51 轮加）：fix-plan 里的 reports/*.md 必须落在 docs HEAD 里。
+#    旧做法判的是「工作区里有没有这个文件」，于是并发会话的未跟踪报告一路绿灯——
+#    别人 clone 之后那些链接全是 404。第 50 轮把它记成「悬空引用」但没法治，根因就是判据选错了树。
+#    代价：新增报告在提交前必然 BREACH（HEAD 里还没有）。收口顺序固定为「先 commit 报告，再跑本门禁」。
+refs_missing=$(cd "$ROOT/ra2mac_docs" && python3 - <<'PY'
+import re, subprocess
+plan = open('reports/fix-plan.md', encoding='utf-8').read()
+refs = [r for r in sorted(set(re.findall(r'`(reports/[^`]+\.md)`', plan))) if '*' not in r]
+tracked = set(subprocess.run(['git', '-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only', 'HEAD'],
+                             capture_output=True, text=True).stdout.split('\n'))
+bad = [r for r in refs if r not in tracked]
+print(len(bad), ','.join(bad[:3]))
+PY
+)
+check refs-head "${refs_missing%% *}" 0 " 条引用不在 HEAD"
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail
