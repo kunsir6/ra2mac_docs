@@ -800,3 +800,28 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   与「兜底换了格子」从不联合出现；落位冲突发生在载具**真的往那一格推进**时。S-28 的正解接缝是
   `advanceRuntimeMoveBehavior`（`RuntimeSessionWorld.cpp:27776`）。改法 +96/−1 整文件回退，S-28 attempts=1。
   **这条否定同时是 R44/R48 两次失败的真因：判据放错了阶段，不是判别式不够窄。**
+
+## 第 50 轮（2026-11-15，清偿轮）
+
+- 轮型：**清偿轮**。两条触发同时成立：①§零.3「存在 attempts≥3 的条目」= M-25(3)、子项 4/4 已满；
+  ②§六.5「深水区连续 2 轮无产品行为变化 → 第 3 轮强制换赛道」= R48(重排) / R49(方案)。**源码仓库零提交**（HEAD 仍 `8e62b4d`）。
+- **主目标 S-27 留存策略落地**：`regress.sh` 新增 `prune_regress_outputs()`（每天首跑 + 最近 20 次），
+  `pack-dist.sh` 新增 `prune_archive()`（`.archive` 留最近 5 个）。实测目录 **157→25（3.5GB→516MB）**、
+  包 **42→5（3.6GB→481MB）**，**合计释放 6.1GB**。删除只对严格匹配 `YYYYMMDD-HHMMSS` 的目录生效，
+  同目录的 `known-red.tsv` 不碰；`.archive` 里的包早已注销 LaunchServices，删掉不参与图标/名字解析。
+- **S-28 未做（写清理由，不是跳过）**：`advanceRuntimeMoveBehavior`(World.cpp:27776) 与
+  `setRuntimeObjectCell`(:13057) 都在并发会话 **678 行 WIP** 的 `RuntimeSessionWorld.cpp` 里；
+  且 `ninja -n` 要 **1642 目标全量**（`.ninja_deps` 尾部截断），单次 4~5 分钟，两次迭代吃掉本轮 20 分钟。
+- **unit-behavior 主线判 blocked**（§六.3②）：三次尝试全为负结果（R44 解除否决 / R48 只放行停着的步兵 /
+  R49 接缝零触发），指向同一结构事实——**前提在别人的 WIP 里**。S-28 移出 `progress/deferred.md`，
+  重开条件=①World.cpp 无并发 WIP ②先落一条「谁是终局否决」的只读读数。禁开第 5 个子项。
+- 清单：queue **74KB→63KB**、35 条、5 类。`decisions_2026*` 14 键 → 归档 12 键到
+  `progress/archive/queue-decisions-202611.json`（与 R42 归档 RUNLOG 同族的历史只增不减问题），只留 R48/R49/R50。
+- 体检：九项全绿；发现 **1 处悬空引用**——fix-plan 的 M-25 行引用 `reports/M-25-载具被友军步兵挡死-根因与否定.md`，
+  该文件是并发会话的**未跟踪**文件（不在 HEAD），未代提交。
+- 质量四数：源码净增 **0**；90,652 / 42,542 / 31,050 三文件**全持平**；断言 0 / 产品 0；TODO 0。
+- 回归：基线 `20261115-103004`、收口 `20261115-103452`，均 **12/1/0**，`command` 前缀逐字未变。
+- dist：HEAD 未变 ⇒ 复用两切片重新 lipo + pack-dist，
+  stamp `8e62b4d … regress=pass12/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 pack=reused-slices wip=concurrent(11)`。
+- 操作坑（本轮新增）：`bash regress.sh | head -12` 会因 SIGPIPE 把脚本在打印头部后**直接杀掉**，
+  留下的目录里只有 `results.tsv` 没有 `report.md`——判「这轮跑完了没」要看 `report.md` 是否存在，不要只看目录在不在。

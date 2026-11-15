@@ -1,0 +1,145 @@
+{
+ "decisions_20261113_r30": {
+  "round": 30,
+  "type": "audit",
+  "summary": "清单体检：46→35 条，修 2 条状态矛盾，归档 11 条（6 已结案 + 5 被取代），12 条未估值条目显式标「禁排序」",
+  "findings": [
+   "queue root/repo 指向不存在的 ai-project（已改回 AiProjects）",
+   "C-02g/C-02i 与 fix-plan 状态矛盾（已按 fix-plan 为准修正）",
+   "12 条 pending 从未估值：root_cause/cost 为空 → 按 §一.4 不许进排序"
+  ]
+ },
+ "decisions_20261114_r36": {
+  "round": 36,
+  "type": "repay",
+  "summary": "清偿轮：炮塔/炮管与动画层解析两族克隆收口（净增 −103），登记 S-20，3 组同构代码判「不合并」并写清理由",
+  "findings": [
+   "审计连续两轮列着 7 组产品侧同构代码没动：它们大多不是克隆而是已漂开的分叉，判据必须是逐行 diff 而不是 25 行窗口命中。",
+   "清偿轮的价值不在删了多少行，在于「哪些看着重复其实不能合」被写下来——否则下一轮还会再查一遍。",
+   "两份 wire codec 的漂移点之一是 require() 的下溢写法：防御性差异当前不可达，但会在合并时变成真正的行为差异。"
+  ]
+ },
+ "decisions_20261114_r37": {
+  "round": 37,
+  "type": "修复轮",
+  "main": "M-30 结案（断言纠正 d2fff47）+ 读档残留特效（产品修 e32136b，读数 379f06b）",
+  "threads": {
+   "skirmish-option-semantics": "done（M-29+M-30，无真产品缺陷）",
+   "persistence-roundtrip": "新开，1 轮 / 1 子项 M-31"
+  },
+  "regress": "10/1/0（20261114-171407）",
+  "gate": "比例闸仍在：本轮 test: 2 / fix: 1，下轮不许新增断言"
+ },
+ "decisions_20261114_r38": [
+  "第38轮（修复轮）：M-31 判夹具侧——v14 行为记录 16 字段带 moveSegmentFrom，改 Version=10 后仍不合 v9~v13 的 12 字段闸门；降版本时截断记录，整条遭遇战链路首次 rc=0。",
+  "S-17 落地：regress 第 12 条 skirmishbuild，PASS=11 KNOWN-RED=1 RED-NEW=0（12 条）。",
+  "M-13 结案（判据由第 12 条长期满足）；persistence-roundtrip 主线判 done（2 轮/1 子项）。",
+  "线索：command 那条 known-red 与真开局读数矛盾（同一二进制 slaveMiner 进账 $625）→ 下轮按夹具侧重取证，重估 C-02i。"
+ ],
+ "decisions_20261114_r39": {
+  "round": 39,
+  "type": "repay",
+  "summary": "清偿轮（§8.3 比例闸：近 5 轮 test:3 / fix:1 = 3.0×）：删两处 mac 侧一次性阶段探针（净增 −27），并写下四处「看着该删其实不能删」",
+  "findings": [
+   "探针挂在某个探针字段上，不等于该字段只为此存在：RuntimeMainFrameContract 仍在用 failSceneAllocation 做 fallback 注入，删的是打印不是能力。",
+   "产品侧逐字重复的静态函数本轮扫描为 0 组（1031 个 .cpp/.inl/.mm，函数体归一化后精确哈希）——剩下的同构全是已漂开的分叉，与第 36 轮结论一致。",
+   "三份 tools/diagnostics/{s33,s41,s43}/VisibleObserver.cpp 只差 9 行，却是各阶段证据工具且不进 CMake：合并会让历史证据不可复现，任何删除都拿不到 smoke 兜底。",
+   "并发会话被中断会把 build-product-arm/.ninja_log 写坏，ninja 报 premature end of file 后静默全量重编 1642 目标，增量构建失效。"
+  ],
+  "regress": "11/1/0",
+  "gate": "本轮 0 条 test: 提交，比例闸压力下降；下轮可新增读数"
+ },
+ "decisions_20261114_r40": {
+  "round": 40,
+  "type": "resequence",
+  "summary": "修复轮按 §七 转「重排」：C-02i/command 的 ①/② 两条候选被同一次读数同时推翻，停摆其实在运动层；源码零改动、HEAD 不变",
+  "findings": [
+   "「对象有行为」被当成「它在被处理」：任务步 RuntimeSessionProduction.cpp:7325-7336 见到 behaviors 里有记录就 return false，交付分支（7339）根本没机会跑——dc=0 db=0 的工人照样不交货。",
+   "Queued 有两个生产者：submitRuntimeMovePathRequest（待解析）与 applyRuntimeMovePathResult 成功分支（已解析）——读数没打 pathRequestPending/path.size() 就没法区分「给了不推进」与「请求没人消费」；能确定的是冷却分支会写成 Blocked，所以这五人不是被冷却挡住的。",
+   "cargo 终态仍是 4，说明交付分支一次都没跑过 —— 「容量吞掉入库」这条候选（②）可以彻底排除，不用再去查 resourceStorageCapacity。",
+   "满载者站在唯一矿格上、另三人的离场目标也是那一格：这是互锁几何，不是某个人的状态机错，所以九个 C-02 子项都在生产侧找不到它。"
+  ],
+  "regress": "11/1/0",
+  "gate": "本轮 0 条 test:/fix: 提交（重排轮不动代码）；比例闸仍为 3.0×，第 41 轮审计轮不写代码，第 42 轮才排那条 behavior.path 读数"
+ },
+ "decisions_20261115_r41": {
+  "round": 41,
+  "type": "audit",
+  "summary": "审计轮：产品零改动、零断言、零源码提交。头条是「重复代码指标三轮三个数」（口径无脚本），第二条是「regress 12 条不覆盖混合编队收敛」（M-25 试改的实测证据）",
+  "findings": [
+   "重复代码窗口 125/139/140 组、产品侧 11/7/5 组——差别不在代码而在口径（同文件 <25 行窗口折叠与否）。逐行复核 5 组后只有 S-20 是真债，其余是 .h/.cpp 声明重叠与 28 行冒烟样板。",
+   "regress.sh 对「混合编队不收敛」这一整类改动是盲的：M-25 试改 11/1/0 不变，而 12E1_2MTNK_tank_first 已经从 PASS 变 arrival_timeout。",
+   "质量四数：近 5 轮净增 +17；Shell 90,626（+150，全在断言段）/ MapRenderer 42,542（−36）/ World 30,794（0）；近 60 提交 test:33/fix:12=2.75×（A35 是 2.36×，继续恶化）。",
+   "dist 未重打：ninja -n 要求全量 1642 目标（并发会话改 PlatformApple.cmake 触发 cmake 重配），重编会把 11 项未提交 WIP 烘进包；现包 stamp 已是 77e75e7 且门禁逐条复核通过。"
+  ],
+  "regress": "11/1/0",
+  "gate": "第 42 轮 = 清偿轮（比例闸 3.0× 强制）；第 43 轮接 S-22 进 regress（不算新增断言，冒烟已存在）；M-25 修法单独成轮先写方案"
+ },
+ "decisions_20261115_r42": {
+  "round": 42,
+  "type": "paydown",
+  "summary": "清偿轮：源码仓库零提交（并发 11 项 WIP 未触碰）。两笔治理债结清——RUNLOG 归档（8,178→640 行）并加第 8 项门禁；S-21 落库 scripts/dup-scan.py，--ref 77e75e7 精确复现 140 组 / 产品侧 5 组。",
+  "findings": [
+   "RUNLOG 之前是清单之外唯一没有门禁的膨胀源（516KB/8,178 行），与 S-14 当年的 fix-plan 同形：没有东西去量的指标一定长成最大一块。",
+   "dup-scan 第一次实现直接 walk 工作区得到 280 组——build-product-*/ 里有生成副本，同一份源码命中两次；改用 git ls-files 回到 140。口径必须写进脚本，否则下轮审计会把假数当「代码变烂」。",
+   "固定步长 10 有别名盲区：RuntimeShell.cpp:50231 与 :52676 前 25 行逐字相同（25/25），偏移 2445 非 10 倍数 → 默认口径漏报；查这类要 --step 1。",
+   "ninja -n 仍要求 1,642 目标全量（并发改 cmake/PlatformApple.cmake 触发重配）；本轮源码零改动 ⇒ 现包仍是 HEAD 产物，dist 未重编。"
+  ],
+  "regress": "11/1/0",
+  "gate": "第 43 轮 = 修复轮，主目标 S-22（regress 接第 13 条，不算新增断言）；M-25 单独成轮先写方案；C-02i 若 R44 前不取数直接移 deferred.md"
+ },
+ "decisions_20261115_r43": {
+  "round": 43,
+  "type": "fix",
+  "summary": "修复轮：regress 第 13 条 `compactgroups` 上线（混合编队收敛进门禁，0.7s/7 场景）。源码仓库零提交、零新增断言。基线 11/1/0 → 收口 11/2/0（13 条，零 RED-NEW）。",
+  "findings": [
+   "第 13 条首跑即红：3MTNK_3SHAD ground_final_not_compact（groundRadius=2，3 格只需半径 1）→ 第 41 轮的「12 条门禁对混合编队是盲的」这句话反过来也成立：接上它就立刻照出一条从未被量的真红。登记 S-23。",
+   "前缀门禁必须把「失败计数」也钉进去。该冒烟的失败文案是 `N failed; 首个失败场景: 原因`，若前缀只写场景名，M-25 那种「tank_first 也挂掉」会变成 2 failed 但仍包含首失败子串 → 判成 KNOWN-RED 静默吞掉。两道负向验证（换场景名 / 只改计数 1→2）都正确报 cause-changed。",
+   "DoD 的「PASS=12」与实际冲突时，正确做法是保留原文并写偏差，不是把断言改软（§八.1）。本轮 PASS 仍 11。",
+   "接入前必须确认冒烟在 HEAD 里：`RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件，所以载具穿步兵那条**没有**接进 regress（否则干净树重建后该环境变量不存在，command 主档会以别的失败文案红出来，制造假 cause-changed）。",
+   "ninja -n 仍报 1,642 目标全量（并发改 cmake/PlatformApple.cmake）；本轮源码零改动 ⇒ dist 不重编，复用两切片重装配。"
+  ],
+  "regress": "11/2/0（13 条：新增 compactgroups 为 KNOWN-RED）",
+  "gate": "第 44 轮 = 修复轮，主目标 M-28（新造工程师/间谍原地晃动，S 级）或 S-23；C-02i 仍未取数 → 按第 42 轮约定移 deferred.md；M-25 修法单独成轮先写方案"
+ },
+ "decisions_20261115_r44": {
+  "round": 44,
+  "type": "fix",
+  "summary": "修复轮：主目标 S-23 根因确认（地面目标格被落地的飞行器占着，1:1 对应），取证永久化进冒烟（+69/−1，单 TU）；登记 S-25（command 链首败即断掩蔽 19 步）；纠正三轮对 ninja 全量的误判（.ninja_deps 尾部截断）。dist 重编。",
+  "findings": [
+   "S-23 根因在落位侧不在分配侧：三层证据（units.csv 的 target 同格、SHAD 终态 airborne=0、ground_target_reclaimed 零触发）。",
+   "分配器不能当修点：冒烟同时要求地面层与空中层都使用中心格，共格是被要求的设计；分离共享会打红 air_target_center_unused = 改软判据。",
+   "『落点≠分配格』不是判据：11MTNK 有 7 台停不进分配格但整体合法。第一版取证没加 groundScattered 闸门直接把 11MTNK 判红——判据必须先问『哪儿才算错』。",
+   "command 链是 60 步短路结构，C-02i 在 54 步 → 后 19 步从未执行；known-red 前缀只钉首条失败，所以尾巴死活没人知道。",
+   "ninja -n 报 1,642 全量的真因是 build-product-arm/.ninja_deps 尾部截断（premature end of file; recovering），不是并发改 cmake；反证=x86_64 同刻 no work to do。全量实测 4:17。这个误判让三轮放弃源码修复。"
+  ],
+  "regress": "11/2/0（13 条，零 RED-NEW；compactgroups 前缀仍命中）",
+  "gate": "第 45 轮 = 修复轮，主目标 S-23 修法 (a)；可先做 S-25 的『把 C-02i 挪到链尾』6 行版作为伴生。**注意 S-回归门禁已到 4 子项上限**（S-22 done / S-23 / S-24 / S-25），按 §六.3 不许再开第 5 个；本轮新增 S-25 用的是 1:1 归档（S-21）的额度，再要加必须先整体收口这条主线。"
+ },
+ "decisions_20261115_r45": {
+  "round": "45",
+  "type": "修复轮",
+  "target": "S-13 结构守卫",
+  "findings": [
+   "完整检查链只有 Windows 版：Run-StructureChecks.ps1 要 pwsh7+clang-cl+CTest；--inventory 由 Get-TestInventory.ps1 生成，--trace 是 configure-trace.jsonl。macOS 上三个产物都不存在 → 守卫从没跑过。",
+   "死条目精确 16 条 / 3 文件：U-15 的两个 Raster 文件 15 条 + 第 39 轮（77e75e7）自删探针 RuntimeScenePaintTrace.inl 1 条。",
+   "口径纠正：例外表 5,267 条按 file 3983 / target 923 / test 345 分三类；首次数成「1,284 条悬空」是把自己的 target:/test: 名字当了路径。1,268 条离线不可验，一个字没动。",
+   "bash 3.2 + set -u：空数组展开 ${a[@]} 报 unbound variable（run.sh 第一版当场踩到）。"
+  ],
+  "kept": "dist 不重编——本轮 commit 全是 Python/JSON，复用并发会话 04:18 的全量重编产物重新 pack，stamp 标 delta=tooling-only",
+  "next": "第 46 轮建议接 S-26 或 S-23 修法 (a)"
+ },
+ "decisions_20261115_r47": {
+  "round": "47",
+  "type": "修复轮",
+  "target": "S-23 飞行器落地礼让地面单位",
+  "findings": [
+   "根因在落位侧，不在分配侧（第 44 轮已钉）：两层按设计共享中心格，落地飞行器把该格变成地面占用。",
+   "落地判定只有一个口 runtimeJumpjetShouldLand；把「静默就不落地」当修法会改坏零售行为（直升机该落），改为「本格被另一地面单位的 Move 目标认领时推迟」。",
+   "compactgroups 13/13 全绿，command 前缀逐字未变，回归 11/2/0 -> 12/1/0。",
+   "收窄：只认 kind==Move，追击/AreaGuard 的落点不参与（已知行为差异，写进 FIX-47 §六）。"
+  ],
+  "kept": "S-24 留 blocked（.inl 仍是并发会话未跟踪文件）；S-25 移 deferred.md；并发 11 项 WIP 一个 hunk 未动",
+  "next": "M-25/M-28 仍被并发会话占着，先看其进度；否则接 S-27（磁盘保留策略，伴生）或 S-08 出口解耦（M-03 前置）"
+ }
+}
