@@ -905,3 +905,25 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   残留半截类头 → 报「member 'ByteWriter' has the same name as its class」。按文本标记切一次过。
 - 下轮（54）：EVO-07 的**无交互两件**（About 版本/架构/构建时间 + dmg）先做；wire 编码的「金样字节」断言
   （要挂 `RuntimeShell.cpp`，等并发 WIP 落地）；U-19/20/21/23 合并一轮取证。
+
+## 第 54 轮（2026-11-15，修复轮）
+- 轮型：修复轮（无 brake / attempts≥3 待结 / 腐烂；距 AUDIT-51 两轮；比例闸已解除）。主目标 **EVO-07 第一步**。源码 1 提交 `9477056`（+73）。
+- **为什么只做一段**：EVO-07 原形态三件（数据根对话框 / About 面板 / dmg），前两件都要新开 AppKit 模态面，
+  本项目不调 `sendEvent`、Accessibility 未授权 → 交互在本环境验证不了，做出来是 §八.4 的未完成。
+  本轮取同一目标里**能自证**的一段：让二进制与包自己说出「我是哪一版」。
+- **根因（两条，都不是「忘了加功能」）**：①身份只存在于**包外**（`dist/BUILD-STAMP.txt`），包一被拷走判据就断；
+  ②`pack-dist.sh` 查了 displayName/id/icon/minos/包内 smoke，**唯独没有「plist 与包内二进制是否同一版」**
+  ——与 `MIN_MACOS` 那课同源：只查一侧，另一侧是盲区。
+- **改法**：`--version` 打印 版本/架构/本 TU 编译时刻 + 读包内 `Contents/Resources/BUILD-INFO.txt`（git hash + 打包时刻 + arch + wip）；
+  pack-dist ③b 写该文件并**重签**（写文件会让 ad-hoc seal 失效）+ `codesign --verify --strict`，
+  ⑨ 断言「包内二进制报的 `package:` 行 == 包内文件」逐字相同，不等即 `exit 1`。
+- 证据：构建产物打印「package: (不在 .app 内，未打包)」；包内 arm64 与 `arch -x86_64` 各自报对架构、
+  同一 package 行；`icon 96.2`、`minos 12.0` 双切片一致、包内 + Rosetta `--smoke-test` rc=0。
+- 质量四数：净增 **+73**；90,715 / 42,542 / 30,794 三文件持平（`RuntimeMain.cpp` 1,091→1,164）；断言 0；TODO 0。
+- 清单：346 行 / 35 条 / 66KB / 5 类，十项门禁全绿。人工体检 2 处：**S-25 状态矛盾**（fix-plan 写「待修复」、
+  deferred 写「第 47 轮已移出」，十项门禁一条都报不出）已从表里删行留指针；EVO-07 改三段式。
+- **本轮新引入的重复（记账，不装没有）**：版本号 `0.1.0` 现在两处常量（`kRuntimeVersion` 与 pack-dist 的 `VERSION`），
+  没有任何门禁能发现只改一处。
+- 下轮（55）：EVO-07 的 dmg（`scripts/make-dmg.sh`；挂载卷验法=取出二进制配 `CONCORD_DATA_ROOT` 跑 smoke，
+  因为挂载卷里没有同级 GameData）；`--version` 进 regress 第 15 条（新增出口没人常跑 = S-25 的形状）；
+  EVO 主线整体收口判定（先答「还剩什么」）。

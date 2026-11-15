@@ -148,6 +148,30 @@ sh "$SRC_REPO/packaging/make-app-bundle.sh" \
     --min-macos "$MIN_MACOS" \
     --icon-source "$ICON_SOURCE"
 
+# ③b 包内版本身份（EVO-07）：把「这个包从哪个 HEAD 装的」写进包内，
+#     让 `concord_runtime --version` 能自己报出来——问「dist 是不是最新」时
+#     不必再回头翻 dist/BUILD-STAMP.txt（包被拷到别的机器上就翻不到了）。
+#     单行，第一个字段与 BUILD-STAMP 的 short-hash 同源。
+APP_ARCHS="$(lipo -archs "$APP/Contents/MacOS/concord_runtime" 2>/dev/null | tr ' ' '+' || echo unknown)"
+PACK_HASH="$(git -C "$SRC_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+PACK_DIRTY=""
+if [ -n "$(git -C "$SRC_REPO" status --porcelain 2>/dev/null | head -1)" ]; then
+    PACK_DIRTY=" wip"
+fi
+PACK_LINE="$PACK_HASH $VERSION $(date '+%Y-%m-%dT%H:%M:%S') arch=$APP_ARCHS$PACK_DIRTY"
+printf '%s\n' "$PACK_LINE" > "$APP/Contents/Resources/BUILD-INFO.txt"
+# 往包里写文件会让 make-app-bundle.sh 的签名失效（ad-hoc 也带 seal），必须重签，
+# 否则别的机器上 `codesign --verify --strict` 会报 "a sealed resource is missing or invalid"。
+codesign --force -s - "$APP" >/dev/null 2>&1 || {
+    echo "pack-dist: 写 BUILD-INFO.txt 后重签失败" >&2
+    exit 1
+}
+codesign --verify --strict "$APP" >/dev/null 2>&1 || {
+    echo "pack-dist: 重签后 codesign --verify --strict 不过" >&2
+    exit 1
+}
+say "buildinfo $PACK_LINE"
+
 # ④ 让系统重新认识这个包。只 -f 注册新包还不够：旧登记会继续服务图标查询，
 #    所以先按 id 清一遍，再注册。
 "$LSREGISTER" -f "$APP" >/dev/null 2>&1 || true
@@ -263,6 +287,18 @@ say "min-macos ${DECLARED_MIN}（plist 与 $(echo "$ARCH_LIST" | tr ' ' '+') 的
     exit 1
 }
 say "smoke     --smoke-test rc=0"
+
+# ⑨ 验证 E：包内身份自证（EVO-07 的 DoD）——二进制自己报出来的版本行，
+#    必须与包内 BUILD-INFO.txt 逐字相同。这一步专门防「包换了、里面的二进制没换」
+#    与「plist 说 0.1.0、二进制是另一份」这两类静默错配。
+VERSION_LINE="$("$APP/Contents/MacOS/concord_runtime" --version 2>/dev/null | sed -n 's/^package: //p')"
+[ "$VERSION_LINE" = "$PACK_LINE" ] || {
+    echo "pack-dist: 包内 --version 的 package 行与 BUILD-INFO.txt 不一致" >&2
+    echo "  --version : ${VERSION_LINE:-<空>}" >&2
+    echo "  buildinfo : $PACK_LINE" >&2
+    exit 1
+}
+say "version   --version package 行与 BUILD-INFO.txt 一致"
 
 echo "== 完成 =="
 say "app       $APP"
