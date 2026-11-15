@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": "v160",
- "updated": "2026-11-15T14:39+08:00",
+ "version": "v161",
+ "updated": "2026-11-15T16:20+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -216,16 +216,16 @@
   {
    "id": "EVO-07",
    "title": "首次启动引导 + dmg 分发：数据根缺失给可读提示，About 显示版本/架构/构建时间",
-   "detail": "ON-1-02 现在是「打印搜索过的路径」，命令行看得懂，双击 .app 的人看不懂。改成 AppKit 对话框：说明缺什么、给「选择目录」与「退出」。另加 dmg 打包（dist/ 两份 thin 产物分别出），About 面板显示版本、架构、构建时间，均从二进制内嵌常量读，避免与产物对不上。",
+   "detail": "三段执行（第 54 轮拆分，不许当成「一条做完」）：①**版本身份（已交付 `9477056`）**：`--version` 打印版本/架构/编译时刻 + 读包内 `Contents/Resources/BUILD-INFO.txt`（git 短 hash + 打包时刻），pack-dist 新增第 ⑨ 门禁断言「二进制报的行 == 包内文件」，专防「包换了、里面没换」。②About 面板：把这三字段画到屏幕上，属新开 AppKit 面。③数据根缺失对话框：说明缺什么 + 选目录/退出，属新开 AppKit 模态面。②③在本环境验证不了交互（不调 sendEvent + 无 Accessibility 授权），须单独出方案。④dmg：文档里写的是「dist/ 两份 thin 产物分别出」，实际已是 universal 单包——口径要一并改。",
    "root_cause": "ON-1-02 只打印搜索过的路径，命令行看得懂、双击 .app 的人看不懂；About 与 dmg 从未实现",
    "value": "S：双击 .app 是用户第一触点，数据根缺失现在是静默失败",
    "cost": "中：AppKit 对话框（说明+选目录+退出）+ dmg 脚本 + 内嵌版本常量，约 1 轮",
    "roi": "A",
    "complexity": "中等",
-   "attempts": 0,
+   "attempts": 1,
    "status": "pending",
    "verify": "把数据根移走后双击 .app 弹出可读提示，选目录后能继续启动；dmg 挂载→拖入 Applications→双击能玩；About 三字段与 sha256/mtime 实测一致。",
-   "report": "",
+   "report": "reports/FIX-54-版本身份自证与打包链新门禁.md",
    "thread": "EVO 进化（能玩之后）"
   },
   {
@@ -560,7 +560,7 @@
   }
  ],
  "decisions": {
-  "note": "只留最近 4 轮决策（32/33/34/35）；历史 9 轮见 queue-archive-202611.json 的 decisions_* 段。",
+  "note": "只留最近 4 轮决策（51/52/53/54）；历史见 queue-archive-202611.json 的 decisions_* 段与 decisions_2026* 键。",
   "recent": [
    {
     "round": 32,
@@ -682,5 +682,17 @@
   ],
   "kept": "并发 WIP 11 文件（RuntimeShell.cpp +41 / World.cpp +282 等）零触碰；多机对战 match setup 侧仍只有不在 regress 的冒烟覆盖（第 14 条只兜 snapshot 半边）；共享 codec 的「金样字节」断言未做（要挂 WIP 文件）",
   "next": "R54 先做 EVO-07 的无交互两件（About 版本/架构/构建时间 + dmg，可用读常量+hdiutil 验证）；EVO-07 弹窗部分单独出方案；U-19/20/21/23 合并一轮取证"
+ },
+ "decisions_20261115_r54": {
+  "round": 54,
+  "date": "2026-11-15",
+  "type": "修复轮（主目标 EVO-07 第一步：版本身份）",
+  "target": "dist 拷到别的机器上以后无法回答「这是哪一版」",
+  "findings": [
+   "身份只存在于包外：判「dist 是否最新」一直靠 dist/BUILD-STAMP.txt，而它是包外的旁挂文件——包一被拷走，判据就断。",
+   "pack-dist 查了 displayName/id/icon/minos/包内 smoke，唯独没有「plist 与包内二进制是否同一版」这条断言：与 MIN_MACOS 那课同源，只查一侧，另一侧是盲区。",
+   "往已签名的包里写文件会让 ad-hoc seal 失效，必须重签并用 codesign --verify --strict 兜住，否则别的机器上才炸。",
+   "「版本号可读」不值得为它全量重编 1652 个目标（4:17）：hash 走包内文件而不是编译定义。"
+  ]
  }
 }
