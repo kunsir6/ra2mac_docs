@@ -823,5 +823,10 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 回归：基线 `20261115-103004`、收口 `20261115-103452`，均 **12/1/0**，`command` 前缀逐字未变。
 - dist：HEAD 未变 ⇒ 复用两切片重新 lipo + pack-dist，
   stamp `8e62b4d … regress=pass12/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 pack=reused-slices wip=concurrent(11)`。
+- **第三处同类膨胀**：打包链第 (c) 步的 `build-universal/*.bak-*` 也没有保留策略，5 天堆了 14 份 / 1.4GB。
+  本轮清到只留最新 1 份（**1.4GB→189MB**），并把 (c)(d) 固化成 `scripts/lipo-universal.sh`：
+  备份（保留最近 1 份）→ lipo → ad-hoc 重签 → 逐切片校验 minos + `codesign --verify --deep --strict`，
+  任一不符即 exit 1。**这条补的是历史盲区**：人工链条只查 `.app` 的 plist，交叉切片那一半从没验过。
+- 本轮释放合计：3.0GB（regress）+ 3.1GB（.archive）+ 1.2GB（.bak）= **7.3GB**。
 - 操作坑（本轮新增）：`bash regress.sh | head -12` 会因 SIGPIPE 把脚本在打印头部后**直接杀掉**，
   留下的目录里只有 `results.tsv` 没有 `report.md`——判「这轮跑完了没」要看 `report.md` 是否存在，不要只看目录在不在。
