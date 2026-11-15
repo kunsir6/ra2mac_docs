@@ -163,5 +163,20 @@ S-38（脚本手上已有全部数值）、S-39（取证入口一直在）。共
 
 ## 九、dist（十二）
 
-见 `dist/BUILD-STAMP.txt`，收口时由 `pack-dist.sh` 第 ⑫ 步自己写。本轮有 C++ 改动（诊断侧），
-两架构都要重编，arm64 与 x86_64 各一次 + lipo + adhoc 重签。
+```
+755abf2 2026-11-16T06:18:49 regress=pass15/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 buildtree=clean wip=none round=R68
+```
+
+门禁逐条独立复验（不只看 pack-dist 的打印）：
+
+| 门禁 | 结果 |
+|---|---|
+| `lipo -archs` | `x86_64 arm64` |
+| `vtool -show-build -arch {arm64,x86_64}` | 两切片 `minos 12.0` |
+| plist `LSMinimumSystemVersion` | `12.0`（与 minos 一致） |
+| `arch -x86_64 …--smoke-test` | rc=0（Rosetta） |
+| `--version` / BUILD-INFO / plist `source` | 三者同为 `755abf2` |
+| icon vs 无图标空壳 | 96.2/255（阈值 8） |
+| **用包内二进制复跑第 17 条** | `loadingpages PASS`，且两棵树的 bmp 仍为 0 |
+
+最后一条是本轮特意加的：新门禁的**判据**必须能在发布物上跑通，否则它只是一条源码树里的结论。

@@ -1249,3 +1249,6 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 没做：U-19（前置是世界帧；实测 `skirmishbuild` 只打 metadata 行、`attest` 只写日志不落图 →
   **HUD 帧仍无出口**，下轮第一件事是定这个出口的形状）、M-03（只许先补逐帧对账，时间不够，不做一半）。
 - 下轮（69）：M-03 最后一次机会；U-19 先验 `--skirmish-build-smoke-test` 能否出世界帧。
+- dist：`755abf2 2026-11-16T06:18:49 regress=pass15/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+  rosetta=rc0 buildtree=clean wip=none round=R68`。门禁逐条独立复验（lipo/minos/plist/Rosetta/身份三处一致/icon），
+  并用**包内二进制**复跑第 17 条 → `loadingpages PASS`、两棵树 bmp 仍为 0。
