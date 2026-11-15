@@ -882,3 +882,26 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   **dist 里的二进制包含那 41 行**，stamp 已标 `wip=concurrent(11)`——这条风险与 R51 一致，仍未消除。
 - 下轮（53）：EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并一轮真实窗口取证；
   `BUILDING_READY` 子冒烟可接 regress 第 14 条（现绿，约 1.4s）。
+
+## 第 53 轮（2026-11-15，修复轮）
+- 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-51 一轮）。主目标 **S-20**。源码 1 提交 `6efad17`。
+- **偏离计划一处**：R52 写的是「R53 取 EVO-07」。按 §七.3 重估后改做 S-20——EVO-07 要新开 AppKit 模态面
+  （弹窗+选目录），本项目不调 `sendEvent`、Accessibility 未授权，交互路径**本环境验证不了**，做出来只是未验证的 UI。
+  降为复杂/单独成轮先写方案（估表见报告 §六）。
+- **S-20 结案**：两份大端编解码器不是复制品是**已分叉**（文案前缀 / `require` 守卫 / 方法集三处不同）。
+  并成 `network/detail/RuntimeBigEndianCodec.h`：方法取并集、前缀改构造参数 `label` → 既有错误字符串
+  **逐字节不变**（无断言纠正）、`require()` 统一带守卫。净 **−79**（+241/−320）。
+- **原估值被证伪**：「合并必然改错误文案，须先取得改文案窗口」不成立——前缀参数化即可。成本 中→低-中。
+- 等价性：五条对战冒烟（snapshot-v15 / runtime-binding / house-authority / gameplay-authority /
+  authoritative-hash）改动前后输出 `diff` 为空（`IDENTICAL-OUTPUT`）。
+- **新增门禁第 14 条** `multiplayer`（`--multiplayer-snapshot-v15-smoke-test`，0.07s）。此前这条 wire 路径
+  零日常门禁——分叉不会编译报错，只会联机时对面拒收。回归 `13/1/0`，**共 14 条**，`command` 前缀未变。
+- 质量四数：净增 −79；`RuntimeShell.cpp` 90,715 / `RuntimeMapRenderer.cpp` 42,542 / `RuntimeSessionWorld.cpp` 30,794
+  （三者与 R52 持平）；断言 0 组新增；TODO 0。
+- 清单：fix-plan 340 行 / queue 35 条 / 66KB / 5 类；十项门禁全绿；人工体检 2 处已修（S-20 的 report 字段指错、M-23 压档）。
+- dist **更新**：arm 增量（60 目标）→ x86_64 增量（5 目标，1.2s）→ lipo-universal（双切片 minos 12.0）
+  → pack-dist，`6efad17 2026-11-15T14:37:49 regress=pass13/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 pack=incremental+lipo-universal wip=concurrent(11)`。
+- 操作记：按行号切代码块时 `sed -n '19,200p'` 的第一行不是 `class`（`class` 在 18、`public:` 在 19），
+  残留半截类头 → 报「member 'ByteWriter' has the same name as its class」。按文本标记切一次过。
+- 下轮（54）：EVO-07 的**无交互两件**（About 版本/架构/构建时间 + dmg）先做；wire 编码的「金样字节」断言
+  （要挂 `RuntimeShell.cpp`，等并发 WIP 落地）；U-19/20/21/23 合并一轮取证。

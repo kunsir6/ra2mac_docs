@@ -14,18 +14,19 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 52 轮，2026-11-15）收口摘要 —— 修复轮（主目标 M-27）**
-> 1. 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-51 一轮）。报告 `reports/FIX-52-偷星后建造栏补老兵角标.md`。
-> 2. **上轮结论**：11 条 blocked 里 6 条等门条件早已满足，新增「每审计轮复查重开条件」纪律。
-> 3. **本轮变化**：M-27 结案——侧栏建造按钮补上按 owner×类别显示的老兵 chevron（`dba2daf`），
->    判据是逐像素三连比对（基线/拿到奖励/清掉），`appearedPixels=24 restoredDiff=0`（`b08e13c`）。
-> 4. **断言纠正一处**：M-27 原 DoD「给兵营设 `veterancy=2`」不成立——产品没有「建筑身上的等级」，
->    偷星是 `RuntimeSpySystemState` 上的 owner×类别布尔，验收按真实数据模型改判。
-> 5. 质量四数：净增 **+215**（产品 +104 / 断言 +111）；90,715(+104) / 42,542 / 30,794；断言 1 组 / 产品 +104；TODO 0。
-> 6. 回归 `12/1/0` 不变（13 条，零 RED-NEW）；`command` 前缀逐字未变，`compactgroups` 13/13。
-> 7. 清单：fix-plan 341 行 / queue 34 条 / 63KB / 5 类；十项门禁全绿；顺带清掉已完成段尾两条重复。
-> 8. **下轮起手（第 53 轮）**：EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并成一轮真实窗口取证；
->    把 `BUILDING_READY` 子冒烟接成 regress 第 14 条（现在绿，1.4s）。
+> **本轮（第 53 轮，2026-11-15）收口摘要 —— 修复轮（主目标 S-20）**
+> 1. 轮型：修复轮。报告 `reports/FIX-53-对战wire格式两族编解码器收口.md`。源码 1 提交 `6efad17`。
+> 2. **上轮结论**：11 条 blocked 里 6 条的门早已开（AUDIT-51），M-27 已结案。
+> 3. **本轮变化**：S-20 结案——两份**已分叉**的大端编解码器并成 `network/detail/RuntimeBigEndianCodec.h`，
+>    错误文案前缀改成构造参数，**每条既有错误字符串逐字节不变**（原估「合并必然改文案」是错的，成本 中→低-中）。
+>    等价性用五条对战冒烟改动前后输出 `diff` 为空证明；新增 regress **第 14 条** `multiplayer`（0.07s）。
+> 4. **偏离计划一处**：R52 写的是「R53 取 EVO-07」，按 §七.3 重估后改做 S-20，EVO-07 降 **复杂/单独成轮先写方案**
+>    ——不是难，是本环境**验证不了**交互（不调 `sendEvent` + Accessibility 未授权），做出来只是未验证的 UI。
+> 5. 质量四数：净增 **−79**（+241/−320）；90,715 / 42,542 / 30,794 三者持平；断言 0 组新增；TODO 0。
+> 6. 回归 `13/1/0`（**14 条**，零 RED-NEW）；`command` 前缀未变，`compactgroups` 13/13。
+> 7. 清单：fix-plan 340 行 / queue 35 条 / 66KB / 5 类 / RUNLOG 907 行；十项门禁全绿；人工体检 2 处已修（§报告七）。
+> 8. **下轮起手（第 54 轮）**：EVO-07 的**无交互两件**（About 版本/架构/构建时间 + dmg）可先做；
+>    wire 编解码的「金样字节」断言（挂 `RuntimeShell.cpp`，需 WIP 落地后再碰）；U-19/20/21/23 合并一轮取证。
 
 ---
 
@@ -49,7 +50,7 @@
 | M-07 | diagnostics 驱动入口 | 无人值守走不完 菜单→大厅→载入→世界（autostart 钩子已删） | 缺一个脚本化入口 | 中：自动化上限；M-13 同源 | 新增 CLI 驱动 | **C** | 中等 | 0 | 待修复（与 M-13 合并落地） | 一条命令无人值守进到世界并出帧 | — |
 | S-23 | 3 台 MTNK 收在半径 2 而不是 3x3 | 第 13 条 `compactgroups` 里 `3MTNK_3SHAD` 终态 `groundRadius=2`；地面 3 台的目标格 (32,28)/(33,28)/(31,29) 与空中 3 架 SHAD **完全同格**，SHAD 终态 `airborne=0` | **已确认**：落位侧冲突——飞行器到达后落地（airborne 0）重新进入地面占位，压住地面单位的目标格，坦克被兜底挪到最近空格且不回填。`ground_target_reclaimed` 零触发 → 不是「先停再推」。分配器共格是被要求的（两层都必须用中心格），**不是修点** | **A**：这是「编队收得散不散」的唯一在线门禁，修好才有真绿基线 | 中：改落位分支（飞行器静默保持 airborne，或落地避开地面已认领格）；13 场景 0.7s 即时验 | **A** | 中等 | 1 | **已完成（`8e62b4d`，产品修复；第 44 轮定位、第 47 轮实施）** | `3MTNK_3SHAD` 的 `groundRadius=1` 且 `ground_final_cells` 不退化；同批 12 例保持 PASS；known-red 该行可注销 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md`、`reports/FIX-47-飞行器落地礼让地面单位.md` |
 | M-29 | UnholyAlliance 的验收样本是探针自己编的 | 完整链路第一道门 `option semantics ownerFactory=no unholy=no`。读数：模式只授予 9 栋对面**基础建筑**（无电站）；`loadedCatalog=46` 不含任何苏军条目；三台 MCV 走 rules 层而非目录段 | 原样本钉 NAPOWR/YAPOWR，零售模式从不提供该建筑 → 测的是不存在的规则 | 高：S-17 / M-13 的剩余门 | 低：已改完，剩 `unholy` 一段待一条读数 | **A** | 中等 | 1 | **已完成（断言纠正，`225d310`）**：`ownerFactory` 转 yes；第 35 轮 queue 侧对齐 done，剩余 `unholy` 段拆出为 **M-30**（不在本条续命）；不计入已修复 | `ownerFactory=yes` 且 `alliedYardForeign=no / foreignYardForeign=yes`；线段级判据见报告 §三 | `reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md` |
-| S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp:13` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一处带下溢守卫一处不带 ③方法集不同（`writeBool/readBool` vs `writeByteVector/readByteVector/writeArray`） | **A**：两边对敲的 wire format，漂开与分叉同级风险 | 中：新头文件 + 统一错误文案（会碰既有断言文案）+ 加一条两实现对敲的单测 | **A** | 中等 | 0 | 待修复（第 36 轮登记；**必须先取得「允许改错误文案」的窗口**，清偿轮不许顺手改行为） | 一份共享 codec + `CONCORD_*` 双实现等价冒烟：同一字节流两边解码结果逐字段相同 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三 |
+| S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff，R53 复核仍成立）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一侧带下溢守卫 ③方法集不同（`writeBool` vs `writeByteVector/writeArray`） | **A**：两边对敲同一批字节流，漂开与分叉同级风险（无编译错误、无门禁可见） | 低-中（R53 实测）：共享头 + 前缀参数化即可**零文案改动**，一次编译过 | **A** | 中等 | 0 | **已完成（`6efad17`，R53）**：`network/detail/RuntimeBigEndianCodec.h` 取两侧方法并集、`label` 参数保住每条错误字符串逐字节不变、`require()` 统一带守卫；五条对战冒烟前后输出 `diff` 为空；regress 新增第 14 条 | 同一字节流经两条路径的**可观察行为**改动前后逐字节相同 + regress 出现第 14 条 `multiplayer` 并常绿 | `reports/FIX-53-对战wire格式两族编解码器收口.md`（首次登记 `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三） |
 | S-26 | 结构守卫的 inventory/trace 生产者只有 Windows 版 | 第 45 轮查明：`Run-StructureChecks.ps1` 要 `pwsh 7` + `clang-cl` + MSVC 前端 + CTest；`--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。本机两者都没有，所以**完整 scan 一次都没跑过**，1,268 条 `target:`/`test:` 例外也离线不可验 | 取证链整条绑在 Windows 工具链上；守卫本体是纯 Python，被它自己缺失的输入挡住 | **A**：这条不落地，结构守卫的日常价值只有第 45 轮装的两段（夹具自检 + 路径存在性），分层漂移仍无人守 | 中：CMake 在本机本来就能出 file-api codemodel，`ctest --show-only=json-v1` 能给用例注册表——不必照搬 PowerShell，但要对齐 `inventory.tests` 的字段形状 | **B** | 中等 | 0 | 待修复（第 45 轮登记；**不许**为了跑通而放宽 `--baseline` 的 policy） | `bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中） | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` §五 |
 | S-25 | `--command-smoke-test` 首败即断，掩蔽后面 19 步 | `command` 是 60 步链式冒烟，C-02i 在第 54 步；它一红，后续 19 步（factory-exit / air-navigation / missiles / electric-attack / 中立驻军 / 收割机稳定性 / 主机侧十余条）**从未执行** | 结构原因：每步都是「失败即打印并 return 1」；known-red 前缀只钉第一条失败文案，**它稳所以没人发现尾巴是死的** | **A**：19 步在 regress 里目前零覆盖；哪天 C-02i 修好，这 19 步会同时点亮，旧红会以「修完突然红一片」的形态出现 | 中：要动 60 个分支（改成累加失败 + 收尾统一打印 `N failed; 首个`），或先只把 C-02i 挪到链尾（6 行） | **A** | 中等 | 0 | 待修复（第 44 轮登记） | 链尾 19 步每轮真的执行（日志里能看到它们的输出行）；失败汇总改成 `N failed; 首个失败: X` 且前缀钉两个维度 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` §五 |
 | S-28 | **挤压原语**：目标格被友军步兵占着时没人让位 | 载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（`ground_target_unreached`） | **已确认**（R44/R48 两次实测）：缺的不是通行许可，是**让位**。**第 49 轮又否定了一条接缝**：挂在寻路结果侧（`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支）在三条冒烟里零触发 → 必须挂在**移动推进侧**（`advanceRuntimeMoveBehavior`），载具**即将 commit 进格**时判 | **A**：它是 M-25 的**唯一前置**；单独也修「载具被自己步兵堵在终点前」这一类 | 中高：原语可在 `RuntimeSessionNavigation.cpp`（单 TU），但**调用点必须在 `RuntimeSessionWorld.cpp`**——该文件此刻有并发 WIP，开工前先看 `git status` | **A** | 中等 | 1 | **blocked**（第 50 轮随 unit-behavior 主线移出 `progress/deferred.md`；调用点在并发 WIP 的 World.cpp） | **先证可达**：读数 `displace from/to/id` 至少命中一次；**再证不变差**：`compactgroups` 13/13（点名 `12E1_2MTNK_tank_first` / `3MTNK_3SHAD`）+ regress 零 RED-NEW。顺序不许反。**单独落地不接 regress** | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` §三、`reports/FIX-50-留存策略与M-25主线收口.md` §四 |
@@ -265,10 +266,10 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-**M-27 偷星后建造栏补老兵角标（第 52 轮，`dba2daf` + `b08e13c`：奖励早已生效（`applyRuntimeProducedObjectVeterancy` 读 `spies.hasVeteranProduction`），缺的是侧栏绘制点——建造按钮循环从不看 veteran；新增 `runtimeSidebarItemProducesVeterans` + 左下角 chevron（pips 图集，取不到退 `V`），判据为逐像素三连比对 `appearedPixels=24 / restoredDiff=0`。**DoD 改判**：原文「给兵营设 veterancy=2」的数据前提不存在（无建筑级等级），按 owner×类别改判）｜S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）
+**S-20 对战 wire 格式两族编解码器收口（第 53 轮，`6efad17`**：两份「已分叉」的 `ByteWriter/ByteReader` 并成 `network/detail/RuntimeBigEndianCodec.h`，方法取并集、错误文案前缀改构造参数 `label`（既有错误字符串逐字节不变，无断言纠正）、`require()` 统一带守卫；等价性用五条对战冒烟前后输出 `diff` 为空证明；顺带接上 regress 第 14 条 `multiplayer`（0.07s，此前这条 wire 路径零日常门禁）。净 −79 行。`preview-dedupe` 主线随之判 **done**：R36 + R53 共 2 轮 2 子项）｜**M-27 偷星后建造栏补老兵角标（第 52 轮，`dba2daf` + `b08e13c`：奖励早已生效（`applyRuntimeProducedObjectVeterancy` 读 `spies.hasVeteranProduction`），缺的是侧栏绘制点——建造按钮循环从不看 veteran；新增 `runtimeSidebarItemProducesVeterans` + 左下角 chevron（pips 图集，取不到退 `V`），判据为逐像素三连比对 `appearedPixels=24 / restoredDiff=0`。**DoD 改判**：原文「给兵营设 veterancy=2」的数据前提不存在（无建筑级等级），按 owner×类别改判）｜S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）
 
-更早 9 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g / **M-22 游戏模式规则从归档读取** / 炮塔炮管共享几何 `04e366d` / 动画层四副本收一份 `1563d7a`）正文已压回
-`reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径（第 49 轮归档 M-22，等价替换新增的 S-28）。
+更早 10 条（M-23 电脑开局 MCV「不展开」/ S-21 / S-16 / S-15 / S-14 / C-02h / C-02g / **M-22 游戏模式规则从归档读取** / 炮塔炮管共享几何 `04e366d` / 动画层四副本收一份 `1563d7a`）正文已压回
+`reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径（第 53 轮归档 M-23，等价替换本轮结案的 S-20）。
 
 **第 30 轮审计遗留**：原 12 条 queue-only 条目缺根因与成本。**第 34 轮已全部清零**——但实测是
 **16 条**而不是 11 条：审计那 11 条漏了 8 条「fix-plan 条目的队列侧镜像」（`ON-2-06≈S-08`、
@@ -284,6 +285,7 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 53 | 2026-11-15 | 对战 wire 格式两族编解码器收口（S-20）；「合并必然改文案」被证伪，成本 中→低-中；regress 接第 14 条 | `reports/FIX-53-对战wire格式两族编解码器收口.md` |
 | 52 | 2026-11-15 | 偷星后建造栏补老兵角标；M-27 的 DoD 数据前提被改判（无建筑级等级） | `reports/FIX-52-偷星后建造栏补老兵角标.md` |
 | 51 | 2026-11-15 | 审计：11 条 blocked 里 6 条的等门条件早已满足（没人复查）；S-27 交付后两侧未回写；门禁九→十项（`refs-head`） | `reports/AUDIT-51.md` |
 | 50 | 2026-11-15 | 清偿：留存策略落地（regress 每天首跑+最近 20 次、`.archive` 留 5 个，释放 6.1GB）；unit-behavior 主线判 blocked | `reports/FIX-50-留存策略与M-25主线收口.md` |

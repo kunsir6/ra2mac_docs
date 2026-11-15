@@ -260,6 +260,12 @@ run_case skirmishbuild 300 ""                                   "--skirmish-buil
 # 该冒烟 0.7 秒跑 7 个场景，单跑一次即可。失败文案带「N failed; 首个失败场景: 原因」，
 # 所以第 4 列前缀连**计数**和**首个失败场景名**一起钉住：换掉任一个都会判 cause-changed。
 run_case compactgroups 120 "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1" "--command-smoke-test"
+# 第 14 条（S-20，第 53 轮）：对战 wire 格式。snapshot 与 match setup 原本各有一份
+# 大端编解码器（已分叉：文案前缀、require 守卫、方法集三处不同），本轮并成一份
+# `src/network/detail/RuntimeBigEndianCodec.h`。这条路径此前**没有任何日常门禁**——
+# 编码漂开不会编译报错，只会在联机时以「对面拒收」出现。0.07 秒跑完，
+# 失败文案是「Multiplayer snapshot v15 smoke: memory=… canonical=… 」逐项 yes/no。
+run_case multiplayer 120 ""                                      "--multiplayer-snapshot-v15-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
