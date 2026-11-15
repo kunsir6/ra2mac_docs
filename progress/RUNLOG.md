@@ -1124,3 +1124,34 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 提交：src `25b6c53`；docs `2948362`(报告+plan+RUNLOG) / `8d487fe`(queue v168) / 追加一轮
   `docs:`(S-37 报告段+plan 行) + `queue:`(v169)，共 4 个 docs 提交——超了「1~2 个」的红线，
   原因：S-37 是收口后才发现的，不许 amend（`§九.6`）只能追加。
+
+## 2026-11-16 第 64 轮（修复轮）S-37 二进制身份自证补齐两侧
+
+- 轮型：修复轮（无 brake / 无 attempts≥3 在办 / 腐烂未触发 / 距 AUDIT-61 三轮）。
+  主目标 **S-37**；伴生 `build-health.sh` 的分母（同一主目标：门禁自身的假阳性）。
+- **根因比台账写的更前一步**：不是「只查一侧」，是**读错了字段**。`compiled` 取
+  `RuntimeMain.cpp` 一个 TU 的 `__DATE__/__TIME__`，增量构建不重编它 → 它既不能证明「是这版」
+  也不能证明「不是这版」。R56 抓到 678 行 WIP 靠的是「该 TU 恰好在未提交改动里被重编」的巧合。
+- 产品侧（`73be404`，+59/−2）：`--version` 新增 `built:` = 本文件 stat mtime（链接/重签/打包都刷新它），
+  `compiled` 加括注降为下界；取不到打 `unknown`，**不许回退成 TU 时刻冒充构建时刻**。
+- 脚本侧：`regress.sh` 两向判据——树脏由 `git status --porcelain` 直接定义 `+WIP`（不再由时刻反推）；
+  `built` 早于 HEAD 提交 >60s → 警告「它不含 \<hash\>」。报告头与 `report.md` 同步改 `built=… compiled(下界)=…`。
+- **负向验证（先红后绿）**：`touch -t 202611151200.00` 把二进制改旧 + 放一个未跟踪文件 →
+  `source 25b6c53+WIP / dirty=1`，两条警告都打出（44377s）；复原后 `73be404 / dirty=0` 零警告。
+- **伴生小项（负向验证时照出）**：`build-health.sh` 的待办比例分母取的是 ninja 进度行 `[2/2]` 的右半边
+  ——那是「本次剩余」，只改一个 TU 也是 100%，于是**告警在正常增量下恒真**（噪声化，而它的用途正是
+  「看见就该怀疑整图脏」）。分母改 `ninja -t targets all`（3268）；「待办看起来是全量」从 WARN 升 CORRUPT。
+- **断言纠正**：原 DoD「正常构建时 compiled 与二进制 mtime 差 <60s」把机制写进了验收——
+  不重编时必然不等且正常。生效条件改为三条（旧二进制 WARN / 脏树 +WIP / `built` 与 stat 逐字一致），三条都测过。
+- **台账体检**：S-37 原挂 `thread=S-回归门禁`，该线 4/4 已满且判 done（R63 登记时未注意）→ 改独立
+  `thread=身份自证`。这是「主线满额」的第一次现实触发，说明「拆新 ID 续命」的反面也存在：**往满额主线里塞新条目**。
+- 质量四数：源码 **+57**（+59/−2）；`RuntimeShell.cpp` 90,633 / `RuntimeSessionWorld.cpp` 31,056 逐字持平（本轮未碰）；
+  新增判据 3 条 vs 产品 +57；TODO 0、临时探针 0（`touch -t` 与 `.wip-probe.tmp` 已复原/已删）。
+- 清单：214 行 / 40 条 / 68KB / v170 / 十三项门禁 commit 后复跑全绿。
+- regress 16 条 **14/2/0**（62s 一次；改判据前后逐条不变）。
+- 提交：src `73be404`；docs `(本轮)` scripts / 报告+plan+RUNLOG / queue v170。
+- dist：`73be404 2026-11-16T01:29:13 regress=pass14/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+  rosetta=rc0 buildtree=clean wip=none round=R64`。arm 1.5s（RuntimeMain 单 TU）/ x86_64 1 分 20 秒。
+- 用时约 25 分钟（01:24→01:49）：本轮三个改动都在「小 TU + 脚本」层，没有一次全 TU 重编。
+- 下轮（65）：U-20/U-21/U-23 的共同前置（真实窗口「菜单→载入第 6 阶段」的自动驱动）**要么做要么降级**——
+  它已是第四轮被当成「为什么拿不到读数」的理由；或 S-36。
