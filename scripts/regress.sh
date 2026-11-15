@@ -40,7 +40,7 @@ ONLY=""
 usage() {
   cat <<'EOF'
 ConcordRTS 回归编排器
-  --only id[,id]   只跑指定用例（core menu loading skirmish attest render
+  --only id[,id]   只跑指定用例（core menu loading loadingpages skirmish attest render
                    interaction command build campaign result skirmishbuild
                    compactgroups vehiclepass paradropsel）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
@@ -362,6 +362,15 @@ run_case vehiclepass 120 "CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1" "-
 # 27 个场景（9 种防空/地面单位 × 3 档 hz）约 1 秒；反刷绿已验：把旧行为改回去即红在
 # 「selection erased while still descending」。
 run_case paradropsel 120 "CONCORD_COMMAND_SMOKE_PARATROOPER_TARGET_ONLY=1" "--command-smoke-test"
+# 第 17 条（S-39，第 68 轮）：载入页的**生产窗口**呈现。U 线（U-20/U-21/U-19）卡了六轮，
+# 说法一直是「拿不到真实窗口的载入帧」，而第 67 轮实测这个开关一直存在：
+# CONCORD_LOADING_PRESENTATION_ONLY=1 让 --loading-smoke-test 走
+# runRuntimeCountryLoadingPresentationSmoke —— 真的建生产窗口，按 WM_PRINTCLIENT 抓 11 页
+# × 800x600/640x480，并断言槽位里画出了东西（非纯黑≥50%、颜色≥24）。4 秒。
+# 它兜住的是第 67 轮那条产品修复（缩略图铺满 216x166 槽位）：没有这条门禁，槽位再退回
+# 等比缩放留黑带也不会有人被提醒。产物落点由 CONCORD_SMOKE_ARTIFACT_DIR 指到本轮 artifacts，
+# 否则每跑一次就往源码树堆 23MB（S-39 的另一半）。
+run_case loadingpages 300 "CONCORD_LOADING_PRESENTATION_ONLY=1 CONCORD_SMOKE_ARTIFACT_DIR=$ART/loadingpages" "--loading-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
