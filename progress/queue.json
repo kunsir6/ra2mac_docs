@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v166",
-  "updated": "2026-11-15T22:20+08:00",
+  "version": "v167",
+  "updated": "2026-11-15T23:52+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -590,26 +590,55 @@
     },
     {
       "id": "S-35",
-      "title": "战役「动作类型白名单」三份拷贝，case 集已不同",
-      "detail": "RuntimeCampaignCoverage.h:25 与 :82 两个 inline 版本 + RuntimeShell.cpp:14471（R58 df8c421 新增）各维护一份 switch(type) 白名单，三份 case 集已不同（第 1 份缺 3/12/18，第 3 份缺 13/30/31）。dup-scan 同口径：HEAD 146/13 vs --ref b4672b5 138/3，差值全落这 10 组。根因假设未证实：先只读对账三份差集与调用点，再决定合并或加交叉断言。DoD=三份收敛为一处或加「三处 case 集相同」的断言，dup-scan 产品侧 ≤3 组且 regress 三态不变。",
-      "root_cause": "白名单被复制三处；差值不是刻意分类而是复制时漏/多（未证实）",
+      "title": "战役「动作类型白名单」两份拷贝已漂开（现已收敛为一处）",
+      "detail": "RuntimeCampaignCoverage.h 一份 inline + RuntimeShell.cpp:14471 一份（R58 df8c421 新增，只被 --campaign-smoke-test 两处断言调用）；case 集差 8 型（shell 缺 13/39/43/49/50/58/59/64）。第 62 轮删 shell 副本、两处改调 header inline，dup-scan 146/13 → 136/3。",
+      "root_cause": "同一份「哪些 action type 受支持」被复制两处；差值不是刻意分类",
       "value": "A：同一事实三处，只改一处不报错（与 MIN_MACOS、EVO-07 ⑨ 同型）",
-      "cost": "中：先只读对账，落点在 >8,000 行的 RuntimeShell.cpp",
+      "cost": "低（实测）：删副本 + 两处调用替换 + 一行 include",
+      "roi": "B",
+      "complexity": "中等",
+      "attempts": 1,
+      "status": "done",
+      "verify": "dup-scan 产品侧 ≤3 组；regress 16 条三态不变；--campaign-smoke-test 输出与改动前逐字一致（已验证）",
+      "report": "reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md",
+      "thread": "清单治理"
+    },
+    {
+      "id": "S-36",
+      "title": "coverage 白名单多声明 8 个执行侧未实现的动作类型",
+      "detail": "runtimeCampaignCoverageActionTypeSupported 认 13/39/43/49/50/58/59/64，而 applyRuntimeCampaignAction 的 if (type==N) 链里一个都没有 → coverage 门禁把这 8 型算「已支持」，真缺口被漏报。第 62 轮只做了去重（两份并一份），没有判定哪一份的 case 集是对的。",
+      "root_cause": "白名单是照着「零售 ini 里出现过的类型」抄的，不是按执行器实现列出来的（未证实：可能走 helper 分支）",
+      "value": "B：coverage 门禁的数字可信度，不影响能不能玩",
+      "cost": "中：要逐型确认「执行器真缺」还是「走 helper 分支」，删白名单项会让 campaign 门禁变红（属断言纠正）",
       "roi": "B",
       "complexity": "中等",
       "attempts": 0,
       "status": "pending",
-      "verify": "三份收敛为一处（表驱动/枚举）或加「三处 case 集相同」断言；dup-scan 产品侧 ≤3 组且 regress 16 条三态不变",
-      "report": "reports/AUDIT-61.md",
-      "thread": "清单治理"
+      "verify": "8 型逐个给出「执行器有/无」的 grep 级证据；若确为无，白名单删这 8 项后 campaign 门禁仍 structuralFailures=0，或按断言纠正单独 test: commit 并在报告标「原断言错在 X」",
+      "report": "reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md",
+      "thread": "campaign-coverage"
     }
   ],
   "decisions": {
     "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键）。",
     "recent": [
       {
+        "round": 62,
+        "date": "2026-11-15",
+        "type": "清偿轮",
+        "lines": [
+          "轮型：清偿轮（§五.2 腐烂预算 R57~60 +1769/−33 + 比例闸 2.0×）。KPI=净增≤0 且 regress 不退化，达成。",
+          "S-35 结案：删 RuntimeShell.cpp 的动作类型白名单副本（−140/+3），两处冒烟断言改调 RuntimeCampaignCoverage.h 的 inline 版本；--campaign-smoke-test 输出逐字不变，regress 14/2/0。",
+          "口径纠正：AUDIT-61 说的「三份」实为 2 份动作白名单 + 1 份事件白名单（Coverage.h:25 是 trigger event）。",
+          "拆分 S-36：coverage 侧多声明 13/39/43/49/50/58/59/64 八个执行器未实现的类型 → coverage 门禁漏报缺口，属断言纠正，单独一轮。",
+          "清单：八段主线收口 199 行 → 9 行账目表（原文进 reports/archive/fix-plan-mainlines-202611.md），fix-plan 377→201 行。"
+        ],
+        "next": "R63 起手：S-36 的 8 型 grep 级判定（断言纠正，可能让 campaign 门禁变红，需单独 commit）；或 S-08 帧诊断出口解耦（门已开，属可观察的产品行为）。"
+      },
+      {
         "round": 61,
         "date": "2026-11-15",
+        "type": "audit",
         "lines": [
           "EVO 主线整体收口判 done：①④ 交付、②③ 移 deferred（重开条件 = C-01），子项 4/4 用满不再开第 5 个。",
           "S-24 门开了却挂 blocked 第三次 → 补判 done；新规则：blocked 前置必须写成可 grep 的断言。",
@@ -625,14 +654,6 @@
     "tasks_archived": 7
   },
   "decisions_archive": "progress/archive/queue-decisions-202611.json（第 30~47 轮）+ progress/archive/queue-decisions-202611c.json（第 48~55 轮）",
-  "decisions_20261115_r59": {
-    "round": "59",
-    "type": "修复轮",
-    "date": "2026-11-15",
-    "goal": "S-32 清单自证（refs-in-queue）+ S-33 交付说明书事实对账",
-    "result": "两条均已完成；新门禁照出 M-25 根因报告从未入库",
-    "next": "R60 建议清偿轮；EVO-07 ②③ 只许判 blocked 或开工，不许再写「下轮起手」"
-  },
   "decisions_20261115_r61": {
     "round": 61,
     "date": "2026-11-15",
@@ -643,5 +664,18 @@
       "重复代码 +8/+10 可复现归因（--ref b4672b5 = 138/3 == AUDIT-56）：df8c421 新增第三份动作类型白名单 → S-35。",
       "比例闸触发（近 5 轮 test:2/fix:1）：R62 只许产品行为或清偿轮，禁新增断言。"
     ]
+  },
+  "decisions_20261115_r62": {
+    "round": 62,
+    "date": "2026-11-15",
+    "type": "清偿轮",
+    "lines": [
+      "轮型：清偿轮（§五.2 腐烂预算 R57~60 +1769/−33 + 比例闸 2.0×）。KPI=净增≤0 且 regress 不退化，达成。",
+      "S-35 结案：删 RuntimeShell.cpp 的动作类型白名单副本（−140/+3），两处冒烟断言改调 RuntimeCampaignCoverage.h 的 inline 版本；--campaign-smoke-test 输出逐字不变，regress 14/2/0。",
+      "口径纠正：AUDIT-61 说的「三份」实为 2 份动作白名单 + 1 份事件白名单（Coverage.h:25 是 trigger event）。",
+      "拆分 S-36：coverage 侧多声明 13/39/43/49/50/58/59/64 八个执行器未实现的类型 → coverage 门禁漏报缺口，属断言纠正，单独一轮。",
+      "清单：八段主线收口 199 行 → 9 行账目表（原文进 reports/archive/fix-plan-mainlines-202611.md），fix-plan 377→201 行。"
+    ],
+    "next": "R63 起手：S-36 的 8 型 grep 级判定（断言纠正，可能让 campaign 门禁变红，需单独 commit）；或 S-08 帧诊断出口解耦（门已开，属可观察的产品行为）。"
   }
 }
