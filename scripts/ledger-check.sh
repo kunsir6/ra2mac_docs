@@ -113,5 +113,13 @@ PY
 )
 check refs-head "${refs_missing%% *}" 0 " 条引用不在 HEAD"
 
+# 11. 决策键不堆叠（第 56 轮加）：queue.json 只许留本轮 decisions_<日期>_r<轮次> 一个内联键。
+#    第 56 轮实测 r49~r55 共 7 个键 5.8KB 一直内联——RUNLOG 治过、fix-plan 治过，这一侧没人治，
+#    因为前十条都只量总字节（58KB/120KB 够不着）。写进规则但不量的指标一定会失真。
+dec_keys=$(python3 -c "
+import json;d=json.load(open('$QUEUE'))
+print(len([k for k in d if k.startswith('decisions_2026')]))" 2>/dev/null || echo 0)
+check decisions-keys "$dec_keys" 2 " 个内联决策键（只许本轮 1 个 + 上轮 1 个）"
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail
