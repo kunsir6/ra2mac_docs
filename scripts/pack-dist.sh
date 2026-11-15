@@ -106,6 +106,26 @@ for other in "$OUT"/*.app "$OUT"/*.app.stale; do
     say "archived  ${OTHER_ARCHIVED}（旧命名/旧构建，已注销）"
 done
 
+# ①b 归档保留策略（S-27）：.archive 只留最近 5 个包。单个包 96MB，
+#     第 46 轮审计时已堆到 3.6GB。归档里的包都已从 LaunchServices 注销，
+#     删掉不会再参与图标/名字解析；保留 5 个是为了回退时还能拿回上一版。
+prune_archive() {
+    local list d removed=0
+    [ -d "$ARCHIVE_ROOT" ] || return 0
+    list=$(ls -1t "$ARCHIVE_ROOT" 2>/dev/null | tail -n +6)
+    [ -n "$list" ] || return 0
+    while IFS= read -r d; do
+        [ -n "$d" ] || continue
+        rm -rf -- "$ARCHIVE_ROOT/$d"
+        removed=$((removed + 1))
+    done <<< "$list"
+    if [ "$removed" -gt 0 ]; then
+        say "pruned    $removed 个旧归档（保留最近 5 个）"
+    fi
+    return 0
+}
+prune_archive
+
 # ② 清理历史登记（只注销登记，不动文件）：废纸篓里删过的旧包、build 目录里的开发包，
 #    只要还挂在同一个/曾用过的 bundle id 上，就会参与图标与显示名的解析。
 #    本机实测同 id 堆过 18 份（Trash 7 / build 4 / dist 2 / AppTranslocation 2 …），

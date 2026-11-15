@@ -70,3 +70,17 @@
   最小可行版（先把 C-02i 挪到链尾，6 行）可以在任何修复轮当伴生小项，不必重开本条。
 - **代价（未做带来的）**：那 19 步在回归里零覆盖；C-02i 哪天修好，它们会同时点亮，
   旧红会以「修完突然红一片」的形态出现。
+
+## S-28：挤压原语——目标格被友军步兵占着时没人让位（第 50 轮移出，随 unit-behavior 主线收口）
+
+- **现象**：载具走到目标格，格上站着友军步兵 → `crush` 对友军恒否 → 寻路器把目标兜底换成远处空格，
+  载具停在半径 2（`ground_target_unreached`）。它是 M-25 的唯一前置，单独也修「载具被自己步兵堵在终点前」这一类。
+- **为什么移出**：三次尝试全是负结果（R44 解除否决 / R48 只放行停着的步兵 / R49 挤压挂寻路结果侧零触发），
+  子项额度 4/4 已满；剩余工作全压在并发会话仍有 678 行 WIP 的 `RuntimeSessionWorld.cpp` 上。
+- **重开条件（两条都要满足）**：
+  ① `git -C ConcordRTS status` 里 `src/runtime/session/RuntimeSessionWorld.cpp` 干净（并发会话已提交或已放弃）；
+  ② 先落一条**只读读数**：在 `advanceRuntimeMoveBehavior`（World.cpp:27776）里「即将 commit 进格」那一步，
+     同时打印 `runtimeGroundBodyTransitionAdmission.held/bodyBlocked` 与 `runtimeCanEnterAndCrushCell` 各自布尔、
+     目标格上的友军步兵 id —— 先定「谁是终局否决」，再谈挤压挂哪里。
+- **代价（未做带来的）**：载具被友军步兵堵在终点前这个用户实测确认的缺陷继续存在，且不在任何门禁里
+  （S-24 因此继续 blocked：判据 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是未跟踪文件）。

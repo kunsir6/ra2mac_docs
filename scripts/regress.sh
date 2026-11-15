@@ -97,6 +97,47 @@ echo "   out     $OUT"
 [ -n "$DIST_WARN" ] && echo "   警告    $DIST_WARN"
 echo
 
+# —— 产物保留策略（S-27）：每天首跑 + 最近 N 次，其余删除 ——
+# 单次产物约 26MB，第 46 轮审计时已堆到 157 次 / 3.6GB，且不在任何门禁里。
+# 只删严格匹配 YYYYMMDD-HHMMSS 的目录（known-red.tsv 这类同目录文件一律不碰）。
+prune_regress_outputs() {
+  local root=$1 keep_recent=${2:-20}
+  local dirs d day prev_day="" keep=" " removed=0 tail_list
+  [ -d "$root" ] || return 0
+  dirs=$(ls -1 "$root" 2>/dev/null | sort)
+  [ -n "$dirs" ] || return 0
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    day=${d%%-*}
+    if [ "$day" != "$prev_day" ]; then
+      keep="$keep$d "
+      prev_day=$day
+    fi
+  done <<< "$dirs"
+  tail_list=$(printf '%s\n' "$dirs" | tail -n "$keep_recent")
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    case "$keep" in *" $d "*) ;; *) keep="$keep$d " ;; esac
+  done <<< "$tail_list"
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    case "$d" in
+      [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+      *) continue ;;
+    esac
+    [ "$d" = "$STAMP" ] && continue
+    case "$keep" in *" $d "*) continue ;; esac
+    rm -rf -- "$root/$d"
+    removed=$((removed + 1))
+  done <<< "$dirs"
+  if [ "$removed" -gt 0 ]; then
+    echo "   pruned   $removed 次历史产物（保留每天首跑 + 最近 $keep_recent 次）"
+  fi
+  return 0
+}
+
+prune_regress_outputs "$BASE" 20
+
 TSV=$OUT/results.tsv
 printf 'id\tstate\tsecs\tevidence\treason\n' > "$TSV"
 

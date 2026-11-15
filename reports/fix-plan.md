@@ -14,19 +14,18 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 49 轮，2026-11-15）收口摘要 —— 修复轮 / 复杂项方案轮**
-> 1. 轮型：修复轮（无 brake / 无腐烂预算；距 AUDIT-46 三轮）。**主目标 M-25 的方案级收口**，产品代码零改动。
-> 2. **上轮结论**：只放行通行会把「过不去」换成「到了进不去」——判别式在规划时刻问了落位时刻的性质。
-> 3. **本轮变化**：把 M-25 定稿成三段**有依赖顺序**的工作——**S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层（可选）**，
->    并写死「A 必须在 S-28 进 HEAD 之后才允许提交」。M-25 attempts 2→**3**，据此按 §六.4② 拆出前置 S-28（占 unit-behavior 最后一个槽位）。
->    **顺带否定一条接缝**：S-28 挂在寻路结果侧（`applyRuntimeMovePathResult`）在三条冒烟里**零触发**，第一版实现 +96/−1 已整文件回退；
->    正确接缝是移动推进侧 `advanceRuntimeMoveBehavior`。这条否定解释了 R44/R48 两次失败的真实原因：**判据放错了阶段**。
-> 4. 语义定稿：载具可进入「只站友军步兵」的格，到达（含目标格）时由运动层把步兵挤到邻格——**两半一起才算修完**。
-> 5. 质量四数：净增 **0**；90,652(+41) / 42,542 / 31,050(+256)——**增量全是并发会话 WIP**；断言 0 / 产品 0；TODO 0。
-> 6. 清单九项全绿（~310 行 / 34 条 / 5 类）；新增 S-28 ↔ 归档 M-22（1:1）。
-> 7. dist：源码 HEAD 未变（`8e62b4d`），复用两切片重新 lipo + pack，stamp 标 `pack=reused-slices`。
-> 8. **下轮起手（第 50 轮）**：先做 **S-28**（挤压原语，`RuntimeSessionNavigation.cpp` 单 TU，不动并发 WIP 的 World.cpp）；
->    它绿了再上 A。**深水区连续两轮无产品行为变化 → 第 50 轮按 §六.6 必须是产品行为轮，不许再写方案。**
+> **本轮（第 50 轮，2026-11-15）收口摘要 —— 清偿轮（§零.3 attempts≥3 + §六.5 换赛道）**
+> 1. 轮型：清偿轮。M-25 attempts=3 且子项 4/4 已满 → 同时执行 §六.3② **整体收口判定**，判 **blocked**。
+> 2. **上轮结论**：M-25 定稿为「S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层」，并把接缝从寻路结果侧改到移动推进侧。
+> 3. **本轮变化**：主目标 **S-27 留存策略**——`regress.sh` 每天首跑 + 最近 20 次、`pack-dist.sh` `.archive` 留 5 个；
+>    实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB），**释放 6.1GB**，回归前后均 `12/1/0` 零 RED-NEW。
+> 4. **S-28 未做**（理由写进报告 §一）：调用点在 `RuntimeSessionWorld.cpp:27776`（并发会话 678 行 WIP），
+>    arm 侧 `ninja -n` 要 1642 目标全量（`.ninja_deps` 截断），两次迭代吃掉本轮 20 分钟。
+> 5. 质量四数：源码净增 **0**；90,652 / 42,542 / 31,050 三文件**全持平**；断言 0 / 产品 0；TODO 0。
+> 6. 清单九项全绿（299 行 / 34 条 / 5 类）；`decisions_2026*` 14 键归档 12 键，留 R48/R49/R50。
+> 7. dist：HEAD 未变（`8e62b4d`），复用两切片重新 lipo + pack，stamp 标 `pack=reused-slices`。
+> 8. **下轮起手（第 51 轮）= 审计轮**（AUDIT-46 后满五轮）。审计后候选：M-27（侧栏等级星，从未实现，B/中等）、
+>    EVO-07（数据根缺失提示 + About，A/中等）——两条都与并发 WIP 无交集。
 
 ---
 
@@ -54,7 +53,7 @@
 | S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp:17` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp:13` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一处带下溢守卫一处不带 ③方法集不同（`writeBool/readBool` vs `writeByteVector/readByteVector/writeArray`） | **A**：两边对敲的 wire format，漂开与分叉同级风险 | 中：新头文件 + 统一错误文案（会碰既有断言文案）+ 加一条两实现对敲的单测 | **A** | 中等 | 0 | 待修复（第 36 轮登记；**必须先取得「允许改错误文案」的窗口**，清偿轮不许顺手改行为） | 一份共享 codec + `CONCORD_*` 双实现等价冒烟：同一字节流两边解码结果逐字段相同 | `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三 |
 | S-26 | 结构守卫的 inventory/trace 生产者只有 Windows 版 | 第 45 轮查明：`Run-StructureChecks.ps1` 要 `pwsh 7` + `clang-cl` + MSVC 前端 + CTest；`--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。本机两者都没有，所以**完整 scan 一次都没跑过**，1,268 条 `target:`/`test:` 例外也离线不可验 | 取证链整条绑在 Windows 工具链上；守卫本体是纯 Python，被它自己缺失的输入挡住 | **A**：这条不落地，结构守卫的日常价值只有第 45 轮装的两段（夹具自检 + 路径存在性），分层漂移仍无人守 | 中：CMake 在本机本来就能出 file-api codemodel，`ctest --show-only=json-v1` 能给用例注册表——不必照搬 PowerShell，但要对齐 `inventory.tests` 的字段形状 | **B** | 中等 | 0 | 待修复（第 45 轮登记；**不许**为了跑通而放宽 `--baseline` 的 policy） | `bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中） | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` §五 |
 | S-25 | `--command-smoke-test` 首败即断，掩蔽后面 19 步 | `command` 是 60 步链式冒烟，C-02i 在第 54 步；它一红，后续 19 步（factory-exit / air-navigation / missiles / electric-attack / 中立驻军 / 收割机稳定性 / 主机侧十余条）**从未执行** | 结构原因：每步都是「失败即打印并 return 1」；known-red 前缀只钉第一条失败文案，**它稳所以没人发现尾巴是死的** | **A**：19 步在 regress 里目前零覆盖；哪天 C-02i 修好，这 19 步会同时点亮，旧红会以「修完突然红一片」的形态出现 | 中：要动 60 个分支（改成累加失败 + 收尾统一打印 `N failed; 首个`），或先只把 C-02i 挪到链尾（6 行） | **A** | 中等 | 0 | 待修复（第 44 轮登记） | 链尾 19 步每轮真的执行（日志里能看到它们的输出行）；失败汇总改成 `N failed; 首个失败: X` 且前缀钉两个维度 | `reports/FIX-44-混合编队地面层被落地飞行器占格.md` §五 |
-| S-28 | **挤压原语**：目标格被友军步兵占着时没人让位 | 载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（`ground_target_unreached`） | **已确认**（R44/R48 两次实测）：缺的不是通行许可，是**让位**。**第 49 轮又否定了一条接缝**：挂在寻路结果侧（`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支）在三条冒烟里零触发 → 必须挂在**移动推进侧**（`advanceRuntimeMoveBehavior`），载具**即将 commit 进格**时判 | **A**：它是 M-25 的**唯一前置**；单独也修「载具被自己步兵堵在终点前」这一类 | 中高：原语可在 `RuntimeSessionNavigation.cpp`（单 TU），但**调用点必须在 `RuntimeSessionWorld.cpp`**——该文件此刻有并发 WIP，开工前先看 `git status` | **A** | 中等 | 1 | 待修复（第 49 轮从 M-25 拆出，§六.4②；第一版接错缝已回退，attempts=1） | **先证可达**：读数 `displace from/to/id` 至少命中一次；**再证不变差**：`compactgroups` 13/13（点名 `12E1_2MTNK_tank_first` / `3MTNK_3SHAD`）+ regress 零 RED-NEW。顺序不许反。**单独落地不接 regress** | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` §三 |
+| S-28 | **挤压原语**：目标格被友军步兵占着时没人让位 | 载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（`ground_target_unreached`） | **已确认**（R44/R48 两次实测）：缺的不是通行许可，是**让位**。**第 49 轮又否定了一条接缝**：挂在寻路结果侧（`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支）在三条冒烟里零触发 → 必须挂在**移动推进侧**（`advanceRuntimeMoveBehavior`），载具**即将 commit 进格**时判 | **A**：它是 M-25 的**唯一前置**；单独也修「载具被自己步兵堵在终点前」这一类 | 中高：原语可在 `RuntimeSessionNavigation.cpp`（单 TU），但**调用点必须在 `RuntimeSessionWorld.cpp`**——该文件此刻有并发 WIP，开工前先看 `git status` | **A** | 中等 | 1 | **blocked**（第 50 轮随 unit-behavior 主线移出 `progress/deferred.md`；调用点在并发 WIP 的 World.cpp） | **先证可达**：读数 `displace from/to/id` 至少命中一次；**再证不变差**：`compactgroups` 13/13（点名 `12E1_2MTNK_tank_first` / `3MTNK_3SHAD`）+ regress 零 RED-NEW。顺序不许反。**单独落地不接 regress** | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` §三、`reports/FIX-50-留存策略与M-25主线收口.md` §四 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -63,7 +62,7 @@
 | C-01 | 事件分发接 `sendEvent` | 不走 `[NSApp sendEvent:]` → cursor rect 全失效、`isActive/isKeyWindow` 恒 0、tracking area 不回放 | 主循环自建 `nextEventMatchingMask` 分发，绕开 AppKit 正规路径 | 高：一次性修好一类系统级交互 | 改主循环 + 回归全部输入断言 | **A** | 复杂 | 0 | 待修复 | 真实鼠标移到按钮上时 cursor 变化、`isKeyWindow` 为真 | `reports/U-12-*`（见 MEMORY「不调 sendEvent」） |
 | C-03 | 存档/读档真机往返 | 无存读档往返验证 | 未实现 | 高：存读档可用性 | 高 | **B** | 复杂 | 0 | 待修复 | 存→推进 300 拍→读，两次 simulation hash 相等 | — |
 | C-04 | 全屏原生分辨率渲染 | 呈现表面跟随窗口而不是放大 800x600 | U-14 已把客户区尺寸交给游戏，剩余是表面重建与缩放策略 | 中：全屏清晰度 | 中高 | **B** | 复杂 | 0 | 待修复（U-14 吃掉一半） | 全屏下 view 尺寸 >1600px 时 surface 尺寸同比，单位像素尺寸不变 | `reports/U-14-全屏等于更大视口.md` |
-| M-25 | 载具被友军步兵挡死（看着有空地却过不去） | 几个步兵站在一起后，载具**彻底**过不去（用户实测确认，不是减速）。判据 `vehicle pass-through` 现红：`emptyCell=1 friendlyInfantryCell=0` | 通行判定最后一支 `!runtimeCanEnterAndCrushCell` 对同阵营恒否 → 友军步兵格在寻路层等价于一堵墙（步兵有子格分支所以不受影响）。**第 44 / 48 轮两次实测**：只解除寻路否决会打红 `12E1_2MTNK_tank_first`（`arrival_timeout`），因为落位阶段没有任何让位或回填；第 48 轮再试「只放行停着的步兵」仍在同一处红——判别式在**规划时刻**问了**落位时刻**的性质 | **A**：用户实测的操作阻塞感，直接决定「这一脚开不开得过去」 | 高：必须两半同时上——①通行放行 ②commit 前挤压（`findRuntimePassableCellNear` 半径 1~2）+ 分配器按兵种分层目标格 | **B** | 复杂 | 3 | 待修复（第 49 轮方案定稿：**前置 S-28 挤压原语**，S-28 进 HEAD 后才允许提交通行放行；「更窄判别式」已被 R48 实测否掉） | `friendlyInfantryCell=1` **且** `compactgroups` 13/13 **且** `regress.sh` 零 RED-NEW，三条同时成立 | `reports/M-25-载具被友军步兵挡死-根因与否定.md`、`reports/FIX-48-M-25挤压缺位移-读数与重排.md`、`reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` |
+| M-25 | 载具被友军步兵挡死（看着有空地却过不去） | 几个步兵站在一起后，载具**彻底**过不去（用户实测确认，不是减速）。判据 `vehicle pass-through` 现红：`emptyCell=1 friendlyInfantryCell=0` | 通行判定最后一支 `!runtimeCanEnterAndCrushCell` 对同阵营恒否 → 友军步兵格在寻路层等价于一堵墙（步兵有子格分支所以不受影响）。**第 44 / 48 轮两次实测**：只解除寻路否决会打红 `12E1_2MTNK_tank_first`（`arrival_timeout`），因为落位阶段没有任何让位或回填；第 48 轮再试「只放行停着的步兵」仍在同一处红——判别式在**规划时刻**问了**落位时刻**的性质 | **A**：用户实测的操作阻塞感，直接决定「这一脚开不开得过去」 | 高：必须两半同时上——①通行放行 ②commit 前挤压（`findRuntimePassableCellNear` 半径 1~2）+ 分配器按兵种分层目标格 | **B** | 复杂 | 3 | **blocked**（第 50 轮 §六.3② 整体收口：三次尝试全为负结果——R44 解除否决/R48 只放行停着的步兵/R49 接缝零触发；子项 4/4 已满，禁开第 5 个。重开条件见 `progress/deferred.md` 的 S-28 段） | `friendlyInfantryCell=1` **且** `compactgroups` 13/13 **且** `regress.sh` 零 RED-NEW，三条同时成立 | `reports/M-25-载具被友军步兵挡死-根因与否定.md`、`reports/FIX-48-M-25挤压缺位移-读数与重排.md`、`reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md`、`reports/FIX-50-留存策略与M-25主线收口.md` |
 
 ---
 
@@ -222,6 +221,30 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 ---
 
+## 附五、unit-behavior 主线：整体收口判定（第 50 轮，判 **blocked**）
+
+**账目**：第 48~50 轮共 3 轮、子项 **4/4 已满**（M-25 blocked / M-26 pending / M-28 pending / S-28 blocked），
+**产品行为变化 0 次**。窗口用尽，不再开第 5 个子项。
+
+**三次尝试全是负结果**（这是判 blocked 的唯一依据）：
+R44 解除寻路层否决 → `12E1_2MTNK_tank_first` 打红 `arrival_timeout`；
+R48 只放行「停着的」友军步兵 → 同一处仍红（*在规划时刻问了落位时刻的性质*）；
+R49 挤压原语挂寻路结果侧 → 三条冒烟**零触发**，整文件回退（*接缝错*）。
+
+**已排除**：「判别式不够窄」（R48 就是最窄的那一版，仍红）、「接缝在 `applyRuntimeMovePathResult`」（零命中）。
+**还缺**：`advanceRuntimeMoveBehavior` 里「即将 commit 进格」那一步的终局否决是谁——一条读数就能定，
+但它必须改 `RuntimeSessionWorld.cpp`，而该文件带着并发会话 678 行 WIP（跨 5 轮未提交）。
+
+**判定**：整线 **blocked**。S-28 随线移出到 `progress/deferred.md`（重开条件写在那里）。
+M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前置是并发 WIP 的
+`advanceRuntimeMoveBehavior`＋`findRuntimeEngineerEntryCell`，M-26 的前置是「原版口径」未答（取证类）。
+
+**代价（写清）**：载具被友军步兵堵在终点前这个**用户实测确认**的缺陷继续存在，且不在任何门禁里
+（S-24 因此继续 blocked：判据 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是未跟踪文件）。
+这是真实的产品差距，不假装已修。
+
+---
+
 ## 七、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
@@ -247,6 +270,7 @@ M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flush
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 50 | 2026-11-15 | 清偿：留存策略落地（regress 每天首跑+最近 20 次、`.archive` 留 5 个，释放 6.1GB）；unit-behavior 主线判 blocked | `reports/FIX-50-留存策略与M-25主线收口.md` |
 | 49 | 2026-11-15 | 方案：M-25 的挤压原语必须先于通行放行；M-25 attempts=3，拆出前置 S-28（unit-behavior 第 4/4 子项） | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` |
 | 48 | 2026-11-15 | 重排：M-25 的「只放行停着的步兵」判别式被 `tank_first` 打红——规划时刻问不了落位时刻的性质；M-25 改判复杂 | `reports/FIX-48-M-25挤压缺位移-读数与重排.md` |
 | 47 | 2026-11-15 | S-23 结案：飞行器落地礼让正在赶往同格的地面单位；`compactgroups` 13/13，回归 `12/1/0`；`S-回归门禁` 主线收口 | `reports/FIX-47-飞行器落地礼让地面单位.md` |
