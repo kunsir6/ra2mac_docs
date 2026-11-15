@@ -42,7 +42,7 @@ usage() {
 ConcordRTS 回归编排器
   --only id[,id]   只跑指定用例（core menu loading skirmish attest render
                    interaction command build campaign result skirmishbuild
-                   compactgroups vehiclepass）
+                   compactgroups vehiclepass paradropsel）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
   --out <dir>      指定输出目录（默认 progress/regress/<时间戳>）
   -h               本帮助
@@ -335,6 +335,13 @@ run_case multiplayer 120 ""                                      "--multiplayer-
 # 对「只站友军步兵的格」修复前应为可走。接上时它本来就是红的 → 按 known-red
 # 登记，前缀钉住 `friendlyInfantryCell=0` 这一行；M-25 修好后转 PASS 并注销前缀。
 run_case vehiclepass 120 "CONCORD_COMMAND_SMOKE_VEHICLE_INFANTRY_PASS_ONLY=1" "--command-smoke-test"
+# 第 16 条（M-26，第 60 轮）：伞兵下落过程中可选。用户 2026-11-15 定口径「原版下落中能选」，
+# 而 cleanRuntimeSelection 每拍把 mission=="ParadropDrop" 清掉 —— 点击其实进了选中列表，
+# 同一拍末尾被踢出来，观感是"怎么点都没反应"。判据走 UI 真实入口
+# applyRuntimePlayerSelection + 跑满一拍再断言，顺带钉住"可选但仍下不了令"（命令锁不许一起放开）。
+# 27 个场景（9 种防空/地面单位 × 3 档 hz）约 1 秒；反刷绿已验：把旧行为改回去即红在
+# 「selection erased while still descending」。
+run_case paradropsel 120 "CONCORD_COMMAND_SMOKE_PARATROOPER_TARGET_ONLY=1" "--command-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
