@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v169",
-  "updated": "2026-11-16T01:40+08:00",
+  "version": "v170",
+  "updated": "2026-11-16T01:33+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -621,22 +621,35 @@
     {
       "id": "S-37",
       "title": "「二进制自证」只查了 WIP 一侧（compiled 不随二进制刷新）",
-      "detail": "第 63 轮打包时包内自报 compiled=Nov 15 19:25:24，而二进制是 00:18 刚链接的：compiled 取自 __DATE__/__TIME__ 所在 TU，增量构建不重编它。regress 报告头只判「compiled 比 HEAD 提交时刻新」（WIP 烘进包），没判「更旧」。与 MIN_MACOS「只查一侧」同一形态，第三次。",
+      "detail": "compiled 取的是 RuntimeMain.cpp 一个 TU 的 __DATE__/__TIME__，增量构建不重编它 → 既不能证明「是这版」也不能证明「不是这版」；R56 抓到 WIP 靠的是「该 TU 恰好在未提交改动里被重编」的巧合。R64 落地：--version 新增 built（自身 stat mtime）、compiled 降为下界；regress 改「树脏→+WIP（由 git status 定义）/ built 早于 HEAD→WARN」两向；伴生修 build-health 的分母（进度行「本次剩余」→ ninja -t targets all 3268），并把「待办看起来是全量」升 CORRUPT。",
       "root_cause": "判据把「版本 TU 的编译时刻」当成「二进制的构建时刻」，且 WARN 只有一个方向",
       "value": "A：否则 S-29 想防的「测的不是 HEAD」照样漏",
       "cost": "低：链接时注入构建戳，或把该字段改标口径；牵动 pack-dist ⑨",
       "roi": "A",
       "complexity": "简单",
-      "attempts": 0,
-      "status": "pending",
-      "verify": "源码退回旧 commit 后增量构建，regress 报告头必须打 WARN；正常构建 compiled 与二进制 mtime 差 <60s",
-      "report": "reports/FIX-63-空转重绘的根因假设被推翻.md",
-      "thread": "S-回归门禁"
+      "attempts": 1,
+      "status": "done",
+      "verify": "旧二进制或脏树必须打 WARN（R64 先红后绿地负向测过）；built 与 stat 的 mtime 逐字一致",
+      "report": "reports/FIX-64-二进制身份自证补齐两侧.md",
+      "thread": "身份自证"
     }
   ],
   "decisions": {
     "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键）。",
     "recent": [
+      {
+        "round": 64,
+        "date": "2026-11-16",
+        "type": "修复轮",
+        "lines": [
+          "轮型：修复轮。主目标 S-37；伴生 build-health 分母（同一主目标：门禁本身的假阳性）。",
+          "根因比「只查一侧」更前一步：compiled 是版本 TU 的编译时刻，增量构建不刷新 → 该字段本身不携带「构建时刻」语义。",
+          "改法：--version 加 built（自身文件 stat mtime），compiled 加括注降为下界；regress 的 +WIP 改由 git status 定义，新增「built 早于 HEAD→WARN」。",
+          "断言纠正：原 DoD「正常构建时 compiled 与 mtime 差<60s」把机制写进验收，不重编时必然不等且正常；生效条件已改写并负向测过。",
+          "S-37 原挂 thread=S-回归门禁（该线 4/4 已满且 done，R63 登记时未注意）→ 改为独立 thread=身份自证。",
+          "regress 16 条 14/2/0 逐条不变；dist 73be404 universal，rosetta rc=0。"
+        ]
+      },
       {
         "round": 63,
         "date": "2026-11-16",
@@ -649,19 +662,6 @@
           "S-08 结案：读数一直在 latest.txt（复用 13/重绘 7479），卡住它的是 DoD 没写产物路径。",
           "regress 16 条 14/2/0 逐条不变；dist 25b6c53 universal，rosetta rc=0。"
         ]
-      },
-      {
-        "round": 62,
-        "date": "2026-11-15",
-        "type": "清偿轮",
-        "lines": [
-          "轮型：清偿轮（§五.2 腐烂预算 R57~60 +1769/−33 + 比例闸 2.0×）。KPI=净增≤0 且 regress 不退化，达成。",
-          "S-35 结案：删 RuntimeShell.cpp 的动作类型白名单副本（−140/+3），两处冒烟断言改调 RuntimeCampaignCoverage.h 的 inline 版本；--campaign-smoke-test 输出逐字不变，regress 14/2/0。",
-          "口径纠正：AUDIT-61 说的「三份」实为 2 份动作白名单 + 1 份事件白名单（Coverage.h:25 是 trigger event）。",
-          "拆分 S-36：coverage 侧多声明 13/39/43/49/50/58/59/64 八个执行器未实现的类型 → coverage 门禁漏报缺口，属断言纠正，单独一轮。",
-          "清单：八段主线收口 199 行 → 9 行账目表（原文进 reports/archive/fix-plan-mainlines-202611.md），fix-plan 377→201 行。"
-        ],
-        "next": "R63 起手：S-36 的 8 型 grep 级判定（断言纠正，可能让 campaign 门禁变红，需单独 commit）；或 S-08 帧诊断出口解耦（门已开，属可观察的产品行为）。"
       }
     ]
   },
