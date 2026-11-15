@@ -1056,3 +1056,29 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   plan 该只留排序与主线账目」，属单独一轮的清偿活，本轮不动。
 - regress `PASS=14 KNOWN-RED=2 RED-NEW=0` / **16 条**（21:54:40）；构建树两目录 clean，AUDIT-56 的两笔债（WIP / `.ninja_deps`）已结清。
 - 下轮（62）**清偿轮**：比例闸触发禁新增断言；删/合对象 = S-35 的三份白名单 + R58 净增最大的两个越线文件。
+
+---
+
+## 第 62 轮（2026-11-15）清偿轮 —— 白名单去重 + 主线收口压成账目表
+
+- **轮型：清偿轮**。三条判据同时成立：`§五.2` 腐烂预算（R57~60 净增 +1769 / −33）、`§八.3` 比例闸
+  （近 5 轮 test:2/fix:1 = 2.0×，等于阈值即触发）、AUDIT-61 §7.1 已点名 S-35 是现成删除对象。
+  KPI：净增 ≤0 且 regress 不退化 —— **达成**（源码 −137，回归 14/2/0 逐条不变）。
+- **S-35 结案（`897de11`）**：删 `RuntimeShell.cpp` 的 `runtimeCampaignActionTypeSupported`（只被
+  `--campaign-smoke-test` 两处断言调用），两处改调 `RuntimeCampaignCoverage.h` 的 inline 版本 + 一行 include。
+  `-140/+3`。删的依据三条：①它只被冒烟调、产品路径零使用；②它是 header 那份的副本；③`--campaign-smoke-test`
+  改动前后输出**逐字相同**（`structuralFailures=0`，authored 语料不含漂开的 8 型）。
+- **口径纠正**：AUDIT-61 §3.3 说的「三份动作白名单」实际是 **2 份动作 + 1 份事件**
+  （`Coverage.h:25` 是 `runtimeCampaignCoverageEventTypeSupported`，trigger event 不是 action）。
+  dup-scan 按 case 标签序列比对，两类混算才凑成"三份"。
+- **拆分 S-36**（等价替换）：`runtimeCampaignCoverageActionTypeSupported` 认 13/39/43/49/50/58/59/64，
+  执行器 `applyRuntimeCampaignAction` 的 `if (type==N)` 链里一个都没有 → coverage 门禁把这 8 型算"已支持"，
+  真缺口被漏报。**属断言纠正**（删白名单项可能让 campaign 门禁变红），`§八.2` 不许在清偿轮顺手做。
+- **本表压缩**：八段「主线整体收口判定」199 行 → `## 四、主线账目` 一张 9 行表（子项/已用轮/判定/依据与代价/报告），
+  原文迁 `reports/archive/fix-plan-mainlines-202611.md`（208 行一字未删）。fix-plan **377 → 201 行**。
+  表的用法写死：两级计数先查它，子项到 4 或轮次到 4 → 必须整体收口（`§六.3`）。
+- 质量四数：源码净增 **−137**（`1 file changed, 3 insertions(+), 140 deletions(-)`）；
+  `RuntimeShell.cpp` **90,620**（−137）/ 42,542（0）/ 31,056（0）；新增断言 0 vs 产品 −137；TODO 0。
+  重复代码 **136/3**（HEAD 146/13 → 回冻结基线 140/5 以内）。
+- regress：`PASS=14 KNOWN-RED=2 RED-NEW=0` / 16 条（23:06:16）。构建树两目录 clean。
+- 下轮（63）：S-36 的 8 型 grep 级判定（可能让 campaign 门禁变红，单独 `test:` commit）；或 S-08 帧诊断出口解耦。

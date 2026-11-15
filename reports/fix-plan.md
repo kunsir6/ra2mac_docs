@@ -14,17 +14,18 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 61 轮，2026-11-15）收口摘要 —— 审计轮（含 EVO 主线整体收口）**
-> 1. 轮型：审计轮（距 AUDIT-56 整五轮）+ `§零.1` 的 EVO 主线收口判定。源码 0 提交，`reports/AUDIT-61.md`。
-> 2. **EVO 判 done**：子项 4/4 用满、①④ 已交付且可复算（`pack-dist ⑨` 每个包都断身份），②③ 三次跳票后
->    移 `deferred.md`，重开条件 = **C-01 落地后**。代价：无数据树时仍只有一行诊断，无 About 面板。
-> 3. **S-24 补判 done**：前置（`.inl` 进 HEAD）已随 R58 `782e194` 成立，regress 第 15 条 `vehiclepass`
->    在跑且红项带前缀 —— 门开了却挂 blocked 的第三次，见 AUDIT-61 §3.2。
-> 4. **重复代码恶化 +8/+10 已归因**（同口径 `--ref b4672b5` 复跑 138/3，与 AUDIT-56 逐字一致）：`df8c421`
->    在 `RuntimeShell.cpp` 新增第三份「动作类型白名单」，与 header 两个 inline 版本构成三份且 case 集已不同 → **S-35**。
-> 5. **比例闸触发**（近 5 轮 test:2/fix:1=2.0×；60 提交 25:9=2.78×）→ R62 只许产品行为或清偿轮，禁新增断言。
+> **本轮（第 62 轮，2026-11-15）收口摘要 —— 清偿轮**
+> 1. 轮型：清偿轮（`§五.2` 腐烂预算 + 比例闸 2.0× 触发）。源码 `897de11` 一处删除，本表结构性压缩。
+> 2. **删了什么**：`RuntimeShell.cpp` 的战役动作类型白名单重复实现（−140/+3）。同一份事实被维护两处，
+>    case 集已漂开 8 型；删后 `--campaign-smoke-test` 输出逐字不变。
+> 3. **本表压缩**：八段「主线整体收口判定」共 199 行 → `## 四、主线账目` 一张 9 行表（原文进
+>    `reports/archive/fix-plan-mainlines-202611.md`）。表里同时给出两级计数，排队先查它。全文 377→197 行。
+> 4. **S-35 结案 + 口径纠正**：dup-scan 报的「三份」实为 2 份动作白名单 + 1 份事件白名单。残留（coverage
+>    侧多声明 8 个执行侧未实现的类型）拆出 **S-36**，等价替换。
+> 5. **下轮起手**：R63 按 `§五.2` 已清偿完，可开修复轮；`§四.2` 建议先做 S-34（README 回归现状改生成）+ 一条 S 级。
 
 > **历史收口摘要索引（一行一轮，原文见 `reports/fix-plan-archive.md`）**：
+> R61 审计：EVO 主线判 done（②③ 移 deferred）+ S-24 补判 done + 重复代码首次可复现归因（`e29e63c`）｜
 > R60 M-26 伞兵下落中可选：真因是 `cleanRuntimeSelection()` 每拍踢出选中，不是命中框（`e382dae`）｜
 > R59 清单自证：`refs-in-queue`（S-32）照出 M-25 根因报告从未入库 + 交付说明书三处事实过时（S-33）｜
 > R58 载具穿步兵判据进门禁 + 678 行并发 WIP 入库（`96ed2ee`）｜R57 构建与回归自证：
@@ -63,7 +64,8 @@
 | S-20 | 多机对战两份字节编解码器已漂开 | `snapshots/RuntimeMultiplayerSnapshotTransfer.cpp` 与 `protocol/RuntimeMultiplayerMatchSetup.cpp` 各在匿名命名空间定义一套大端 `ByteWriter/ByteReader` | **不是复制品是分叉**（第 36 轮逐行 diff，R53 复核仍成立）：①错误文案前缀 `"snapshot "` vs `"match setup "` ②`require()` 一侧带下溢守卫 ③方法集不同（`writeBool` vs `writeByteVector/writeArray`） | **A**：两边对敲同一批字节流，漂开与分叉同级风险（无编译错误、无门禁可见） | 低-中（R53 实测）：共享头 + 前缀参数化即可**零文案改动**，一次编译过 | **A** | 中等 | 0 | **已完成（`6efad17`，R53）**：`network/detail/RuntimeBigEndianCodec.h` 取两侧方法并集、`label` 参数保住每条错误字符串逐字节不变、`require()` 统一带守卫；五条对战冒烟前后输出 `diff` 为空；regress 新增第 14 条 | 同一字节流经两条路径的**可观察行为**改动前后逐字节相同 + regress 出现第 14 条 `multiplayer` 并常绿 | `reports/FIX-53-对战wire格式两族编解码器收口.md`（首次登记 `reports/FIX-36-清偿轮-两族克隆实现收口.md` §三） |
 | S-26 | 结构守卫的 inventory/trace 生产者只有 Windows 版 | 第 45 轮查明：`Run-StructureChecks.ps1` 要 `pwsh 7` + `clang-cl` + MSVC 前端 + CTest；`--inventory` 由 `Get-TestInventory.ps1` 生成，`--trace` 是那轮 configure 的 `configure-trace.jsonl`。本机两者都没有，所以**完整 scan 一次都没跑过**，1,268 条 `target:`/`test:` 例外也离线不可验 | 取证链整条绑在 Windows 工具链上；守卫本体是纯 Python，被它自己缺失的输入挡住 | **A**：这条不落地，结构守卫的日常价值只有第 45 轮装的两段（夹具自检 + 路径存在性），分层漂移仍无人守 | 中：CMake 在本机本来就能出 file-api codemodel，`ctest --show-only=json-v1` 能给用例注册表——不必照搬 PowerShell，但要对齐 `inventory.tests` 的字段形状 | **B** | 中等 | 0 | 待修复（第 45 轮登记；**不许**为了跑通而放宽 `--baseline` 的 policy） | `bash tools/structure/run.sh --inventory <本地生成> --trace <本地生成>` 在无 Windows 产物时跑完第 ③ 段并给出与基线一致的结论（零未登记命中） | `reports/FIX-45-结构守卫在macOS上第一次能跑.md` §五 |
 | S-28 | **挤压原语**：目标格被友军步兵占着时没人让位 | 载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（`ground_target_unreached`） | **已确认**（R44/R48 两次实测）：缺的不是通行许可，是**让位**。**第 49 轮又否定了一条接缝**：挂在寻路结果侧（`applyRuntimeMovePathResult` 的 `goalAdjusted` 分支）在三条冒烟里零触发 → 必须挂在**移动推进侧**（`advanceRuntimeMoveBehavior`），载具**即将 commit 进格**时判 | **A**：它是 M-25 的**唯一前置**；单独也修「载具被自己步兵堵在终点前」这一类 | 中高：原语可在 `RuntimeSessionNavigation.cpp`（单 TU），但**调用点必须在 `RuntimeSessionWorld.cpp`**——该文件此刻有并发 WIP，开工前先看 `git status` | **A** | 中等 | 1 | **blocked**（第 50 轮随 unit-behavior 主线移出 `progress/deferred.md`；调用点在并发 WIP 的 World.cpp） | **先证可达**：读数 `displace from/to/id` 至少命中一次；**再证不变差**：`compactgroups` 13/13（点名 `12E1_2MTNK_tank_first` / `3MTNK_3SHAD`）+ regress 零 RED-NEW。顺序不许反。**单独落地不接 regress** | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` §三、`reports/FIX-50-留存策略与M-25主线收口.md` §四 |
-| S-35 | 战役「动作类型白名单」三份拷贝，case 集已不同 | `RuntimeCampaignCoverage.h:25` 与 `:82` 两个 inline 版本 + `RuntimeShell.cpp:14471`（R58 `df8c421` 新增）各维护一份 `switch(type)` 白名单；三份 case 集已不同（第 1 份缺 3/12/18，第 3 份缺 13/30/31）。`dup-scan.py` 同口径：HEAD **146/13** vs `--ref b4672b5` **138/3**，差值全落在这 10 组 | 白名单被复制三处，差值不是刻意分类而是复制时漏/多——**未证实**，要先读三个函数的调用点判「分类是否本就不同」 | **A**：同一事实三处，只改一处不报错（与 MIN_MACOS、EVO-07 ⑨ 同型） | 中：先只读对账三份差集与调用点，再决定合并或加交叉断言；落点在 >8,000 行的 `RuntimeShell.cpp` | **B** | 中等 | 0 | 待修复（第 61 轮审计登记，未动代码） | 三份收敛为一处（表驱动/枚举）或加「三处 case 集相同」的断言；`dup-scan` 产品侧回到 ≤3 组且 regress 16 条三态不变 | `reports/AUDIT-61.md` §3.3 |
+| S-35 | 战役「动作类型白名单」两份拷贝已漂开 | `RuntimeCampaignCoverage.h` 一份 inline + `RuntimeShell.cpp:14471` 一份（R58 `df8c421` 新增，只被 `--campaign-smoke-test` 的两处断言调用）；case 集差 8 型（shell 缺 13/39/43/49/50/58/59/64）。`dup-scan` 同口径：HEAD **146/13** vs `--ref b4672b5` **138/3**，差值全落这 10 组 | 白名单被复制；**AUDIT-61 §3.3 的「三份」口径有误**（`Coverage.h:25` 是事件类型白名单，不是动作） | **A**：同一事实两处，只改一处不报错 | 低（实测）：删 shell 副本 + 两处改调 header inline + 补一行 include | **A** | 简单 | 1 | **已完成（第 62 轮，`897de11`）**：−140/+3 行（含空行合并）；`--campaign-smoke-test` 输出与改动前逐字一致（`structuralFailures=0`，authored 数据不含那 8 型）。残留的「coverage 侧多声明 8 型」拆为 **S-36**，不在本条续命 | `dup-scan.py` 产品侧回到 ≤3 组；regress 16 条三态不变；冒烟输出逐字相同 | `reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md` |
+| S-36 | coverage 白名单多声明 8 个执行侧未实现的类型 | `runtimeCampaignCoverageActionTypeSupported` 认 13/39/43/49/50/58/59/64，而 `applyRuntimeCampaignAction` 的 `if (type==N)` 链里一个都没有——coverage 门禁因此把这 8 型算「已支持」，真正缺口被漏报 | 两份白名单之一是照着「零售 ini 里出现过的类型」抄的，不是按执行器实现列的。本轮只做了去重，没有判定哪边对 | **B**：coverage 门禁的数字可信度（不影响能不能玩） | 中：要逐型确认是「执行器真缺」还是「走的是 helper 分支」，再决定删白名单项（会让门禁变红，属断言纠正）或补执行器 | **B** | 中等 | 0 | 待修复（第 62 轮登记，只读扫描结论） | 8 型逐个给出「执行器有/无」的 grep 级证据；若确为无，白名单删这 8 项后 campaign 门禁仍 `structuralFailures=0` 或按「断言纠正」单独成 commit | `reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md` §三 |
 
 ## 三、待修复 —— 复杂（单独成轮，先写方案）
 
@@ -76,206 +78,26 @@
 
 ---
 
-## 四、skirmish-mode-rules 主线：整体收口判定（第 31 轮，判 **done**）
+## 四、主线账目（一行一条；每段收口的完整推理见 `reports/archive/fix-plan-mainlines-202611.md`）
 
-**账目**：第 28~31 轮共 3 轮、4 个子项（M-22 done / M-23 done / M-24 移出 / S-17 转 blocked），
-窗口用尽，**不再开第 5 个子项**。
+**两级计数就查这张表**：子项数到 4、或已用轮到 4 → 该线必须整体收口（`§六.3`），排队时报「已满」。
 
-- **M-22**（`2c7f1ea`）：9 个 `MP*MD.ini` 只在 `expandmd01.mix` 里，松散路径查不到 → 模式规则从未加载。
-  改为「松散优先 + 归档按名回退」。**这是本轮线唯一的 S 级用户价值**：9 个模式的规则从静默无效变为生效。
-- **M-23**（`4abfee7` + `cc53d95`）：不是产品缺陷，是断言把「请求被接受」当「基地已存在」。
-  按拍等待后模式矩阵 **35/35 全绿**（第一次跑到尾）。标「断言纠正」，**不计入已修复**。
-- **M-24** → `progress/deferred.md`（重开条件：多人联机/跨机录像判定实测/版本号本来要逼升）。
-  未做的行为差异：归档侧的规则差异不进兼容哈希，**代价**是跨机录像兼容会误判；单人本地回放不受影响。
-- **S-17** → blocked（阻塞改 M-29，属另一条主线）。**代价**：遭遇战链路继续没有日常门禁，回归仍是 11 条。
+| 主线 | 子项（已用/上限 4） | 已用轮 | 判定 | 依据与代价 | 报告 |
+|---|---|---|---|---|---|
+| skirmish-mode-rules | 4/4（M-22 done、M-23 断言纠正、M-24 移出、S-17 转 blocked） | 3（R28~31） | **done** | 9 个模式规则从静默无效到生效（本线唯一 S 级价值）；代价：归档侧规则差异不进兼容哈希，跨机录像兼容会误判 | FIX-32 |
+| C-02 两栖运输 | 9（超限 2 倍以上） | 11（R15~25） | **blocked** | 真产品缺陷 3 处、夹具/断言口径 5 处，产出密度约 27%；C-02i 移 deferred。代价：尤里奴隶矿工**不产生收入** | FIX-26 / FIX-40 |
+| 真开局会话（阻塞簇 8 条） | —（共用一道门，不是主线） | — | 表已失效 | R38 门已开（`objects 14→38` 进 regress 第 12 条），S-08 与 U-19/20/21/23 已迁回 pending，「一次会话出四张」的合并纪律不变 | FIX-29 / AUDIT-56 |
+| skirmish-option-semantics | 2（M-29 / M-30） | 1（R37） | **done** | 两处都是「把功能没有的性质写进验收」，无真产品缺陷；代价：`--skirmish-build-smoke-test` 仍未进 regress | FIX-33 |
+| persistence-roundtrip | 1（M-31） | 2（R37~38） | **done** | legacy 段把版本降到 10 却留 16 字段记录 = 夹具在撒谎；代价：跨大版本字段迁移仍非全量回归 | FIX-38 |
+| S-回归门禁 | 4/4（S-22 / S-23 / S-24 / S-25 移出） | 3（R43/44/47） | **done** | `compactgroups` 接入并首跑即照出真红（S-23）；代价：command 链尾 19 步仍零覆盖 | FIX-47 |
+| unit-behavior | 4/4（M-25 blocked、M-26 done、M-28 移出、S-28 blocked） | 3（R48~50） | **blocked** | 三次尝试全是负结果（R44 否决面 / R48 判别式问了落位时刻 / R49 接缝零触发）；还缺 `advanceRuntimeMoveBehavior` 终局否决读数，而改动点正是并发 WIP 的 `RuntimeSessionWorld.cpp` | FIX-50 |
+| 清单治理 | 2（S-14 / S-27） | 2（R25/R50）+ R59 重开 1 轮（S-32） | **done** | 十三项门禁只保证**形状**不保证**内容**——S-27 交付两周材料自相矛盾，门禁一条没报；形状门禁替代不了审计轮 | FIX-26 / AUDIT-51 / FIX-59 |
 
-**判 done 的依据**：这条主线的用户价值（模式规则生效）已交付且有回归兜住；剩下的两段都不在本线内
-（一个在录像层、一个在 option semantics 层），继续挂在本线只会让它变成第二条 C-02。
+**仍在办的主线：无。** M-25 / S-28 / C-02i / EVO-07 ②③ / M-28 全在 `progress/deferred.md`，重开条件写在那里。
+**已满额、不许再开第 5 个子项**：C-02（9）、unit-behavior（4）、S-回归门禁（4）、skirmish-mode-rules（4）。
 
----
 
-## 五、C-02 主线：整体收口判定（第 25 轮，判 **blocked**）
-
-**账目**：第 15~25 轮共 11 轮，9 个子项（C-02 / b / c / d / e / f / g / h / i），超「≤4 子项 / ≤4 轮」红线两倍以上。
-其中**真产品缺陷 3 处**（C-02b 登船互锁、C-02e 建筑进门格被兜底换掉、C-02h 离场被当取消入场），
-**夹具/断言口径 5 处**（C-02c/d/f/g 及部分 i 的前置）。这条主线真实产出密度约 27%，其余是「每转绿一段就露出下一段」。
-
-**结论：整条主线判 blocked，不再开第 10 个子项。** 剩余段 C-02i 移入 `progress/deferred.md`。
-`command` 那条 known-red 继续以带前缀门禁的形式留在回归里（不隐藏、不注销），它的信号价值由前缀保证。
-
-**C-02i 死因报告（只读结论，本轮未改代码）**
-- 现象：`digging=1 carrying=1 cargo=4 credits=0`（3500 拍循环跑满，见 `RuntimeSlaveMinerSmoke.inl:474-499`）。
-- **已排除 ①**「`context.credits` 不回写」：`HouseEconomyContext::credits` 是 `int&`（`HouseEconomyContext.h:9`），
-  直指 `state.economy.credits`，`runtimeCreditBalanceAfterDeposit` 写的就是真账；排除手段是读结构体定义，不是跑读数。
-- **已排除 ②**「`cargoValue<=0` 被当空返」：`task.cargoValue += value` 与 `++task.cargoUnits` 在同一分支同步执行
-  （`RuntimeSessionProduction.cpp:7562-7564`），`value<=0` 时提前 return 且**不增** units。
-  所以 `cargo=4` 必然伴随 `cargoValue>0`，不可能走「returned empty」分支。
-- **剩余候选**（两条改法相反，不许猜）：
-  ① 交付分支的前置谓词 `runtimeSlaveMinerWorkerAtRefinery` 从未成立 —— 它要求 `!worker.renderMoveActive`
-  且**承诺格与身体格的到地基距离都 == 0**（`RuntimeSessionProduction.cpp:7232-7247`），
-  而返程发的是 `findRuntimeEngineerEntryCell(..., "slave-delivery", 2)` 的**地基内**格，两者本该一致，
-  不一致只可能是「人到了但 `renderMoveActive` 没清」或「身体格滞后一格」；
-  ② 交付分支跑过、`recordRuntimeHouseResourceDelivery` 因 `resourceStorageCapacity==0` 吞掉入库 —— 但 credits
-  在容量判断**之前**就已加，故纯容量解释不成立，只可能连带把 cargo 清零后循环重来。
-- **第 40 轮实测把 ①/② 都推翻**（读数见 `reports/FIX-40-重排-奴隶矿工全员停在Queued的移动请求上.md`）：
-  终态 `w6` 已满足 `dc=0 db=0`，却依然不交付——因为任务步在 `7325-7336` 见到「对象有行为」就 `return false`，
-  走不到 `7339` 的交付分支；`cargo` 一直是 `4`，说明交付分支一次都没跑过（②排除）。
-  真实现象：**五名工人全部停在 `Queued` 行为且 `renderMoveActive=0`，240 拍里一格没动**（`Queued` 的两义见报告 §四.3，未分开）；
-  满载的 `w4` 站在唯一矿格 `24,12` 上，另外三人的离场目标也是这一格 → 结构性互锁。
-- **还缺什么（重写）**：(a) 终态下这五个 `behavior.path` 是否为空（「没给路径」还是「给了不推进」）；
-  (b) 运动层里「Queued 且 path 非空」为何没被消费。这是重开条件，不是新条目；若 (b) 成立，
-  它属新主线 `movement-stall`，**不在 C-02 之下开第 10 个子项**。
-- **估值重估**（§七.3）：收益 A→A，成本 中→高（生产侧一处谓词 → 运动层共性停摆），性价比 **A→B**。
-
-**代价（写清）**：尤里的奴隶矿工目前**不产生收入**（挖得动、装得满、交不进去）。这是真实的产品行为差异，
-以 blocked 记录在案，不假装已修。
-
----
-
-## 六、阻塞簇：真开局会话（8 条共用一道门，第 35 轮）
-
-| 条目 | 它要的读数/证据 | 真实前置 |
-|---|---|---|
-| M-13 / S-17 | 一次真遭遇战开局 + `objects>0` | **M-31**（legacy 段）；`Skirmish start … objects=14` 已由第 37 轮打出 |
-| U-19 / U-20 / U-21 / U-23 | 真实窗口里 HUD/载入画面/主菜单小屏/羽化的截图 | M-31 → 真会话 |
-| S-08 | `performance/latest.txt` 的复用/重绘三行 | M-31，或把出口解耦（`flushRuntimeFrameDiagnosticsReport`） |
-| ON-3-01b | 五界面「上屏自证」的合成输入驱动 | 与上面同一道门，另需 C-01 |
-
-**记账口径（第 35 轮起生效）**：这 8 条里只有钥匙条目带真实成本估值，其余 `cost` 一律指向钥匙，
-**不许**再各自写「低/中」——一条链的代价抄 8 份，正是它们排了 4 轮都没动的直接原因。
-
-**第 38 轮更新：这道门已经开了。** 真遭遇战整链路 `rc=0`（`objects 14 -> 38`），并已进 regress 第 12 条。
-上表 8 条不再是「等钥匙」，而是「各自去取证」：
-M-13 可直接判完成（判据已满足）；S-08 只需把出口拆成 `flushRuntimeFrameDiagnosticsReport()`
-供无窗口路径调；U-19/20/21/23 需要真实窗口截图，按「一次会话出四张」合并做（各 1 轮，不许各开一轮）。
-
-**第 56 轮审计：这张表写着「门开了」，但 8 条在 queue 侧仍是 blocked。** 本轮把 S-08（队列里是 `EVO-06`）
-与 U-19/20/21/23 迁回 `pending`——门开着却挂 blocked，等于给自己发免死金牌。合并出图的纪律不变。
-
----
-
-## 附、skirmish-option-semantics 主线：整体收口判定（第 37 轮，判 **done**）
-
-**账目**：2 个子项（M-29 / M-30），窗口内完成，未开第 3 个。
-
-- **M-29**（`225d310`）：验收样本 NAPOWR 是探针自己编的——零售模式只授予 9 栋对面**基础建筑**，
-  从不给电站。改成从探针目录里按 `aiBasePlanningSide` 取。
-- **M-30**（`d2fff47`）：验收要求 `techLevel==0`，而发放走 `spawnRuntimeUnholyAllianceMcvs`
-  （开局生成，从不读 techLevel；零售三台 MCV 都是 10）。改成数据推导的等价条件 + 反向控制。
-
-**判定依据**：两处都是「把功能没有的性质写进验收」，无真产品缺陷；该线的用户价值
-（选模式时规则真的生效）已由 M-22 交付并有模式矩阵 35/35 兜住。
-**代价（写清）**：`--skirmish-build-smoke-test` 仍未进 regress，日常门禁还是 11 条；
-它剩下的红已不在本线内（legacy 兼容段），继续挂着只会变成第二条 C-02。
-
-**新主线 `persistence-roundtrip`** 开账：1 轮 / 1 子项（M-31），不属于本线续命。
-
----
-
-## 附二、persistence-roundtrip 主线：整体收口判定（第 38 轮，判 **done**）
-
-**账目**：第 37~38 轮共 2 轮、1 个子项（M-31），未拆新 ID。
-
-- **M-31**（`42db147`）：legacy 段把 v14 存档的版本号改成 10 却留着 16 字段的行为记录，
-  v9~v13 的解析器只接受 12 字段 → `invalid behavior record`。这是夹具在撒谎，不是载入太严。
-  降版本时截断记录后，整条遭遇战链路首次 `rc=0`。
-
-**判定依据**：本线要证明的是「旧存档能被载入且瞬态集合回基线」，已在真链路上成立，
-并由 regress 第 12 条长期兜住。剩下的存档工作是 C-03（存读往返的 simulation hash），
-那是另一条线，不在此续命。
-**代价（写清）**：没有构造「真·v10 全量夹具」，跨大版本（v10→v14）的字段迁移仍是
-「靠 psychic 段那一处覆盖」，不是全量回归。
-
----
-
-## 附三、S-回归门禁 主线：整体收口判定（第 47 轮，判 **done**）
-
-**账目**：第 43~47 轮共 3 轮（R43 / R44 / R47）、子项 4/4 已满（S-22 done / S-23 done / S-24 blocked / S-25 移出），
-**用满即收口，不再开第 5 个子项**。
-
-- **S-22**（R43）：regress 第 13 条 `compactgroups` 接入，13 例 0.7~1s。它接上就照出真红，这是门禁该有的作用。
-- **S-23**（R44 定位 / R47 实施，`8e62b4d`）：地面层与空中层按设计共享中心格，落地飞行器把该格变成地面占用，
-  正在赶往的坦克被兜底挪到半径 2。改法：落地前礼让「本格被另一地面单位的 `Move` 目标认领」。
-  13 例全绿，回归 `12/1/0`。
-- **S-24** 留 **blocked**（前置=`RuntimeVehicleInfantryPassThroughSmoke.inl` 进 HEAD，现在仍是并发会话的未跟踪文件；
-  未跟踪文件接进门禁，干净树重建后会以别的文案红出来，制造永久假 `cause-changed`）。
-- **S-25** 移 `progress/deferred.md`（重开条件见该文件）：它是 `--command-smoke-test` 60 个分支的聚合改造，
-  与「门禁覆盖」不是同一件事，继续挂在线上只会变成第二条 C-02。
-
-**判 done 的依据**：本线的用户价值是「编队收敛有在线门禁，且这条门禁真会红」，两者都已交付
-（第 13 条 + 一条真缺陷被它照出来并修掉）。
-
-**代价（写清）**：`command` 链尾部 19 步仍然零覆盖（S-25 deferred）；载具穿步兵（M-25 的判据）仍不在门禁里，
-也就是说 M-25 修好之后若退化，回归看不见。
-
----
-
-## 附四、unit-behavior 主线：子项额度与 M-25 的重排（第 48 轮登记，第 49 轮定稿）
-
-**账目**：子项 **4/4 已满**（M-25 / M-26 / M-28 / **S-28**），已用 3 轮（R32 起登记，R48 / R49 各一次方案级推进）。
-**第 49 轮起不再开第 5 个子项**；S-28 是最后一个槽位，它就是为了让 M-25 能分两步走而拆出来的。
-
-- **M-25**（attempts=**3**，第 49 轮按 §六.4② 拆出前置）：三段有依赖顺序——
-  **S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层（可选）**。
-  **A 必须在 S-28 进 HEAD 之后才允许提交**（R44 只解除寻路否决、R48 只放行「停着的」步兵，两次都把
-  `12E1_2MTNK_tank_first` 打红 `arrival_timeout`）。语义定稿：载具可进入「只站友军步兵」的格，
-  **到达（含目标格）时由运动层把步兵挤到邻格**——两半一起才算修完。DoD 三条同时：判据 `friendlyInfantryCell=1`
-  + `compactgroups` 13/13 + regress 零 RED-NEW。方案全文见 `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md`。
-- **S-28**（中等，本轮从中拆出）：新增 `runtimeDisplaceFriendlyInfantryFromCell`，只挑 Infantry/同阵营/存活/非空中，
-  半径 **1~2**（不许更大，C-02h 的教训是半径 6 把矿工搬出自己基地），落位走 `setRuntimeObjectCell`，
-  冷却 `nextRepathTick=tick+2` 防两车互挤抖动。`SHAD` 是 `Unit` 不是 `Infantry`，**不进挤压名单**，S-23 的落地礼让不受影响。
-- **M-28**（工程师/间谍原地晃动）：`RuntimeSessionWorld.cpp` 的 `advanceRuntimeMoveBehavior` 与
-  `RuntimeProductionOperations.h` 的 `findRuntimeEngineerEntryCell` 仍在并发会话的 678 行 WIP 里，**继续不碰**
-  ——这也是 S-28 被刻意设计成「单 TU、不落 World.cpp」的原因。
-- **M-26**（伞兵落地前点不中）：前置是「原版口径」未答，属取证类，不是代码类。
-
-**额度纪律**：M-25 若第 50 轮仍拿不到产品行为变化，整线按 §六.3 三选一收口（不再拆子项）。
-理由：本线已有两次「单点改法打红编队收敛」的实测，继续在通行判定里试错的边际收益已经趋零。
-
----
-
-## 附五、unit-behavior 主线：整体收口判定（第 50 轮，判 **blocked**）
-
-**账目**：第 48~50 轮共 3 轮、子项 **4/4 已满**（M-25 blocked / M-26 pending / M-28 pending / S-28 blocked），
-**产品行为变化 0 次**。窗口用尽，不再开第 5 个子项。
-
-**三次尝试全是负结果**（这是判 blocked 的唯一依据）：
-R44 解除寻路层否决 → `12E1_2MTNK_tank_first` 打红 `arrival_timeout`；
-R48 只放行「停着的」友军步兵 → 同一处仍红（*在规划时刻问了落位时刻的性质*）；
-R49 挤压原语挂寻路结果侧 → 三条冒烟**零触发**，整文件回退（*接缝错*）。
-
-**已排除**：「判别式不够窄」（R48 就是最窄的那一版，仍红）、「接缝在 `applyRuntimeMovePathResult`」（零命中）。
-**还缺**：`advanceRuntimeMoveBehavior` 里「即将 commit 进格」那一步的终局否决是谁——一条读数就能定，
-但它必须改 `RuntimeSessionWorld.cpp`，而该文件带着并发会话 678 行 WIP（跨 5 轮未提交）。
-
-**判定**：整线 **blocked**。S-28 随线移出到 `progress/deferred.md`（重开条件写在那里）。
-M-26 仍留在待修复表里但**不属于本线推进**（M-28 已于第 59 轮移出到 `progress/deferred.md`，原因是它排了 11 轮零进展且前置正是那两个 >8,000 行文件）：M-28 的前置是并发 WIP 的
-`advanceRuntimeMoveBehavior`＋`findRuntimeEngineerEntryCell`，M-26 的前置是「原版口径」未答（取证类）。
-
-**代价（写清）**：载具被友军步兵堵在终点前这个**用户实测确认**的缺陷继续存在，且不在任何门禁里
-（S-24 因此继续 blocked：判据 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是未跟踪文件）。
-这是真实的产品差距，不假装已修。
-
----
-
-## 附六、清单治理 主线：整体收口判定（第 51 轮，判 **done**）
-
-**账目**：2 个子项 / 2 轮，**S-14**（`ledger-check.sh` 五项门禁，第 25 轮）、**S-27**（留存策略，第 50 轮）均已交付。
-本轮把门禁补到**十项**（新增 `refs-head`：fix-plan 里 `reports/*.md` 引用必须落在 docs HEAD 内），
-补的正是「本地有、干净树没有」这一类——R50 把那条未跟踪引用记成「悬空引用」但没法治，因为旧检查判的是工作区。
-**第 59 轮补第十二项 `refs-in-queue`（S-32）**：同一个道理的另一侧——队列里的引用从来没人查，
-一上线就照出 M-25 的根因报告从未入库。**这条线因此重开账 1 轮**（S-34 仍在办）。
-
-**判 done 的依据**：这条线要的是「清单自己会量自己、超限当场拦」，十项门禁覆盖体量/结构/字段/引用/磁盘，已成立。
-**代价（写清）**：它只保证台账**形状**正确，不保证**内容正确**——S-27 交付两周材料互相矛盾（计划写待修复、
-队列写 pending、报告写已落地），十项门禁一条都没报。形状门禁替代不了审计轮的人工对账，别再想加门禁来解决。
-
-**新增纪律（AUDIT-51 起）**：`blocked` 条目的「重开条件」每**审计轮**逐条复查一次——条件开了就回 `pending`，
-不许挂着当免死金牌。第 51 轮首次执行，查出 11 条里 6 条的门早已开了（见 `reports/AUDIT-51.md` §五）。
-
----
-
-## 七、已完成 / 已废弃
+## 五、已完成 / 已废弃
 
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
@@ -310,10 +132,12 @@ M-26 仍留在待修复表里但**不属于本线推进**（M-28 已于第 59 �
 
 ---
 
-## 八、轮次索引（一行一轮；原文见 `reports/fix-plan-archive.md` 与 `reports/archive/`）
+## 六、轮次索引（一行一轮；原文见 `reports/fix-plan-archive.md` 与 `reports/archive/`）
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 62 | 2026-11-15 | 清偿：战役动作白名单去重（S-35，−140/+3）；fix-plan 八段主线收口 199 行 → 9 行账目表；登记 S-36 | `reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md` |
+| 61 | 2026-11-15 | 审计：EVO 主线判 done（②③ 移 deferred）、S-24 补判 done、重复代码首次可复现归因（`--ref` 复跑） | `reports/AUDIT-61.md` |
 | 60 | 2026-11-15 | M-26 结案：伞兵下落中**可选**（用户定口径）。真因是 `cleanRuntimeSelection` 每拍删 `ParadropDrop`，不是命中框错位；命令锁保留，regress 接第 16 条 `paradropsel` | `reports/FIX-60-伞兵下落中可选.md` |
 | 59 | 2026-11-15 | 清单自证：`refs-in-queue` 照出队列引用撑 N 轮未入库报告；交付说明书三处事实过时 | `reports/FIX-59-清单自证与交付说明书事实对账.md` |
 | 58 | 2026-11-15 | M-25 载具穿步兵判据进门禁（known-red）+ 678 行并发 WIP 入库 | `reports/FIX-58-载具穿步兵判据进门禁与并发WIP收口.md` |
