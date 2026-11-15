@@ -328,10 +328,16 @@ say "version   --version package 行与 BUILD-INFO.txt 一致"
 #    全屏=放大 800×600），三处都已被后续版本推翻——用户读到的说明书在撒谎。
 #    现在只有一个源：ConcordRTS/packaging/README-dist.txt（入库、进得去 review），
 #    每次打包覆盖写到 dist/，make-dmg.sh 再把它拷进 dmg 里。
+#    第 65 轮（S-34）：「回归现状」那一段改为**从这里现场生成**——它的数字来自
+#    `progress/regress/latest.txt`（regress.sh 收尾覆盖写），不再靠谁记得回来改。
+#    实测两次翻车：R59 手工改对（14 条），R60 加第 16 条就变成「共 15 条：13 绿」。
 README_SRC="$SRC_REPO/packaging/README-dist.txt"
 if [ -f "$README_SRC" ]; then
-    cp "$README_SRC" "$OUT/README.txt"
-    say "readme    $OUT/README.txt ← packaging/README-dist.txt"
+    python3 "$(dirname "$0")/render-readme.py" --in "$README_SRC" --out "$OUT/README.txt" || {
+        echo "pack-dist: 说明书生成失败（render-readme.py），不出一份可能说谎的 README" >&2
+        exit 1
+    }
+    say "readme    $OUT/README.txt ← packaging/README-dist.txt（回归现状段现场生成）"
 else
     echo "pack-dist: 缺 packaging/README-dist.txt（dist/README.txt 会停在旧版本）" >&2
     exit 1

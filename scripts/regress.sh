@@ -383,7 +383,17 @@ MD=$OUT/report.md
   printf '\nPASS=%s KNOWN-RED=%s RED-NEW=%s\n' "$PASS_N" "$KNOWN_N" "$NEW_N"
 } > "$MD"
 
+# 机器可读的一行汇总（S-34）：交付说明书里的「共 N 条：x 绿 / y known-red」由
+# `scripts/render-readme.py` 从这里生成。以前那句话靠人手写，加一条门禁就变成假话
+# （第 59 轮手工改对过一次，第 60 轮加 paradropsel 又错）。
+# 只写一行 k=v：人 `cat` 也读得懂，脚本按空格切。
+LATEST=$BASE/latest.txt
+printf 'source=%s stamp=%s pass=%s knownred=%s new=%s total=%s arch=%s built=%s dirty=%s\n' \
+  "${SRC_LABEL}" "${STAMP}" "${PASS_N}" "${KNOWN_N}" "${NEW_N}" "${TOTAL}" \
+  "${ARCH_RAW:-?}" "${BUILT_RAW:-unknown}" "${DIRTY_N}" > "$LATEST.tmp" && mv "$LATEST.tmp" "$LATEST"
+
 echo "   报告 $MD"
+echo "   汇总 $LATEST"
 if [ $NEW_N -gt 0 ]; then
   echo "   $NEW_N 条 NEW-RED：先看 $OUT/<id>.log，确认后要么修，要么登记进 known-red.tsv"
   echo "   （状态带 cause-changed 的表示「这条本来就红，但红的原因换了」——同样按新回归处理）"
