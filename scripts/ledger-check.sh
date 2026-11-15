@@ -121,5 +121,33 @@ import json;d=json.load(open('$QUEUE'))
 print(len([k for k in d if k.startswith('decisions_2026')]))" 2>/dev/null || echo 0)
 check decisions-keys "$dec_keys" 2 " 个内联决策键（只许本轮 1 个 + 上轮 1 个）"
 
+# 12. 队列侧引用可追溯（第 59 轮加，S-32）：tasks[].reports / tasks[].report 里的
+#     reports/*.md 必须落在 docs HEAD 里。第 51 轮只补了 fix-plan 一侧，队列一侧从来没查过——
+#     第 59 轮登记新条目时把三份尚未入 HEAD 的报告写进 queue，十一项全绿。
+#     判据与第 9 项相同（判 HEAD 不判工作区），取数不同（JSON 字段 vs grep 表格）：
+#     合成一条会让报错从「某一侧」退化成「某处」。已知代价同第 9 项：收口顺序必须是先 commit 报告。
+queue_refs_missing=$(cd "$ROOT/ra2mac_docs" && python3 - <<'PY'
+import json, re, subprocess
+d = json.load(open('progress/queue.json', encoding='utf-8'))
+raw = []
+for t in d.get('tasks', []):
+    for k in ('report', 'reports'):
+        v = t.get(k)
+        if isinstance(v, str):
+            raw.append(v)
+        elif isinstance(v, list):
+            raw.extend(str(x) for x in v)
+refs = set()
+for v in raw:
+    for m in re.findall(r'reports/[^`\s]+?\.md', v):
+        refs.add(m)
+tracked = set(subprocess.run(['git', '-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only', 'HEAD'],
+                             capture_output=True, text=True).stdout.split('\n'))
+bad = sorted(r for r in refs if r not in tracked)
+print(len(bad), ','.join(bad[:3]))
+PY
+)
+check refs-in-queue "${queue_refs_missing%% *}" 0 " 条队列引用不在 HEAD"
+
 if [[ $fail -eq 0 ]]; then say "清单体量：全部在限内"; else say "清单体量：有超限项，当轮第一件事是压缩归档"; fi
 exit $fail

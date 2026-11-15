@@ -14,18 +14,25 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 57 轮，2026-11-15）收口摘要 —— 修复轮（构建与回归的「自证」）**
-> 1. 轮型：修复轮。主目标 = S-30 + S-29，同一根因的两面：现有判据只证明「跑了什么」，不证明「跑的是谁」。
-> 2. **上轮结论**：R56 六条对账里两条卡在无法自证——678 行 WIP 被烘进 dist（编译时刻晚于 HEAD 22 秒）、
->    `.ninja_deps` 截断连续三轮被误诊成「改了 cmake」。
-> 3. **本轮变化**：新增 `scripts/build-health.sh`（S-30：clean/WARN/CORRUPT 三态，判据必须「本目录截断告警 +
->    另一个构建目录同刻干净」两条一起看）；`regress.sh` 报告头钉住 HEAD / 提交时刻 / dirty 数 / 二进制自报
->    `compiled`，晚于 HEAD 即标 `+WIP` 并 WARN（S-29）；`pack-dist.sh` 组装前把构建树状态摊到屏幕上（伴生）。
->    **R44 的「付一次全量就能修回来」被证伪**：4:10 全量重编后 deps 记录仍是 11-11 的旧 mtime，
->    `-t recompact` 只消告警不修记录；真修法是删 `.ninja_deps` + `.ninja_log` 再全量。
-> 4. 清单：358 行 / 35 条 / 61KB，十一项门禁全绿；S-29 S-30 转已完成（attempts 0→1），本轮无新增条目。
-> 5. **下轮起手（第 58 轮）**：EVO-07 ②③ 判 blocked（要新开 AppKit 模态面，本环境无 sendEvent 验不了交互）；
->    U-19/20/21/23 合并一轮取真窗口读数；S-24 仍卡在 678 行 WIP 的归属（不是技术问题，是要一个决定）。
+> **本轮（第 59 轮，2026-11-15）收口摘要 —— 修复轮（清单自证 + 交付说明书事实对账）**
+> 1. 轮型：修复轮（无 brake / 无 attempts≥3 在办 / 腐烂预算未触发 / 距 AUDIT-56 三轮）。主目标 = S-32。
+> 2. **上轮结论**：R58 把 678 行并发 WIP 入库、回归 14→15 条（`13/2/0`），工作区第一次干净；
+>    遗留 `pick_evidence` 证据行规则有害、`spyindustry` 无门禁且红、EVO-07 ②③ 仍未判 blocked。
+> 3. **本轮变化**：①`ledger-check.sh` 第十二项 `refs-in-queue`（S-32）——R51 的 `refs-head` 只查
+>    fix-plan 一侧，队列一侧从没查过；新门禁一上线就照出 **M-25 的根因报告从未入库**（队列指向
+>    未跟踪文件撑了 N 轮），已随 R58 的三份报告一并提交。②`dist/README.txt` 三处**可验证事实**
+>    过时（回归条数 / M-25 判据「不在门禁里」的旧说法 / 数据根指针优先级写反）已改对（S-33），
+>    并删掉 `dist/` 里挂旧 hash 的 dmg。③新登记 S-34（README 的事实应由脚本生成，现在靠人）。
+> 4. 清单：358 行 / 35 条 / 58KB，**十二项**门禁全绿；S-32 S-33 已完成，S-34 新增（等量归档 M-28）。
+> 5. **下轮起手（第 60 轮）**：按 §五.2 的**债务种类**（两个 >8,000 行文件连续两轮各 +41/+256，
+>    不是行数）建议走清偿轮；EVO-07 ②③ **第二次跳票**，下轮只许二选一：判 blocked 写死因，或开工。
+
+---
+
+> 历史收口摘要索引（一行一轮，原文见 `reports/fix-plan-archive.md`）：
+> R58 载具穿步兵判据进门禁 + 678 行并发 WIP 入库（`96ed2ee`）｜R57 构建与回归自证：
+> build-health 三态 + regress 钉住 HEAD/compiled（`b4672b5`）｜R56 审计：两轮主目标不在台账、
+> 6 条「门已开」的 blocked 挂 5 轮、`.ninja_deps` 截断复发（`03fd1b2`）。
 
 ---
 
@@ -39,6 +46,10 @@
 | S-24 | 载具穿步兵冒烟未进门禁 | M-25 的判据已存在且现在红（`vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`），但 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件 | 门禁接线的前置是「被测冒烟在 HEAD 里」；未跟踪文件接进门禁，干净树重建后该环境变量消失 → 退回跑主档，以别的文案红出来，制造永久假 `cause-changed` | **A**：M-25 是用户已确认的 S 级缺陷，判据有了却不每轮跑，等于修完也可能静默退化 | 低：.inl 进 HEAD 后加一条 `run_case`（0.4s）+ 转绿前的 known-red 前缀 | **A** | 简单 | 0 | **blocked**（前置=.inl 进 HEAD） | regress 出现第 14 条 `vehiclepass`；接上时若红则登记前缀，M-25 修好后转 PASS 且前缀可注销 | `reports/FIX-43-regress接入混合编队收敛门禁.md` §六 |
 | S-29 | regress 报告不记源码版本 | `report.md` 只记二进制 sha256(前16)+mtime，判不出「这个二进制是不是 HEAD 编的」；R55 实测 arm64 半边落后 16 小时正是这类盲区 | 判据只写「测了哪个二进制」，没写「对应哪个 commit」；编译时刻与 `git log -1 --format=%ci` 一比即知，但这个比较没人做 | **A**：让「回归 13/1/0」绑定具体 HEAD，否则 BUILD-STAMP 的 regress= 可能是别的树测的 | 低：报告头 3 行（取 `--version` 的 compiled + 与 HEAD 提交时刻比，落后打 WARN） | **A** | 简单 | 1 | **已完成**（`regress.sh`：`source <hash>[+WIP]` + dirty 数 + 自报 compiled；实测直接照出 R56 那 8082s 偏差） | 报告头出现 `source: <hash> compiled=<时刻>`；换回旧二进制必须打 WARN 而不是静默通过 | `reports/FIX-57-构建与回归的自证门禁.md` §二 |
 | S-30 | 构建状态损坏无检测（`.ninja_deps` 截断复发） | arm 目录 `ninja -n` 要 1647 目标，`-d explain` 首行 `premature end of file; recovering`、脏因全是 `stored deps info out of date`；同时刻 x86_64 报 `no work to do` | 疑为并发写：两会话同时在一个构建目录跑 ninja，`.ninja_deps` 追加写入被截断。R41~43 三轮把这现象归因成「改了 cmake」而放弃源码修复 | **A**：误诊一次吃掉一整轮（R41~43 三轮）；一条检测把它变成一句明确提示 | 低：`ninja -n` 逐目录判定，命中截断或待办>30% 报出 | **A** | 简单 | 1 | **已完成**（`scripts/build-health.sh` 三态；接进 regress 预检与 pack-dist 组装前。**修法纠正**：全量重编修不回来，要删 `.ninja_deps`+`.ninja_log`） | 人为截断尾部后跑 regress 必须打 WARN 且退出码不变；正常状态零输出 | `reports/FIX-57-构建与回归的自证门禁.md` §一 |
+| S-32 | 台账引用只查了一侧（队列侧无门禁） | `refs-head` 只遍历 `fix-plan.md` 的表格；`queue.json` 里的 `reports/*.md` 从来没人查。第 59 轮把三份未入库报告写进 queue，十一项门禁全绿 | R51 加 `refs-head` 时判对了树（判 HEAD 不判工作区），但只补了**一侧**——与 MIN_MACOS「只查一侧」同一形态 | **A**：台账是所有轮次的输入，它的链接指到不存在的文件等于台账在说谎；新门禁第一跑就照出 M-25 根因报告从未入库 | 低：`ledger-check.sh` +22 行，遍历 `tasks[].report(s)` 逐个 `git cat-file -e HEAD:` | **A** | 简单 | 1 | **已完成**（`ledger-check.sh` 第十二项 `refs-in-queue`；同时把 13 条 `ra2mac_docs/` 前缀的旧路径规范化） | 把一份未提交的报告写进 queue 的 `report` 字段后跑门禁必须 `LEDGER-BREACH refs-in-queue`；提交后转绿 | `reports/FIX-59-清单自证与交付说明书事实对账.md` §二 |
+| S-33 | 交付说明书的事实过时（三处会误导操作） | `dist/README.txt`：①「共 14 条：13 绿 / 1 known-red」②「M-25 判据还没进 HEAD，所以不在日常门禁里」③数据根搜索顺序漏掉「包内指针最优先」 | 根因不是忘了改，是**没有任何东西量它**：pack-dist 每次覆盖写这份文件，却从不断言内容；它引用的事实散在 scripts / queue / regress 三处，谁改都不会想到回来改 | **A**：包要发给别人，说明书里写错的步骤会让人白折腾一轮；③尤其危险——按说明书设了环境变量却无效 | 低：改 3 段 + 文件头加「最后核对：轮次 + hash」 | **A** | 简单 | 1 | **已完成**（`ConcordRTS/packaging/README-dist.txt`；同时把「dmg 不常驻 dist」写进开头，并删掉那份挂旧 hash 的 dmg） | 三处与 `20261115-204728/report.md` 的汇总行、`known-red.tsv` 第 2 条、`RuntimeConfigPaths.cpp` 的搜索顺序逐字一致 | `reports/FIX-59-清单自证与交付说明书事实对账.md` §三 |
+| S-34 | README 的回归现状靠人手写 | 本轮把「15 条 / 13 绿 / 2 known-red」改对了，但下轮多一条门禁它又会错；`pack-dist.sh` 已有 ⑩ 步覆盖写该文件，却没有数据源 | 事实的**生产者**在 `regress.sh`，**消费者**在 `packaging/README-dist.txt`，中间缺一个生成步骤 | **B**：让说明书的事实每次打包都自动正确，不再依赖谁记得 | 中：pack-dist 需读最近一次 regress 的汇总行与 `known-red.tsv` 生成段落，要处理「本机没跑过 regress」的兜底 | **B** | 中等 | 0 | 待修复（第 59 轮登记） | 连续两次打包之间手工改一次 `known-red.tsv` 条数，重跑 pack-dist 后 README 里该段自动跟着变 | `reports/FIX-59-清单自证与交付说明书事实对账.md` §六 |
+
 
 ## 二、待修复 —— 中等
 
@@ -240,7 +251,7 @@ R49 挤压原语挂寻路结果侧 → 三条冒烟**零触发**，整文件回�
 但它必须改 `RuntimeSessionWorld.cpp`，而该文件带着并发会话 678 行 WIP（跨 5 轮未提交）。
 
 **判定**：整线 **blocked**。S-28 随线移出到 `progress/deferred.md`（重开条件写在那里）。
-M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前置是并发 WIP 的
+M-26 仍留在待修复表里但**不属于本线推进**（M-28 已于第 59 轮移出到 `progress/deferred.md`，原因是它排了 11 轮零进展且前置正是那两个 >8,000 行文件）：M-28 的前置是并发 WIP 的
 `advanceRuntimeMoveBehavior`＋`findRuntimeEngineerEntryCell`，M-26 的前置是「原版口径」未答（取证类）。
 
 **代价（写清）**：载具被友军步兵堵在终点前这个**用户实测确认**的缺陷继续存在，且不在任何门禁里
@@ -254,6 +265,8 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 **账目**：2 个子项 / 2 轮，**S-14**（`ledger-check.sh` 五项门禁，第 25 轮）、**S-27**（留存策略，第 50 轮）均已交付。
 本轮把门禁补到**十项**（新增 `refs-head`：fix-plan 里 `reports/*.md` 引用必须落在 docs HEAD 内），
 补的正是「本地有、干净树没有」这一类——R50 把那条未跟踪引用记成「悬空引用」但没法治，因为旧检查判的是工作区。
+**第 59 轮补第十二项 `refs-in-queue`（S-32）**：同一个道理的另一侧——队列里的引用从来没人查，
+一上线就照出 M-25 的根因报告从未入库。**这条线因此重开账 1 轮**（S-34 仍在办）。
 
 **判 done 的依据**：这条线要的是「清单自己会量自己、超限当场拦」，十项门禁覆盖体量/结构/字段/引用/磁盘，已成立。
 **代价（写清）**：它只保证台账**形状**正确，不保证**内容正确**——S-27 交付两周材料互相矛盾（计划写待修复、
@@ -270,6 +283,11 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
+**S-32 台账引用只查了一侧（第 59 轮，`ledger-check.sh` 第十二项 `refs-in-queue`**：R51 的 `refs-head` 判对了树
+（判 HEAD 不判工作区）却只补了 fix-plan 一侧，队列侧零门禁；新门禁第一跑就照出 M-25 根因报告从未入库，
+顺带把 13 条 `ra2mac_docs/` 前缀的旧路径规范化。**S-33 交付说明书三处事实过时（第 59 轮，`83b457d`**：
+回归条数 14→15、M-25 判据「不在门禁里」的旧说法、数据根指针优先级——根因不是忘了改，是没有任何东西量这份文件；
+同时删掉 `dist/` 里挂旧 hash 的 dmg，并把「dmg 不常驻 dist」写进说明开头。两条合计 +S-34 等价归档了 M-28）｜
 **S-20 对战 wire 格式两族编解码器收口（第 53 轮，`6efad17`**：两份「已分叉」的 `ByteWriter/ByteReader` 并成 `network/detail/RuntimeBigEndianCodec.h`，方法取并集、错误文案前缀改构造参数 `label`（既有错误字符串逐字节不变，无断言纠正）、`require()` 统一带守卫；等价性用五条对战冒烟前后输出 `diff` 为空证明；顺带接上 regress 第 14 条 `multiplayer`（0.07s，此前这条 wire 路径零日常门禁）。净 −79 行。`preview-dedupe` 主线随之判 **done**：R36 + R53 共 2 轮 2 子项）｜**M-27 偷星后建造栏补老兵角标（第 52 轮，`dba2daf` + `b08e13c`：奖励早已生效（`applyRuntimeProducedObjectVeterancy` 读 `spies.hasVeteranProduction`），缺的是侧栏绘制点——建造按钮循环从不看 veteran；新增 `runtimeSidebarItemProducesVeterans` + 左下角 chevron（pips 图集，取不到退 `V`），判据为逐像素三连比对 `appearedPixels=24 / restoredDiff=0`。**DoD 改判**：原文「给兵营设 veterancy=2」的数据前提不存在（无建筑级等级），按 owner×类别改判）｜S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）
 
 **已移出主清单的条目**（不占条目数、不进排序，只留指针）：S-25（`--command-smoke-test` 首败即断、
