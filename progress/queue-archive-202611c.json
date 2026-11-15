@@ -1,110 +1,163 @@
 {
-  "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。 ｜ 第 44 轮归档 1 条（S-21，done；1:1 替换新增的 S-25）。 ｜ 第 46 轮审计归档 1 条（S-13，done；1:1 替换新增的 S-27）。",
-  "tasks": [
-    {
-      "id": "M-22",
-      "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
-      "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
-      "root_cause": "模式规则解析绕开 MIX 归档层，只认松散文件；资产管线故意把条目留在归档里（引擎按 ID 递归扫描），两条口径不一致。",
-      "value": "S：用户可见——9 个模式从静默无效变为生效；同时解开 M-13 / S-17。",
-      "cost": "中低：单点函数加一条归档回退；MixArchive 已实现加密索引与按名查找。",
-      "roi": "S",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
-      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md",
-      "thread": "skirmish-mode-rules"
-    },
-    {
-      "id": "M-23",
-      "title": "遭遇战冒烟 AI 开局 MCV 不展开",
-      "thread": "skirmish-mode-rules",
-      "detail": "第 31 轮结案：**断言纠正，不是产品缺陷**（按八.2 口径不计入已修复）。加 reason 出参后一次读出 `mcvs=1 owner=SkirmishPlayer2 #18 AMCV->GACNST item=GACNST planned=91,128 status=MCV turning to deploy yard=no` —— 有 MCV、认得类型、目录项在、落点找得到，计划里三个候选成因全被否。requestRuntimeMcvDeployment 在朝向到位前只挂 McvDeployTurning 并返回 true，真正换算在 advanceRuntimeMcvDeployTurns（每拍），而冒烟在短路求值后同步判 yard，必然读不到。改为按 max(30, framesToTicks(32)) 有界等待（同 RuntimeUnholyStartSmoke 的写法）。读数：模式矩阵 cases passed=35 failed=0（第一次跑到尾）。commit 4abfee7 + cc53d95。",
-      "root_cause": "未验证。先给返回值加三来源文案（ids/cell/item/planned/requested/owner），一次运行裁定。",
-      "value": "高：模式规则修好后的下一道门，不修则 S-17/M-13 永远接不上门禁。",
-      "cost": "低：先加一行失败文案（默认静默、不留环境变量），再一次运行定性。",
-      "roi": "A",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
-      "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
-    },
-    {
-      "id": "M-29",
-      "title": "UnholyAlliance 的验收样本（NAPOWR）是探针自己编的",
-      "thread": "skirmish-option-semantics",
-      "detail": "第 32 轮读数一次否掉三个候选：模式只授予 9 栋对面「基础建筑」（GAPILE/NAHAND/YABRCK、GAREFN/NAREFN、AMRADR/NARADR、GAAIRC、NAPSIS），不含电站；真实玩家目录 loadedCatalog=46 且不含任何苏军条目；三台 MCV 走 rules 层 runtimeUnholyAllianceAdditionalMcvTypes 而非模式 ini 目录段。改法后 ownerFactory 转 yes；整链路仍红在 `unholy` 段的 MCV 发放。第 35 轮审计：本条（验收样本）已改完，剩余段拆出为 M-30，不在这条上续命。",
-      "root_cause": "样本钉了 NAPOWR/YAPOWR，而零售UnholyAlliance从不授予电站；旧断言把「目录里必须有 AMCV/SMCV/PCV」当发放条件，同样是编出来的前提（发放走 rules 层）。",
-      "value": "高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义。",
-      "cost": "低：已改完（+63−46 单文件单函数），剩 unholy 段一条只读读数。",
-      "roi": "A",
-      "complexity": "中等",
-      "attempts": 1,
-      "status": "done",
-      "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（第 32 轮已达成）；unholy 段转由 M-30 承担",
-      "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
-    },
-    {
-      "id": "S-17",
-      "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
-      "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。三道门：M-22 已修（规则能读出来）、M-23 已修（模式矩阵 35/35）、**M-29 仍红**——完整链路 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，位置在模式矩阵之前，说明这条用例从来没跑到过我们跟了 3 轮的那一段。不许登记 known-red。 [第38轮结案]",
-      "root_cause": "该冒烟首次被跑就红在 option semantics（30 谓词，20 项 no），一直没人接门禁。",
-      "value": "中：一条用例接入 = 真遭遇战链路从此有门。",
-      "cost": "低：regress 加一行 + 口径说明。",
-      "roi": "C",
-      "complexity": "简单",
-      "attempts": 0,
-      "status": "done",
-      "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
-      "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md",
-      "thread": "skirmish-mode-rules"
-    },
-    {
-      "id": "S-21",
-      "title": "重复代码指标没有脚本，三轮三个数",
-      "detail": "AUDIT-30/35/41 各按「写死的口径」重测，得 125/139/140 组、产品侧 11/7/5 组。差别来自「同文件相隔 <25 行的窗口要不要折叠」这类话原文没写死 → 每轮审计都在给同一个量编新数（与 S-14 清单体量同形）。",
-      "root_cause": "口径只存在于报告散文里，没有可执行实现。",
-      "value": "中：审计结论的可比性；后续清偿轮的删除对象靠它排序。",
-      "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
-      "roi": "C",
-      "complexity": "简单",
-      "attempts": 1,
-      "status": "done",
-      "thread": "S-审计度量",
-      "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
-      "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
-    },
-    {
-      "id": "M-30",
-      "title": "整链路 unholy 段：三台 MCV 到底有没有发放",
-      "detail": "第 37 轮结案（断言纠正，`d2fff47`）：unholy 段要求 techLevel==0，而发放走 spawnRuntimeUnholyAllianceMcvs（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。改为数据推导条件 + 反向控制；整链路首过 option semantics。",
-      "root_cause": "待证三种：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空或类型被装配期过滤 ②发放走了但 owner 判成对方 ③techLevel/建造前提挡在发放入口。三种改法相反，先读一次数。",
-      "value": "高：解开它 = 真遭遇战取证（M-13）+ 第 12 条回归（S-17）+ UI 对账 4 条 + S-08 读数，共 8 条共用同一道门。",
-      "cost": "低：一处只读打印 + 一次运行；不改产品行为。",
-      "roi": "A",
-      "complexity": "简单",
-      "attempts": 1,
-      "status": "done",
-      "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
-      "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
-      "thread": "skirmish-option-semantics"
-    },
-    {
-      "id": "S-13",
-      "title": "结构守卫基线列着 U-15 已删的两个文件",
-      "detail": "tools/structure/structure-baseline.json 是人工审过的精确清单，删文件后没人回写；守卫不在构建链里。第 45 轮查明真因：完整检查链的入口是 `.ps1`（`--inventory` 由 `Get-TestInventory.ps1` 生成、`--trace` 是那轮 configure 的 jsonl），macOS 上三个产物都不存在，所以从没跑过。已接上不需要构建产物的两段并清掉 16 条死条目。",
-      "root_cause": "structure-baseline.json 是人工审过的精确清单，U-15 删文件后没人回写；守卫本身没有 --inventory/--trace 入口脚本，不在构建链里",
-      "value": "低：守卫不参与判定，脏基线只会在下次运行时误报",
-      "cost": "中高（第 45 轮推翻「约 30 分钟」：完整检查链只有 Windows 版，`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest；本轮只做不需要构建产物的两段，完整 scan 拆出 S-26）",
-      "roi": "C",
-      "complexity": "中等",
-      "attempts": 0,
-      "status": "done",
-      "verify": "`bash tools/structure/run.sh --strict` rc=0 且 `stale file paths 0`（366 例夹具 OK）；塞一条假路径进基线副本必须 rc=1。**偏差**：完整 scan 仍需 Windows 侧产物，拆出 S-26",
-      "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
-      "thread": "S-结构守卫"
-    }
-  ]
+ "note": "第 41 轮审计批归档（只读追溯）：M-22/M-23 已结案（done），主线 skirmish-mode-rules 的叙事与代价写在 reports/fix-plan.md §四；1:1 替换第 41 轮新增的 S-21/S-22。 ｜ 第 43 轮归档 1 条（M-29，done；1:1 替换新增的 S-23）。 ｜ 第 43 轮再归档 1 条（S-17，done；1:1 替换新增的 S-24）。 ｜ 第 44 轮归档 1 条（S-21，done；1:1 替换新增的 S-25）。 ｜ 第 46 轮审计归档 1 条（S-13，done；1:1 替换新增的 S-27）。",
+ "tasks": [
+  {
+   "id": "M-22",
+   "title": "9 个游戏模式的规则从未生效：松散层找不到 MP*MD.ini",
+   "detail": "resolveRuntimeModeRulesOverridePath（RuntimeSessionNavigation.cpp:161）只查 5 个松散路径，9 个 MP*MD.ini 只在 expandmd01.mix（索引加密）里 → skirmishModeRulesLoaded 恒 false，8 个模式全部静默退回默认。已修（2c7f1ea）：新增 loadRuntimeModeRulesIni，松散命中优先、miss 时按名在 expandmd01/expandmd02/localmd/local 归档里找并 loadFromString；模式加载与启动规则叠加两个消费点都改用它。归档命中时 label 记条目名（三处消费者取 filename() 比较）。",
+   "root_cause": "模式规则解析绕开 MIX 归档层，只认松散文件；资产管线故意把条目留在归档里（引擎按 ID 递归扫描），两条口径不一致。",
+   "value": "S：用户可见——9 个模式从静默无效变为生效；同时解开 M-13 / S-17。",
+   "cost": "中低：单点函数加一条归档回退；MixArchive 已实现加密索引与按名查找。",
+   "roi": "S",
+   "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "无松散文件时，同一实验（放/不放最小 ini）仍能让 option semantics 的 alliesAllowed 翻面；regress 不退化。",
+   "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md",
+   "thread": "skirmish-mode-rules"
+  },
+  {
+   "id": "M-23",
+   "title": "遭遇战冒烟 AI 开局 MCV 不展开",
+   "thread": "skirmish-mode-rules",
+   "detail": "第 31 轮结案：**断言纠正，不是产品缺陷**（按八.2 口径不计入已修复）。加 reason 出参后一次读出 `mcvs=1 owner=SkirmishPlayer2 #18 AMCV->GACNST item=GACNST planned=91,128 status=MCV turning to deploy yard=no` —— 有 MCV、认得类型、目录项在、落点找得到，计划里三个候选成因全被否。requestRuntimeMcvDeployment 在朝向到位前只挂 McvDeployTurning 并返回 true，真正换算在 advanceRuntimeMcvDeployTurns（每拍），而冒烟在短路求值后同步判 yard，必然读不到。改为按 max(30, framesToTicks(32)) 有界等待（同 RuntimeUnholyStartSmoke 的写法）。读数：模式矩阵 cases passed=35 failed=0（第一次跑到尾）。commit 4abfee7 + cc53d95。",
+   "root_cause": "未验证。先给返回值加三来源文案（ids/cell/item/planned/requested/owner），一次运行裁定。",
+   "value": "高：模式规则修好后的下一道门，不修则 S-17/M-13 永远接不上门禁。",
+   "cost": "低：先加一行失败文案（默认静默、不留环境变量），再一次运行定性。",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "该行打出 ids=/cell=/item=/planned=/requested=/owner= 且恰有一项为空或假",
+   "report": "ra2mac_docs/reports/FIX-31-游戏模式规则从归档读取.md"
+  },
+  {
+   "id": "M-29",
+   "title": "UnholyAlliance 的验收样本（NAPOWR）是探针自己编的",
+   "thread": "skirmish-option-semantics",
+   "detail": "第 32 轮读数一次否掉三个候选：模式只授予 9 栋对面「基础建筑」（GAPILE/NAHAND/YABRCK、GAREFN/NAREFN、AMRADR/NARADR、GAAIRC、NAPSIS），不含电站；真实玩家目录 loadedCatalog=46 且不含任何苏军条目；三台 MCV 走 rules 层 runtimeUnholyAllianceAdditionalMcvTypes 而非模式 ini 目录段。改法后 ownerFactory 转 yes；整链路仍红在 `unholy` 段的 MCV 发放。第 35 轮审计：本条（验收样本）已改完，剩余段拆出为 M-30，不在这条上续命。",
+   "root_cause": "样本钉了 NAPOWR/YAPOWR，而零售UnholyAlliance从不授予电站；旧断言把「目录里必须有 AMCV/SMCV/PCV」当发放条件，同样是编出来的前提（发放走 rules 层）。",
+   "value": "高：S-17 / M-13 的唯一剩余门；同时是「同盟阵营能不能造对面建筑」的产品语义。",
+   "cost": "低：已改完（+63−46 单文件单函数），剩 unholy 段一条只读读数。",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "ownerFactory=yes 且 alliedYardForeign=no / foreignYardForeign=yes（第 32 轮已达成）；unholy 段转由 M-30 承担",
+   "report": "ra2mac_docs/reports/FIX-33-UnholyAlliance的验收样本是探针自己编的.md"
+  },
+  {
+   "id": "S-17",
+   "title": "把 --skirmish-build-smoke-test 接进 regress（第 12 条）",
+   "detail": "真遭遇战冒烟从未进过 11 条用例，红了也没人知道。三道门：M-22 已修（规则能读出来）、M-23 已修（模式矩阵 35/35）、**M-29 仍红**——完整链路 0.2s 就死在 `option semantics ownerFactory=no unholy=no`，位置在模式矩阵之前，说明这条用例从来没跑到过我们跟了 3 轮的那一段。不许登记 known-red。 [第38轮结案]",
+   "root_cause": "该冒烟首次被跑就红在 option semantics（30 谓词，20 项 no），一直没人接门禁。",
+   "value": "中：一条用例接入 = 真遭遇战链路从此有门。",
+   "cost": "低：regress 加一行 + 口径说明。",
+   "roi": "C",
+   "complexity": "简单",
+   "attempts": 0,
+   "status": "done",
+   "verify": "regress 输出 12 条且 PASS=12 KNOWN-RED=0 RED-NEW=0",
+   "report": "ra2mac_docs/reports/FIX-32-电脑开局MCV是转向后落地.md",
+   "thread": "skirmish-mode-rules"
+  },
+  {
+   "id": "S-21",
+   "title": "重复代码指标没有脚本，三轮三个数",
+   "detail": "AUDIT-30/35/41 各按「写死的口径」重测，得 125/139/140 组、产品侧 11/7/5 组。差别来自「同文件相隔 <25 行的窗口要不要折叠」这类话原文没写死 → 每轮审计都在给同一个量编新数（与 S-14 清单体量同形）。",
+   "root_cause": "口径只存在于报告散文里，没有可执行实现。",
+   "value": "中：审计结论的可比性；后续清偿轮的删除对象靠它排序。",
+   "cost": "低：本轮已写好扫描器（25 行窗 / 步长 10 / 非空 ≥70% / 排除注释 / 两侧非 fixture 或 smoke），落成 scripts/dup-scan.py 并输出机器可读。",
+   "roi": "C",
+   "complexity": "简单",
+   "attempts": 1,
+   "status": "done",
+   "thread": "S-审计度量",
+   "verify": "bash ra2mac_docs/scripts/dup-scan.py --ref 77e75e7 输出 140 组 / 产品侧 5 组，与 AUDIT-41 §二.3 逐行一致（已验）",
+   "report": "reports/FIX-42-清偿轮-RUNLOG归档与重复代码口径落库.md §三"
+  },
+  {
+   "id": "M-30",
+   "title": "整链路 unholy 段：三台 MCV 到底有没有发放",
+   "detail": "第 37 轮结案（断言纠正，`d2fff47`）：unholy 段要求 techLevel==0，而发放走 spawnRuntimeUnholyAllianceMcvs（开局生成，从不读 techLevel；零售 SMCV/PCV 都是 10）。改为数据推导条件 + 反向控制；整链路首过 option semantics。",
+   "root_cause": "待证三种：①rules 层 `runtimeUnholyAllianceAdditionalMcvTypes` 为空或类型被装配期过滤 ②发放走了但 owner 判成对方 ③techLevel/建造前提挡在发放入口。三种改法相反，先读一次数。",
+   "value": "高：解开它 = 真遭遇战取证（M-13）+ 第 12 条回归（S-17）+ UI 对账 4 条 + S-08 读数，共 8 条共用同一道门。",
+   "cost": "低：一处只读打印 + 一次运行；不改产品行为。",
+   "roi": "A",
+   "complexity": "简单",
+   "attempts": 1,
+   "status": "done",
+   "verify": "一次运行打出三台 MCV 的发放结果；`unholy` 位转 yes，或给出确切的拒绝原因（哪个谓词为假）。",
+   "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
+   "thread": "skirmish-option-semantics"
+  },
+  {
+   "id": "S-13",
+   "title": "结构守卫基线列着 U-15 已删的两个文件",
+   "detail": "tools/structure/structure-baseline.json 是人工审过的精确清单，删文件后没人回写；守卫不在构建链里。第 45 轮查明真因：完整检查链的入口是 `.ps1`（`--inventory` 由 `Get-TestInventory.ps1` 生成、`--trace` 是那轮 configure 的 jsonl），macOS 上三个产物都不存在，所以从没跑过。已接上不需要构建产物的两段并清掉 16 条死条目。",
+   "root_cause": "structure-baseline.json 是人工审过的精确清单，U-15 删文件后没人回写；守卫本身没有 --inventory/--trace 入口脚本，不在构建链里",
+   "value": "低：守卫不参与判定，脏基线只会在下次运行时误报",
+   "cost": "中高（第 45 轮推翻「约 30 分钟」：完整检查链只有 Windows 版，`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest；本轮只做不需要构建产物的两段，完整 scan 拆出 S-26）",
+   "roi": "C",
+   "complexity": "中等",
+   "attempts": 0,
+   "status": "done",
+   "verify": "`bash tools/structure/run.sh --strict` rc=0 且 `stale file paths 0`（366 例夹具 OK）；塞一条假路径进基线副本必须 rc=1。**偏差**：完整 scan 仍需 Windows 侧产物，拆出 S-26",
+   "report": "reports/FIX-45-结构守卫在macOS上第一次能跑.md",
+   "thread": "S-结构守卫"
+  }
+ ],
+ "decisions_20261115_r51": {
+  "round": 51,
+  "date": "2026-11-15",
+  "type": "审计轮（§零.4，AUDIT-46 后整五轮）",
+  "target": "对账：blocked 重开条件逐条复查 + 账目一致性 + 度量口径固定为 HEAD",
+  "findings": [
+   "头条：11 条 blocked 里 6 条的等门条件已在上游满足（U-19/20/21/23 的真实开局门 R38 就开了；S-08/EVO-06 的 ①M-30 已 R37 绿）。blocked 变成了免死金牌——新增纪律：每审计轮复查重开条件。",
+   "账目 4 处错误：S-27 交付后计划/队列两侧都没回写（报告说已落地，计划写待修复）；已完成清单尾部两条重复；1 条引用不在 HEAD（未跟踪文件，旧检查判工作区永远为真）；ON-5-02b 的 thread 自指。",
+   "度量口径：前三轮「大文件行数」读工作区（含并发 WIP），按 HEAD 统计三文件 90,611/42,542/30,794 与 AUDIT-46 完全持平。本轮起口径固定 git show HEAD:<file>。",
+   "门禁九→十（refs-head），负向验证时第一版把 reports/*.md 通配当路径误报 1 条，已排除。",
+   "近 5 轮 test:0/fix:1 → §八.3 比例闸首次解除；近 60 提交 test:30/fix:11=2.73×（AUDIT-46 3.10×）。"
+  ],
+  "kept": "不批量改 6 条 blocked 的状态（改状态=改排序，属修复轮）；不动打包链；unit-behavior 不再碰",
+  "next": "R52 产品行为轮取 M-27（侧栏等级星）；R53 EVO-07；U-19/20/21/23 合并成一轮取证；S-19 建议移 deferred"
+ },
+ "decisions_recent_legacy": [
+  {
+   "round": 32,
+   "date": "2026-11-14",
+   "lines": [
+    "候选根因三种改法相反时，先补的读数必须能「一次否掉三种」——本轮三条读数各否一条，第四种（样本是编的）才浮出来。",
+    "「目录里有没有这个条目」不能当「模式是否放宽」的证据：条目在装配期就按 Owner 过滤掉了，模式放宽的是可见性与工厂归属。",
+    "同一句断言里第二段仍红时（ownerFactory→unholy），说明它还有第二个编出来的前提；先确认每段的数据来源，再谈改产品。"
+   ]
+  },
+  {
+   "round": 33,
+   "date": "2026-11-14",
+   "lines": [
+    "「看着像重复」不等于重复：抽函数配平花括号再比，才知道 4 个里 3 个逐字相同、主函数已漂 8 处——分叉的副本比复制品更危险，它不报错，只会慢慢更落后。",
+    "删掉副本立刻链接失败（Undefined symbols: loadRuntimeTmpTileBytes）反而是铁证：那个目标从来只靠副本链得上，从没链接过 codec。",
+    "清偿轮也会带出行为变更：预览的解码立场随 codec 变了却没做产物级 A/B，只能记成「未验证的债」（S-19），不许写成「纯删除」。"
+   ]
+  },
+  {
+   "round": 34,
+   "date": "2026-11-14",
+   "lines": [
+    "清单里「缺根因/缺成本」的条目不能靠继续挂着解决：11 条同时缺根因的真相是它们共用同一个前置（真实开局取证通道），把前置写进 root_cause 并降 blocked，比再顺延一轮诚实。",
+    "上一轮给 S-19 估的「低：约 30 分钟」是没勘察就写的：MIX 里没有按名抽取工具、旧二进制要另建构建树。估值写成形容词（低/中/高）而不写依据，下一轮就会照着它排错序。",
+    "既有诊断结构里「reuseCachedFrame 已经算出来但没人累加」这种事，只能靠逐个读字段使用者发现——加计量前先问：这个量是不是已经算过一次了。"
+   ]
+  },
+  {
+   "round": 35,
+   "date": "2026-11-14",
+   "lines": [
+    "一个前置被拆成 8 份估值，8 条就都排在队里、都动不了——「同类成簇」在台账里的形态不是重复条目，是同一条链的断点被抄成 8 个「低/中成本」。",
+    "「有仪表无读数」有结构原因：出口只在真实窗口会话收尾、且 sessionFrames==0 直接 return；判「仪器已装」前先问「谁会调它」。",
+    "审计自己的口径也要固定：25 行窗口、且两侧都不是 fixture/smoke 才算产品侧，否则 125→139 这种数字变化会被读成代码退化。"
+   ]
+  }
+ ]
 }
