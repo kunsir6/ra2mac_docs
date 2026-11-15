@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v170",
-  "updated": "2026-11-16T01:33+08:00",
+  "version": "v171",
+  "updated": "2026-11-16T03:10+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -576,16 +576,16 @@
     {
       "id": "S-34",
       "title": "README 的回归现状靠人手写（应由 pack-dist 生成）",
-      "detail": "R59 把「15 条 / 13 绿 / 2 known-red」改对了，但下轮多一条门禁它又会错。事实的生产者在 regress.sh，消费者在 packaging/README-dist.txt，中间缺生成步骤。",
+      "detail": "第 65 轮结案：说明书里那段「共 15 条：13 绿」**已经是假的**（R59 手工改对 14 条，R60 加第 16 条 paradropsel 又错）。改法：regress.sh 收尾写 progress/regress/latest.txt（一行 k=v），新增 scripts/render-readme.py（标记替换 / --check / 无数据 rc=3），pack-dist 第 ⑩ 步改调它，非 0 一律 exit 1。负向验证：改 known-red 条数说明书跟着变、空 base 落「未生成」、--check 照出打包前那份 15/13/2。",
       "root_cause": "消费者与生产者之间没有生成环节，靠人记得回写。",
       "value": "B：让说明书的事实每次打包都自动正确。",
       "cost": "中：pack-dist 要读最近一次 regress 汇总行与 known-red.tsv，还要处理「本机没跑过 regress」的兜底。",
       "roi": "B",
       "complexity": "中等",
-      "attempts": 0,
-      "status": "pending",
+      "attempts": 1,
+      "status": "done",
       "verify": "两次打包之间改一次 known-red.tsv 条数，重跑 pack-dist 后 README 该段自动跟着变。",
-      "report": "reports/FIX-59-清单自证与交付说明书事实对账.md",
+      "report": "reports/FIX-65-说明书里的回归现状改为生成.md",
       "thread": "清单治理"
     },
     {
@@ -638,6 +638,19 @@
     "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键）。",
     "recent": [
       {
+        "round": 65,
+        "date": "2026-11-16",
+        "type": "修复轮（§六.5 强制换赛道）",
+        "lines": [
+          "轮型：M-03 主线连续 2 轮无产品行为变化 → 本轮只许从「清偿/可观测性/known-red/打包与文档」选；known-red 两条分属两条已满额 blocked 主线（C-02 9 子项、unit-behavior 4 子项），不许续命 → 选打包与文档。",
+          "主目标 S-34：dist/README.txt 的「回归现状」改为打包时现场生成。这条已经在说谎——--check 打在上一版 dist/README.txt 上，第 123 行照出「应是 16 条/14 绿，实为 15 条/13 绿」。",
+          "根因不是「忘了改」，是生产者（regress.sh）与消费者（说明书）之间缺生成步骤；S-33 的处置只到「手工核一次」，与 S-37/MIN_MACOS 的「只查一次不是门禁」同形态，第三次。",
+          "降级必须可见：生成器无回归产物时返回 3 并在 stderr 说话，pack-dist 翻成 WARN 继续出包（说明书此刻说的是真话），其它非 0 一律 exit 1。",
+          "刻意没做：把「dist/README.txt 与最近一次回归不一致」加进 ledger-check——每轮中途回归已跑、打包在收口，这条有 20 分钟合法红窗，会变成恒真噪声（与 build-health 分母同坑）。",
+          "零 C++：产品代码净增 0，三条大文件行数逐字持平；regress 16 条 14/2/0 逐条不变。"
+        ]
+      },
+      {
         "round": 64,
         "date": "2026-11-16",
         "type": "修复轮",
@@ -648,19 +661,6 @@
           "断言纠正：原 DoD「正常构建时 compiled 与 mtime 差<60s」把机制写进验收，不重编时必然不等且正常；生效条件已改写并负向测过。",
           "S-37 原挂 thread=S-回归门禁（该线 4/4 已满且 done，R63 登记时未注意）→ 改为独立 thread=身份自证。",
           "regress 16 条 14/2/0 逐条不变；dist 73be404 universal，rosetta rc=0。"
-        ]
-      },
-      {
-        "round": 63,
-        "date": "2026-11-16",
-        "type": "修复轮（负结果）",
-        "lines": [
-          "轮型：修复轮。主目标 M-03/ON-2-06，结论是负结果，按 §七（根因假设被实测推翻）转重排。",
-          "删掉 RuntimeShell.cpp 里「tick 推进即置 repaintRequested」的兜底（25b6c53，+14/−1）：它把 100 行前 simulationChanged||waterWakeChanged 的细判据整体作废；保留对战分支每拍重绘 + 本机每 30 拍强制重绘。",
-          "读数没动：同一探针静置 18s，CPU 21.1%→20.8%，两两截图不同（未冻帧）→ 兜底不是冗余来源。",
-          "真来源：simulationChanged 汇总的是模拟侧变化，对战里每拍为真，不等于画面变。M-03 的签名门必须建在「画了什么」上。",
-          "S-08 结案：读数一直在 latest.txt（复用 13/重绘 7479），卡住它的是 DoD 没写产物路径。",
-          "regress 16 条 14/2/0 逐条不变；dist 25b6c53 universal，rosetta rc=0。"
         ]
       }
     ]
