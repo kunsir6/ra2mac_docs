@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v172",
-  "updated": "2026-11-16T03:27+08:00",
+  "version": "v173",
+  "updated": "2026-11-16T04:05+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -36,16 +36,16 @@
     {
       "id": "S-38",
       "title": "BUILD-STAMP 仍靠人手写（它却是「dist 是不是最新」的唯一判据）",
-      "detail": "第 65 轮打包后实测：pack-dist 只写 BUILD-INFO 与 README，BUILD-STAMP 是操作者手写的一行。本轮那份文件在打包完成后仍停在上一轮的 73be404/R64，直到手工覆盖才与 HEAD 一致。",
+      "detail": "第 66 轮结案（审计轮附带）：pack-dist 新增第 ⑫ 步自写 dist/BUILD-STAMP.txt。hash/时间/arch/minos/icon/buildtree 全是脚本手上已有的值（icon 比对结果改为回传数值）；regress= 只认「当前 HEAD + 干净树」测出来的那一跑，对不上写 stale@<hash> 并在屏幕打 WARN，不抄上一跑的三态；x86_64 切片补 Rosetta 冒烟，失败直接不出包；新增 --round 标签参数。负向验证两条：把 latest.txt 的 source 改成 deadbee → stamp 写 stale@deadbee + WARN；移走 latest.txt → 写 regress=unknown 而不是抄旧值。",
       "root_cause": "§十二.5 把「覆盖写 BUILD-STAMP」写成了对人的动作而不是脚本的收尾，而它又是判断 dist 新鲜度的唯一依据——忘了写 = 门禁看的那一行在说谎，且没有人会被提醒。与 S-34（说明书手写）同一形态。",
       "value": "A：dist 新鲜度判据本身不可信时，所有「dist 是最新」的结论都不成立。",
       "cost": "低：pack-dist 收尾已有 hash/时间/arch/minos/icon/buildtree 全部在手上；regress 三态从 latest.txt 读；只有 rosetta 那项要新增一次 `arch -x86_64 --smoke-test`（约 1s，本来每轮手工跑）。",
       "roi": "A",
       "complexity": "简单",
       "attempts": 0,
-      "status": "pending",
-      "verify": "打包后不手工写任何文件，dist/BUILD-STAMP.txt 的首字段 == git -C ConcordRTS rev-parse --short HEAD；改个已知字段（如 icon 阈值）重跑 pack-dist，stamp 跟着变；没有 latest.txt 时 regress= 写 unknown 而不是抄旧值。",
-      "report": "reports/FIX-65-说明书里的回归现状改为生成.md",
+      "status": "done",
+      "verify": "打包后不手工写任何文件，dist/BUILD-STAMP.txt 的首字段 == git -C ConcordRTS rev-parse --short HEAD（第 66 轮实测 6aa4673）；latest.txt 的 source 与 HEAD 不一致时写 stale@<hash>（已先红后绿测过）；无 latest.txt 时写 unknown",
+      "report": "reports/AUDIT-66.md",
       "thread": "交付"
     },
     {
@@ -216,16 +216,16 @@
     {
       "id": "EVO-06",
       "title": "世界重绘只读计量：tick 里有几次真的改变了画面（不改行为）",
-      "detail": "tick 里有几次真的改变了画面（不改行为）。第 34 轮已把 reusedScene 接进帧诊断并落 performance/latest.txt：复用帧/重绘帧/最长连续复用帧三个数（cf1903b）。读数要真实会话跑完才落盘，而真实开局通道（M-13）未绿，本轮只验证到「编译+回归不退化」。**第 35 轮审计定死死因**：唯一出口 `writeRuntimeFrameDiagnosticsReport` 只被 `runRuntimeWindowSession` 收尾调用（`RuntimeShell.cpp:90368`），且 `sessionFrames==0` 直接 return——冒烟路径永远写不出 `latest.txt`。重开条件二选一：①M-30 解开后跑一次真开局；②第 38 轮把出口拆成可被无窗口路径调用的 `flushRuntimeFrameDiagnosticsReport()`。",
+      "detail": "第 66 轮审计对账补判 done：本条是 fix-plan S-08 的队列侧镜像，S-08 已在第 63 轮判完成——读数一直在 ConcordRTS-GameData/local_data/performance/latest.txt（真会话 226s/7492 帧、复用 13 / 重绘 7479）。原文写的两条重开条件（M-30 解开 / 拆出无窗口出口）**从未被执行，也不需要**：出口对窗口会话有效，冒烟路径写不出 latest.txt 是已知且不影响的限制。",
       "root_cause": "tickAdvanced 直接置 repaintRequested，缓存复用被判据自身短路——所以「本帧有没有真的改画面」必须由 reusedScene 记，不能由帧间隔推",
       "value": "中：为脏区驱动提供基线数字",
       "cost": "低：已接入（cf1903b，+30 行），只差一次真实会话跑完读 performance/latest.txt",
       "roi": "C",
       "complexity": "简单",
       "attempts": 1,
-      "status": "pending",
+      "status": "done",
       "verify": "世界 idle 20s 打印 visualChanged / ticks / repaintRequested 三值；同一场景导出帧与当前基线逐字节相同（证明零行为改动）；单位移动时 visualChanged 比例显著上升。",
-      "report": "reports/FIX-35-帧诊断记复用与重绘.md",
+      "report": "reports/FIX-63-空转重绘的根因假设被推翻.md",
       "thread": "S-08"
     },
     {
@@ -616,7 +616,7 @@
       "status": "done",
       "verify": "dup-scan 产品侧 ≤3 组；regress 16 条三态不变；--campaign-smoke-test 输出与改动前逐字一致（已验证）",
       "report": "reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md",
-      "thread": "清单治理"
+      "thread": "campaign-coverage"
     },
     {
       "id": "S-36",
@@ -653,6 +653,18 @@
     "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键）。",
     "recent": [
       {
+        "round": 66,
+        "date": "2026-11-16",
+        "type": "审计轮（§六.7，距 AUDIT-61 满五轮）",
+        "lines": [
+          "轮型：审计轮。主目标=对账，不写产品代码；附带做掉 S-38（它属「对账」范围：唯一判据本身不可信）。",
+          "指标：净增 +93/−155（R62~65，逐轮 +3/−140、+14/−1、+59/−2、+17/−12）；大文件 90,633 / 42,542 / 31,056（RuntimeShell −124）；断言 vs 产品 近5轮 test:0 / fix:1；TODO 0；dup-scan 136/3（AUDIT-61 146/13）。",
+          "三条帐目矛盾（本轮全部修掉）：①S-38 在 fix-plan 无行（R65 摘要说「新开交付线挂 S-38」，实际只写进 queue）②EVO-06 是 S-08 的镜像，S-08 第 63 轮已判 done 而 queue 仍 pending ③S-35 挂 thread=清单治理，会让已满额的清单治理线虚增到 5 子项。",
+          "S-38 结案：pack-dist 第 ⑫ 步自写 BUILD-STAMP；regress= 只认 HEAD+干净树那一跑，否则 stale@<hash>；x86_64 补 Rosetta 冒烟且失败不出包。",
+          "下 5 轮 3 条建议：①M-03 已用 2 轮，第 3 轮若仍无产品行为变化按 §六.3 整体收口（不许再拆子项）②U 线（UI 对账 4/4 满）只许「一轮合并出四张图」，别拆③清单治理/交付两条基建线已连续 5 轮吃轮次，R67 起优先挑有用户可观察行为的条目（U-20/U-21/U-23）。"
+        ]
+      },
+      {
         "round": 65,
         "date": "2026-11-16",
         "type": "修复轮（§六.5 强制换赛道）",
@@ -664,19 +676,6 @@
           "刻意没做：把「dist/README.txt 与最近一次回归不一致」加进 ledger-check——每轮中途回归已跑、打包在收口，这条有 20 分钟合法红窗，会变成恒真噪声（与 build-health 分母同坑）。",
           "零 C++：产品代码净增 0，三条大文件行数逐字持平；regress 16 条 14/2/0 逐条不变。",
           "打包收尾实测发现：BUILD-STAMP 仍是人手写（pack-dist 不写），本轮那份在打包完成后还停在上一轮的 73be404/R64 → 登记 S-38（与 S-34 同一形态：可验证事实靠人写）；按等价替换把 S-08 行出队。"
-        ]
-      },
-      {
-        "round": 64,
-        "date": "2026-11-16",
-        "type": "修复轮",
-        "lines": [
-          "轮型：修复轮。主目标 S-37；伴生 build-health 分母（同一主目标：门禁本身的假阳性）。",
-          "根因比「只查一侧」更前一步：compiled 是版本 TU 的编译时刻，增量构建不刷新 → 该字段本身不携带「构建时刻」语义。",
-          "改法：--version 加 built（自身文件 stat mtime），compiled 加括注降为下界；regress 的 +WIP 改由 git status 定义，新增「built 早于 HEAD→WARN」。",
-          "断言纠正：原 DoD「正常构建时 compiled 与 mtime 差<60s」把机制写进验收，不重编时必然不等且正常；生效条件已改写并负向测过。",
-          "S-37 原挂 thread=S-回归门禁（该线 4/4 已满且 done，R63 登记时未注意）→ 改为独立 thread=身份自证。",
-          "regress 16 条 14/2/0 逐条不变；dist 73be404 universal，rosetta rc=0。"
         ]
       }
     ]
