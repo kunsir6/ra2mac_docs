@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v157",
-  "updated": "2026-11-15T10:39+08:00",
+  "version": "v158",
+  "updated": "2026-11-15T12:05+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -46,7 +46,7 @@
       "status": "pending",
       "verify": "两条各 1800 秒，EXIT=0；RSS 增长 < 5 MiB；帧率无单调衰减。",
       "report": "",
-      "thread": "ON-5-02b"
+      "thread": "ON-5-存活"
     },
     {
       "id": "ARM-03",
@@ -531,16 +531,16 @@
     {
       "id": "S-27",
       "title": "回归产物与旧交付包没有保留策略（本地 6.6GB，且不在任何门禁里）",
-      "detail": "progress/regress 148 个目录 3.4GB（单次 26MB，每轮 3~5 次）；dist/.archive 34 个旧包 3.2GB（单个 96MB）。两者都不入库（前者 gitignore），清单/RUNLOG 都装了门禁，磁盘产物一个都没有。第 46 轮审计实测。",
+      "detail": "progress/regress 148 个目录 3.4GB、dist/.archive 34 个旧包 3.2GB，两者只写不删、也不在任何门禁里。第 50 轮落地：regress.sh「每天首跑 + 最近 20 次」、pack-dist.sh 的 .archive 留 5 个，实测 157→25（3.5GB→516MB）、42→5（3.6GB→481MB）；顺带清 .bak（1.4GB→189MB）并固化成 scripts/lipo-universal.sh。第 51 轮审计发现交付后两侧都没回写（计划仍写待修复、本条仍 pending），已修正。",
       "root_cause": "regress.sh 每次新建时间戳目录、pack-dist.sh 每次把旧包移入 .archive，两处只写不删；ledger-check 只管文本账，不管磁盘账。",
       "value": "C：不影响用户，只吃本机磁盘（约 130MB/轮 + 96MB/次打包）",
       "cost": "低：regress.sh 收尾保留最近 20 次 + 每天首跑一份；pack-dist 的 .archive 保留最近 5 个。≤10 行。",
       "roi": "C",
       "complexity": "简单",
       "attempts": 0,
-      "status": "pending",
+      "status": "done",
       "verify": "连跑 25 次 regress 后 progress/regress 目录数 ≤22 且最近一次产物仍在；重复打包 6 次后 dist/.archive ≤5 个包，最新包仍登记在 LaunchServices",
-      "report": "reports/AUDIT-46.md",
+      "report": "reports/FIX-50-留存策略与M-25主线收口.md",
       "thread": "清单治理"
     },
     {
@@ -649,5 +649,20 @@
     ],
     "kept": "M-28/M-26 不碰（并发 WIP）；S-24 仍 blocked；C-02i 仍 blocked（C-02 主线已收口，重开要走 movement-stall 新线）",
     "next": "第 51 轮 = 审计轮（AUDIT-46 后满五轮）；审计后候选 M-27（侧栏等级星，从未实现）或 EVO-07（数据根提示+About），两条都与并发 WIP 无交集"
+  },
+  "decisions_20261115_r51": {
+    "round": 51,
+    "date": "2026-11-15",
+    "type": "审计轮（§零.4，AUDIT-46 后整五轮）",
+    "target": "对账：blocked 重开条件逐条复查 + 账目一致性 + 度量口径固定为 HEAD",
+    "findings": [
+      "头条：11 条 blocked 里 6 条的等门条件已在上游满足（U-19/20/21/23 的真实开局门 R38 就开了；S-08/EVO-06 的 ①M-30 已 R37 绿）。blocked 变成了免死金牌——新增纪律：每审计轮复查重开条件。",
+      "账目 4 处错误：S-27 交付后计划/队列两侧都没回写（报告说已落地，计划写待修复）；已完成清单尾部两条重复；1 条引用不在 HEAD（未跟踪文件，旧检查判工作区永远为真）；ON-5-02b 的 thread 自指。",
+      "度量口径：前三轮「大文件行数」读工作区（含并发 WIP），按 HEAD 统计三文件 90,611/42,542/30,794 与 AUDIT-46 完全持平。本轮起口径固定 git show HEAD:<file>。",
+      "门禁九→十（refs-head），负向验证时第一版把 reports/*.md 通配当路径误报 1 条，已排除。",
+      "近 5 轮 test:0/fix:1 → §八.3 比例闸首次解除；近 60 提交 test:30/fix:11=2.73×（AUDIT-46 3.10×）。"
+    ],
+    "kept": "不批量改 6 条 blocked 的状态（改状态=改排序，属修复轮）；不动打包链；unit-behavior 不再碰",
+    "next": "R52 产品行为轮取 M-27（侧栏等级星）；R53 EVO-07；U-19/20/21/23 合并成一轮取证；S-19 建议移 deferred"
   }
 }
