@@ -1252,3 +1252,24 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - dist：`755abf2 2026-11-16T06:18:49 regress=pass15/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
   rosetta=rc0 buildtree=clean wip=none round=R68`。门禁逐条独立复验（lipo/minos/plist/Rosetta/身份三处一致/icon），
   并用**包内二进制**复跑第 17 条 → `loadingpages PASS`、两棵树 bmp 仍为 0。
+
+## 第 69 轮（2026-11-16，重排轮）三条候选全被推翻 → 世界帧出口才是 U-19 的前置
+
+- 轮型：开轮判修复轮，T+30 触发 `§七`（三条候选的根因假设**全部被实测推翻**）→ 转重排，只诊断 + 重排 + 打包。
+- **旧顺序错在估错成本**：R68 把「U-19 前先验 `--skirmish-build-smoke-test` 能不能出世界帧」写成一句前置验证。
+  实测 `runRuntimeSkirmishBuildSmokeTest`（`RuntimeShell.cpp:77659`）建完整世界、部署 MCV、放 10 栋建筑，却
+  **全程无 `CreateWindow` / `WM_PRINTCLIENT` / 渲染调用**（`renderCheck=0.00ms` 就是因为那段没跑）；17 条 smoke 的
+  artifacts 只有菜单/载入/结果页，**零张世界帧**。所以它不是「验一下」，是要**新建一条呈现通道**。
+- 三条否决（本轮唯一实质产出）：
+  ①FPS 叠加层「默认常显」——`c1ccfe6`（11-12，UI-01 出报告同一天）已改为 opt-in；UI-01 §3.1 是死结论，就地标废弃。
+  ②遭遇战第二行国家列 `???`——是 Random 旗 `rani.shp` 的**位图内容**（`grep '\?\?\?'` 零命中、`flagFor` 非空才 blit），零售原样。
+  ③放建筑 `placementSearch=1553ms`——出自冒烟的兜底路径（`placementValid==false` → `findRuntimePlacementCellNearBase`），
+  单人对战 `selectRuntimeReadyPlacement` 不走它 → 证不了用户路径会卡，不修、不登记。
+- **登记 U-24「世界帧出口」**（收益 A / 成本 中 / 中等，重排后第 1 顺位），验收按**像素数**判而不是「文件存在」；
+  等价归档 S-24。主线账目：新增「世界帧出口」线，M-03 按 `§六.5` 暂停（再启须 `§六.3` 三选一）。
+- 质量四数：源码 **0/0**（无改动）；90,635 / 42,542 / 31,056 零变化；断言 0/0；TODO 0。
+- regress 17 条 `15/2/0` 不变（本轮无源码改动，不是又验了一遍）。
+- 清单：242 行 / 42 条 / 67KB / rules 5 类 / 十三项全绿（refs 两项在报告入库前先红后绿地测过）。
+- **欠账**：连续第 4 轮无产品行为变化（R65 起）。下轮 U-24 必须真的出图，否则按 `§六.3` 收口 U 线。
+- dist：`755abf2 2026-11-16T07:25:05 regress=pass15/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
+  rosetta=rc0 buildtree=clean wip=none round=R69`（无源码改动，仍重跑 lipo+重签+pack 确保 dist 与 HEAD 一致）。

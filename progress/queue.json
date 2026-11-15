@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
  "version": "v175",
- "updated": "2026-11-16T07:00+08:00",
+ "updated": "2026-11-16T07:35+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -319,9 +319,24 @@
    "thread": "C-01"
   },
   {
+   "id": "U-24",
+   "title": "世界帧没有出口（U-19 HUD 对账的真前置）",
+   "detail": "17 条 smoke 的 artifacts 只有菜单/载入/结果页，零张世界帧。--skirmish-build-smoke-test（RuntimeShell.cpp:77659）建了完整世界、部署 MCV、放 10 栋建筑，但全程无 CreateWindow / WM_PRINTCLIENT / 渲染调用（renderCheck=0.00ms 就是因为那段没跑）。载入页能出帧是因为它真建了生产窗口（CONCORD_LOADING_PRESENTATION_ONLY）；世界路径没有对应物。与前四次「入口其实有、只是没接进门禁」不同型：这次入口要造。",
+   "root_cause": "世界渲染只存在于 WM_PAINT 分支里，冒烟侧没有可驱动的宿主窗口；没有「渲染一帧到 DIB」的独立出口。",
+   "value": "A：一条解锁 U-19 整块（8 子项）与 UI-01 三条证据不足项；它是「世界里的东西画得对不对」唯一的帧级判据。",
+   "cost": "中：世界路径要一个能 WM_PRINTCLIENT 的宿主，载入页通道可复用约 80%，预计 1 轮。",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 0,
+   "status": "pending",
+   "verify": "一条命令（CONCORD_WORLD_PRESENTATION_ONLY=1 --skirmish-build-smoke-test 或等价）不开用户可见窗口就把真实开局渲成 800x600 BMP 落 CONCORD_SMOKE_ARTIFACT_DIR；图里侧栏 168px / 资金数字 / 已知建筑 / 单位都在，按像素数判（蓝图区非空、数字区有非背景像素、cameo 非空）而不是「文件存在」。",
+   "report": "reports/FIX-69-重排-世界帧出口才是U19的前置.md",
+   "thread": "世界帧出口"
+  },
+  {
    "id": "U-19",
    "title": "游戏内 HUD 逐项对账（雷达/电力/资金/页签/建造图标/血条/选择框/小地图）",
-   "detail": "拿到真实开局图后，以原版素材坐标为基准逐项比：radar.shp 168x110（含离线帧）、top.shp 168x32、tab00..tab03 28x27、sidebttn 125x25、repair/sell 64x31、power.shp 27x30；确认①雷达区高度与内屏尺寸、②电力条是竖直填充还是数字、③资金字体与位置、④四个页签图标是否有内容、⑤建造按钮 cameo 与就绪闪烁、⑥选中单位只出血条无外框（U-15 已改，需在真实开局复验）、⑦小地图内容与雷达建筑依赖、⑧侧栏底部按钮图标。逐项标注 一致/偏差像素量/缺失。",
+   "detail": "拿到真实开局图后，以原版素材坐标为基准逐项比：radar.shp 168x110（含离线帧）、top.shp 168x32、tab00..tab03 28x27、sidebttn 125x25、repair/sell 64x31、power.shp 27x30；确认①雷达区高度与内屏尺寸、②电力条是竖直填充还是数字、③资金字体与位置、④四个页签图标是否有内容、⑤建造按钮 cameo 与就绪闪烁、⑥选中单位只出血条无外框（U-15 已改，需在真实开局复验）、⑦小地图内容与雷达建筑依赖、⑧侧栏底部按钮图标。逐项标注 一致/偏差像素量/缺失。 第 69 轮重排：它的前置不是「验一下能不能出世界帧」，而是要新建通道 → 另立 U-24，本条目在 U-24 出图前不动手。",
    "root_cause": "取证前置未满足：真实开局 HUD 截图缺失，只能逐项对着素材坐标推；公共前置是真实开局取证通道（M-13/S-17），它仍被 unholy 段挡着",
    "value": "B：HUD 与呈现偏差是当前最主要的可见问题来源",
    "cost": "低：拿到真实开局图/原版对照后各约 30 分钟",
