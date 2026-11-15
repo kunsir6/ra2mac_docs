@@ -794,3 +794,9 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 质量四数：净增 **0**；90,652(+41) / 42,542 / 31,050(+256)——**增量全属并发 WIP**；断言 0 / 产品 0；TODO 0。
 - 清单九项全绿（fix-plan ~310 行 / queue 35 条 / 5 类）；新增 S-28 ↔ 归档 M-22（1:1）。
 - dist：源码未变 ⇒ 复用两切片重新 lipo + pack-dist，stamp 标 `pack=reused-slices`。
+- **顺带否定一条接缝（本轮唯一一手证据）**：第一版把挤压挂在 `applyRuntimeMovePathResult` 的 `goalAdjusted` 分支，
+  `compactgroups` 13/13、`12E1_2MTNK_tank_first` settled=1870 与改动前逐字相同——**但 `CONCORD_SQUEEZE_TRACE=1`
+  在 `compactgroups` / `command` / `skirmishbuild` 三条冒烟里零触发**。结论：寻路结果回来时「目标格站着友军步兵」
+  与「兜底换了格子」从不联合出现；落位冲突发生在载具**真的往那一格推进**时。S-28 的正解接缝是
+  `advanceRuntimeMoveBehavior`（`RuntimeSessionWorld.cpp:27776`）。改法 +96/−1 整文件回退，S-28 attempts=1。
+  **这条否定同时是 R44/R48 两次失败的真因：判据放错了阶段，不是判别式不够窄。**

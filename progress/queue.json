@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
   "version": "v156",
-  "updated": "2026-11-15T09:50+08:00",
+  "updated": "2026-11-15T09:30+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -546,13 +546,13 @@
     {
       "id": "S-28",
       "title": "挤压原语：载具目标格被友军步兵占着时没人让位",
-      "detail": "载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（ground_target_unreached）。新增 runtimeDisplaceFriendlyInfantryFromCell：只挑 Infantry/同阵营/存活/非空中，半径 1~2（不许更大，C-02h 教训是半径 6 把矿工搬出自己基地），落位走 setRuntimeObjectCell，nextRepathTick=tick+2 冷却防两车互挤抖动。SHAD 是 Unit 不是 Infantry，不进名单，S-23 的落地礼让不受影响。",
-      "root_cause": "缺的不是通行许可，是让位；「谁有权占这一格」的分界在落位/运动层，不在寻路层（R44/R48 两次实测）。",
+      "detail": "载具走到目标格，格上站着友军步兵 → crush 对友军恒否 → 寻路器把目标兜底换成远处空格，载具停在半径 2（ground_target_unreached）。新增 runtimeDisplaceFriendlyInfantryFromCell：只挑 Infantry/同阵营/存活/非空中，半径 1~2（不许更大，C-02h 教训是半径 6 把矿工搬出自己基地），落位走 setRuntimeObjectCell，nextRepathTick=tick+2 冷却防两车互挤抖动。SHAD 是 Unit 不是 Infantry，不进名单，S-23 的落地礼让不受影响。 第 49 轮第一版按「寻路结果侧」实现（+96/−1）并回退：判据与回归都没变差，但 CONCORD_SQUEEZE_TRACE 三条冒烟零触发 → 接缝错，须改挂 advanceRuntimeMoveBehavior。",
+      "root_cause": "缺的不是通行许可，是让位；「谁有权占这一格」的分界在落位/运动层，不在寻路层（R44/R48 两次实测）。第 49 轮再否定一条接缝：挂在寻路结果侧（applyRuntimeMovePathResult 的 goalAdjusted 分支）在 compactgroups/command/skirmishbuild 三条冒烟里零触发 → 落位冲突发生在载具真的往那一格推进时，寻路结果早就应用完了。",
       "value": "A：M-25 的唯一前置；单独也修「载具被自己步兵堵在终点前」这一类",
-      "cost": "中：单 TU（RuntimeSessionNavigation.cpp），一个函数 + 一个调用点，不碰并发 WIP 的 RuntimeSessionWorld.cpp",
+      "cost": "中高：原语可在 RuntimeSessionNavigation.cpp（单 TU），但调用点必须在 RuntimeSessionWorld.cpp（载具 commit 进格处）——该文件此刻有并发 WIP，开工前先看 git status",
       "roi": "A",
       "complexity": "中等",
-      "attempts": 0,
+      "attempts": 1,
       "status": "pending",
       "verify": "挤压发生时打印 displace from/to/id；compactgroups 13/13 保持（12E1_2MTNK_tank_first 与 3MTNK_3SHAD 点名）；regress 零 RED-NEW。单独落地不接 regress（没有独立产品入口，接了会造永久假红）。",
       "report": "ra2mac_docs/reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md",
@@ -771,7 +771,8 @@
       "顺序写死：S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层（可选）。A 必须在 S-28 进 HEAD 后才允许提交，否则是 R44/R48 的第三次复现。",
       "M-25 attempts 2->3（第 44/48 两轮都动过手未结案），按 §六.4② 拆出前置 S-28；S-28 占 unit-behavior 第 4/4 个子项，此后禁开第 5 个。",
       "S-28 刻意设计成单 TU 且不落 RuntimeSessionWorld.cpp——该文件此刻有 282 行并发 WIP（advanceRuntimeMoveBehavior 就在里面）。",
-      "回归基线 12/1/0（20261115-085843），command 前缀未变，compactgroups 13/13。"
+      "回归基线 12/1/0（20261115-085843），command 前缀未变，compactgroups 13/13。",
+      "接缝否定（本轮唯一一手证据）：第一版把挤压挂在 applyRuntimeMovePathResult 的 goalAdjusted 分支，compactgroups 13/13 与 tank_first settled=1870 均未变，但 CONCORD_SQUEEZE_TRACE 在三条冒烟零触发 → 该联合状态在当前覆盖里从不出现；S-28 必须挂移动推进侧。改法整文件回退。"
     ],
     "kept": "M-28/M-26 不碰（并发 WIP）；S-24 仍 blocked（判据 .inl 仍未跟踪，07:04）；S-25 仍 deferred",
     "next": "第 50 轮 = 产品行为轮，先做 S-28（挤压原语）；深水区连续两轮无产品行为变化，不许再写方案轮"
