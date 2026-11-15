@@ -84,6 +84,26 @@ say "bundle-id $BUNDLE_ID"
 [ -f "$BIN" ] || { echo "pack-dist: 找不到二进制: $BIN" >&2; exit 1; }
 [ -d "$DATA_ROOT/local_data" ] || { echo "pack-dist: 数据根缺少 local_data: $DATA_ROOT" >&2; exit 1; }
 
+# ③ （S-30 伴生）打包前先问一句：这个构建目录要我全量重编，是真改了参数还是状态文件坏了？
+#   只报不拦：状态坏不等于这份二进制是旧的（它可能五分钟前刚编完），
+#   但「坏着还继续打包」这件事必须出现在屏幕上，否则下一轮又会把 4:17 当常态。
+BUILD_HEALTH="$PROJECT_ROOT/ra2mac_docs/scripts/build-health.sh"
+if [ -x "$BUILD_HEALTH" ]; then
+    if HEALTH_OUT="$(bash "$BUILD_HEALTH" 2>&1)"; then
+        say "buildtree clean"
+    else
+        say "buildtree WARN —— 构建树不是 clean 状态（详见下方）"
+        # 不用 grep/sed：本机两者是 shim，多模式会静默返回空（regress.sh 的同一条约束）。
+        H_LINE=0
+        while IFS= read -r hl; do
+            H_LINE=$((H_LINE + 1))
+            [ "$H_LINE" -lt 3 ] && continue
+            [ "$H_LINE" -gt 8 ] && break
+            printf '    %s\n' "$hl"
+        done <<< "$HEALTH_OUT"
+    fi
+fi
+
 if [ "$DRY_RUN" = 1 ]; then
     say "dry-run：不做任何写入"
     exit 0

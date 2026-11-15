@@ -14,19 +14,18 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 56 轮，2026-11-15）收口摘要 —— 审计轮（AUDIT-56）**
-> 1. 轮型：审计轮（AUDIT-51 后整五轮）。报告 `reports/AUDIT-56.md`。源码零改动，只有工具与台账改动。
-> 2. **上轮结论**：EVO-07 ①④ 已交付（`--version`+包内 BUILD-INFO、dmg 挂载后 7 条重验），②③ 卡「交互判据」。
-> 3. **本轮变化**：六条对账结论——①**两轮主目标 EVO-07 在台账里没有行**（只在摘要正文里被提到），
->    ON-5-01/02b、ON-4-02d、ARM-03、ON-2-04b 同样有队列无台账；②AUDIT-51 查出的 6 条「门已开」blocked
->    **挂了 5 轮没人回写**，本轮迁回 pending；③queue 的 `decisions_r49~r55` 8 个键仍有 5.8KB 内联
->    （RUNLOG 治过、fix-plan 治过，queue 这侧没治），迁 `archive/queue-decisions-202611c.json`；
->    ④比例闸只看比值看不见分母（近 5 轮 test:1/fix:1 不触发，60 提交窗口已 27:11=2.45×）；
->    ⑤678 行并发 WIP 跨 6 轮未提交，且已烘进 dist 二进制（编译时刻 17:05:54 晚于 HEAD 17:05:22）；
->    ⑥`.ninja_deps` 截断**复发**，R44 判的「付一次全量修回来」只是消症状。
-> 4. 清单：347 行 / 35 条 / 58KB / 十项门禁全绿（新增第十一项 `decisions-keys`≤2）。
-> 5. **下轮起手（第 57 轮）**：先付两件基建——S-30 构建损坏检测 + 把 678 行 WIP 落地或移出工作区
->    （此后「构建自 HEAD」才可断言）；再做 S-29（regress 绑定源码版本）；EVO-07 ②③ 判 blocked 或 deferred。
+> **本轮（第 57 轮，2026-11-15）收口摘要 —— 修复轮（构建与回归的「自证」）**
+> 1. 轮型：修复轮。主目标 = S-30 + S-29，同一根因的两面：现有判据只证明「跑了什么」，不证明「跑的是谁」。
+> 2. **上轮结论**：R56 六条对账里两条卡在无法自证——678 行 WIP 被烘进 dist（编译时刻晚于 HEAD 22 秒）、
+>    `.ninja_deps` 截断连续三轮被误诊成「改了 cmake」。
+> 3. **本轮变化**：新增 `scripts/build-health.sh`（S-30：clean/WARN/CORRUPT 三态，判据必须「本目录截断告警 +
+>    另一个构建目录同刻干净」两条一起看）；`regress.sh` 报告头钉住 HEAD / 提交时刻 / dirty 数 / 二进制自报
+>    `compiled`，晚于 HEAD 即标 `+WIP` 并 WARN（S-29）；`pack-dist.sh` 组装前把构建树状态摊到屏幕上（伴生）。
+>    **R44 的「付一次全量就能修回来」被证伪**：4:10 全量重编后 deps 记录仍是 11-11 的旧 mtime，
+>    `-t recompact` 只消告警不修记录；真修法是删 `.ninja_deps` + `.ninja_log` 再全量。
+> 4. 清单：358 行 / 35 条 / 61KB，十一项门禁全绿；S-29 S-30 转已完成（attempts 0→1），本轮无新增条目。
+> 5. **下轮起手（第 58 轮）**：EVO-07 ②③ 判 blocked（要新开 AppKit 模态面，本环境无 sendEvent 验不了交互）；
+>    U-19/20/21/23 合并一轮取真窗口读数；S-24 仍卡在 678 行 WIP 的归属（不是技术问题，是要一个决定）。
 
 ---
 
@@ -38,8 +37,8 @@
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 | S-24 | 载具穿步兵冒烟未进门禁 | M-25 的判据已存在且现在红（`vehicle pass-through: emptyCell=1 friendlyInfantryCell=0`），但 `RuntimeVehicleInfantryPassThroughSmoke.inl` 仍是并发会话的未跟踪文件 | 门禁接线的前置是「被测冒烟在 HEAD 里」；未跟踪文件接进门禁，干净树重建后该环境变量消失 → 退回跑主档，以别的文案红出来，制造永久假 `cause-changed` | **A**：M-25 是用户已确认的 S 级缺陷，判据有了却不每轮跑，等于修完也可能静默退化 | 低：.inl 进 HEAD 后加一条 `run_case`（0.4s）+ 转绿前的 known-red 前缀 | **A** | 简单 | 0 | **blocked**（前置=.inl 进 HEAD） | regress 出现第 14 条 `vehiclepass`；接上时若红则登记前缀，M-25 修好后转 PASS 且前缀可注销 | `reports/FIX-43-regress接入混合编队收敛门禁.md` §六 |
-| S-29 | regress 报告不记源码版本 | `report.md` 只记二进制 sha256(前16)+mtime，判不出「这个二进制是不是 HEAD 编的」；R55 实测 arm64 半边落后 16 小时正是这类盲区 | 判据只写「测了哪个二进制」，没写「对应哪个 commit」；编译时刻与 `git log -1 --format=%ci` 一比即知，但这个比较没人做 | **A**：让「回归 13/1/0」绑定具体 HEAD，否则 BUILD-STAMP 的 regress= 可能是别的树测的 | 低：报告头 3 行（取 `--version` 的 compiled + 与 HEAD 提交时刻比，落后打 WARN） | **A** | 简单 | 0 | 待修复（第 56 轮审计登记） | 报告头出现 `source: <hash> compiled=<时刻>`；换回旧二进制必须打 WARN 而不是静默通过 | `reports/AUDIT-56.md` §五 |
-| S-30 | 构建状态损坏无检测（`.ninja_deps` 截断复发） | arm 目录 `ninja -n` 要 1647 目标，`-d explain` 首行 `premature end of file; recovering`、脏因全是 `stored deps info out of date`；同时刻 x86_64 报 `no work to do` | 疑为并发写：两会话同时在一个构建目录跑 ninja，`.ninja_deps` 追加写入被截断。R41~43 三轮把这现象归因成「改了 cmake」而放弃源码修复 | **A**：误诊一次吃掉一整轮（R41~43 三轮）；一条检测把它变成一句明确提示 | 低：regress/pack 开跑前 `ninja -n -d explain`，命中截断或待办>30% 打 WARN | **A** | 简单 | 0 | 待修复（第 56 轮审计登记；R44 判的「付一次全量」只是消症状） | 人为截断尾部后跑 regress 必须打 WARN 且退出码不变；正常状态零输出 | `reports/AUDIT-56.md` §六 |
+| S-29 | regress 报告不记源码版本 | `report.md` 只记二进制 sha256(前16)+mtime，判不出「这个二进制是不是 HEAD 编的」；R55 实测 arm64 半边落后 16 小时正是这类盲区 | 判据只写「测了哪个二进制」，没写「对应哪个 commit」；编译时刻与 `git log -1 --format=%ci` 一比即知，但这个比较没人做 | **A**：让「回归 13/1/0」绑定具体 HEAD，否则 BUILD-STAMP 的 regress= 可能是别的树测的 | 低：报告头 3 行（取 `--version` 的 compiled + 与 HEAD 提交时刻比，落后打 WARN） | **A** | 简单 | 1 | **已完成**（`regress.sh`：`source <hash>[+WIP]` + dirty 数 + 自报 compiled；实测直接照出 R56 那 8082s 偏差） | 报告头出现 `source: <hash> compiled=<时刻>`；换回旧二进制必须打 WARN 而不是静默通过 | `reports/FIX-57-构建与回归的自证门禁.md` §二 |
+| S-30 | 构建状态损坏无检测（`.ninja_deps` 截断复发） | arm 目录 `ninja -n` 要 1647 目标，`-d explain` 首行 `premature end of file; recovering`、脏因全是 `stored deps info out of date`；同时刻 x86_64 报 `no work to do` | 疑为并发写：两会话同时在一个构建目录跑 ninja，`.ninja_deps` 追加写入被截断。R41~43 三轮把这现象归因成「改了 cmake」而放弃源码修复 | **A**：误诊一次吃掉一整轮（R41~43 三轮）；一条检测把它变成一句明确提示 | 低：`ninja -n` 逐目录判定，命中截断或待办>30% 报出 | **A** | 简单 | 1 | **已完成**（`scripts/build-health.sh` 三态；接进 regress 预检与 pack-dist 组装前。**修法纠正**：全量重编修不回来，要删 `.ninja_deps`+`.ninja_log`） | 人为截断尾部后跑 regress 必须打 WARN 且退出码不变；正常状态零输出 | `reports/FIX-57-构建与回归的自证门禁.md` §一 |
 
 ## 二、待修复 —— 中等
 
@@ -299,6 +298,7 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 57 | 2026-11-15 | 构建与回归的自证：`build-health.sh` 三态检测（S-30）+ regress 报告钉住 HEAD/compiled（S-29）；**R44「再全量一次就能修 .ninja_deps」被证伪**，真修法是删 deps+log | `reports/FIX-57-构建与回归的自证门禁.md` |
 | 56 | 2026-11-15 | 审计：**R54/R55 的主目标 EVO-07 在台账里没有行**；AUDIT-51 查出的 6 条「门已开」blocked 挂 5 轮未回写；queue 的 `decisions_r49~r55` 8 键迁存档；`.ninja_deps` 截断复发 | `reports/AUDIT-56.md` |
 | 55 | 2026-11-15 | EVO-07 ④ dmg 收口：`make-dmg.sh` 挂载后重验 7 条（含跨机模拟 a/b）；`dist/README.txt` 改为入库源、每次打包覆盖（旧版三处过期） | `reports/FIX-55-dmg分发与说明书入库.md` |
 | 54 | 2026-11-15 | EVO-07 第一步：`--version` 自报版本/架构/编译时刻 + 包内 BUILD-INFO 构建戳；pack-dist 新增第 ⑨ 门禁（包内身份自证） | `reports/FIX-54-版本身份自证与打包链新门禁.md` |

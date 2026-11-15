@@ -71,6 +71,44 @@ BIN_MTIME=$(date -r "$BIN" +%Y-%m-%dT%H:%M:%S)
 BIN_EPOCH=$(stat -f%m "$BIN")
 BIN_SIZE=$(stat -f%z "$BIN")
 BIN_ARCH=$(lipo -archs "$BIN" 2>/dev/null | awk '{print $1}')
+
+# —— 源码指纹（S-29）——
+# 只记 binary 的 sha256 只能证明「两次测的是同一份文件」，证明不了「这份文件对应哪个提交」。
+# 2026-11-15 第 56 轮审计实测：dist 里的二进制编译于 17:05:54，HEAD 提交时刻 17:05:22——
+# 678 行未提交改动被烘进发行物，而期间每份回归报告都「看起来」是在测 HEAD。
+# 这里同时钉三样：HEAD hash / HEAD 提交时刻 / 工作区脏文件数，再用二进制自报的 compiled 反推。
+SRC=${CONCORD_SRC:-$ROOT/ConcordRTS}
+HEAD_SHA=$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null)
+[ -n "$HEAD_SHA" ] || HEAD_SHA=unknown
+HEAD_CT=$(git -C "$SRC" log -1 --format=%ct 2>/dev/null)
+case "${HEAD_CT:-}" in ''|*[!0-9]*) HEAD_CT=0 ;; esac
+HEAD_ISO=$(git -C "$SRC" log -1 --format=%cI 2>/dev/null)
+[ -n "$HEAD_ISO" ] || HEAD_ISO=unknown
+DIRTY_N=$(git -C "$SRC" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+case "${DIRTY_N:-}" in ''|*[!0-9]*) DIRTY_N=0 ;; esac
+
+BIN_VER=$("$BIN" --version 2>/dev/null)
+COMPILED_RAW=""
+ARCH_RAW=""
+while IFS= read -r vline; do
+  case "$vline" in
+    "compiled: "*) COMPILED_RAW=${vline#compiled: } ;;
+    "arch: "*)     ARCH_RAW=${vline#arch: } ;;
+  esac
+done <<< "$BIN_VER"
+COMPILED_EPOCH=0
+case "${COMPILED_RAW:-}" in
+  '') ;;
+  *) COMPILED_EPOCH=$(LANG=C date -j -f "%b %e %Y %H:%M:%S" "$COMPILED_RAW" +%s 2>/dev/null) ;;
+esac
+case "${COMPILED_EPOCH:-}" in ''|*[!0-9]*) COMPILED_EPOCH=0 ;; esac
+
+SRC_LABEL=$HEAD_SHA
+WIP_NOTE=""
+if [ "$COMPILED_EPOCH" -gt 0 ] && [ "$HEAD_CT" -gt 0 ] && [ $((COMPILED_EPOCH - HEAD_CT)) -gt 5 ]; then
+  SRC_LABEL="$HEAD_SHA+WIP"
+  WIP_NOTE="被测二进制编译于 $(date -r "$COMPILED_EPOCH" +%Y-%m-%dT%H:%M:%S)，晚于 HEAD 提交时刻 ${HEAD_ISO} 约 $((COMPILED_EPOCH - HEAD_CT))s —— 它含未提交改动，本报告的结论不能直接归给 $HEAD_SHA"
+fi
 DIST_WARN=""
 for app in "$ROOT"/dist/*.app; do
   [ -d "$app" ] || continue
@@ -89,11 +127,33 @@ for app in "$ROOT"/dist/*.app; do
   fi
 done
 
+# 构建树状态（S-30）：报告要能回答「这份二进制所在的目录，ninja 还信不信得过」。
+# 只报不拦（退出码不变）：状态坏不等于二进制旧，但它必须出现在屏幕上，
+# 否则下一轮又会把「全量 4:17」当成「改了 cmake」。clean 时零输出。
+BUILD_WARN=""
+HEALTH="$SCRIPT_DIR/build-health.sh"
+if [ -x "$HEALTH" ]; then
+  BH_OUT=$(bash "$HEALTH" 2>&1 || true)
+  while IFS= read -r bline; do
+    case "$bline" in
+      "  build-product-"*)
+        case "$bline" in
+          *CORRUPT*|*WARN*) BUILD_WARN="$BUILD_WARN${bline#"  "}"$'\n' ;;
+        esac
+        ;;
+    esac
+  done <<< "$BH_OUT"
+  BUILD_WARN=${BUILD_WARN%$'\n'}
+fi
+
 echo "== ConcordRTS 回归 =="
 echo "   bin     $BIN"
 echo "   sha256  $BIN_SHA   mtime=$BIN_MTIME   size=$BIN_SIZE"
+echo "   source  $SRC_LABEL   提交 $HEAD_ISO   dirty=$DIRTY_N   compiled=${COMPILED_RAW:-unknown}   arch=${ARCH_RAW:-$BIN_ARCH}"
 echo "   data    $DATA"
 echo "   out     $OUT"
+[ -n "$WIP_NOTE" ] && echo "   警告    $WIP_NOTE"
+[ -n "$BUILD_WARN" ] && echo "   警告    构建树状态不是 clean（跑 build-health.sh 看全貌）：$BUILD_WARN"
 [ -n "$DIST_WARN" ] && echo "   警告    $DIST_WARN"
 echo
 
@@ -274,6 +334,9 @@ MD=$OUT/report.md
 {
   printf '# 回归结果 %s\n\n' "$STAMP"
   printf -- '- 二进制 `%s`\n- sha256(前16) `%s`   mtime `%s`\n- 数据根 `%s`\n' "$BIN" "$BIN_SHA" "$BIN_MTIME" "$DATA"
+  printf -- '- 源码 `%s`（提交时刻 %s）工作区 dirty=%s  被测二进制自报 arch=%s compiled=%s\n' "$SRC_LABEL" "$HEAD_ISO" "$DIRTY_N" "${ARCH_RAW:-?}" "${COMPILED_RAW:-unknown}"
+  [ -n "$WIP_NOTE" ] && printf -- '- 警告：%s\n' "$WIP_NOTE"
+  [ -n "$BUILD_WARN" ] && printf -- '- 警告：构建树状态不是 clean：%s\n' "$BUILD_WARN"
   [ -n "$DIST_WARN" ] && printf -- '- 警告：%s\n' "$DIST_WARN"
   printf '\n| 用例 | 结果 | 耗时 | 证据 | 已知原因 |\n|---|---|---|---|---|\n'
   while IFS=$'\t' read -r id state secs ev reason; do
