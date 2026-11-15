@@ -100,7 +100,7 @@ gameplay-authority / authoritative-hash）改动前后输出 → diff 为空
 
 ## 七、清单体检（§一.7）
 
-`ledger-check.sh` 十项门禁全绿：fix-plan 339 行 / queue 65KB / 35 条 / rules 5 类 /
+`ledger-check.sh` 十项门禁全绿：fix-plan 341 行 / queue 64KB / 35 条 / rules 5 类 /
 detail 超 6 行 0 条 / 重复 id 0 条 / 缺估值字段 0 条 / RUNLOG 884 行 69KB / refs-head 0 条。
 
 人工复查（门禁查不出的那一类，AUDIT-51 的教训）：

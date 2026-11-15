@@ -898,7 +898,7 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   零日常门禁——分叉不会编译报错，只会联机时对面拒收。回归 `13/1/0`，**共 14 条**，`command` 前缀未变。
 - 质量四数：净增 −79；`RuntimeShell.cpp` 90,715 / `RuntimeMapRenderer.cpp` 42,542 / `RuntimeSessionWorld.cpp` 30,794
   （三者与 R52 持平）；断言 0 组新增；TODO 0。
-- 清单：fix-plan 340 行 / queue 35 条 / 66KB / 5 类；十项门禁全绿；人工体检 2 处已修（S-20 的 report 字段指错、M-23 压档）。
+- 清单：fix-plan 341 行 / queue 35 条 / 64KB / 5 类；十项门禁全绿；人工体检 2 处已修（S-20 的 report 字段指错、M-23 压档）。
 - dist **更新**：arm 增量（60 目标）→ x86_64 增量（5 目标，1.2s）→ lipo-universal（双切片 minos 12.0）
   → pack-dist，`6efad17 2026-11-15T14:37:49 regress=pass13/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 pack=incremental+lipo-universal wip=concurrent(11)`。
 - 操作记：按行号切代码块时 `sed -n '19,200p'` 的第一行不是 `class`（`class` 在 18、`public:` 在 19），
