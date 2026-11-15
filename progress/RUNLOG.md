@@ -927,3 +927,24 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 下轮（55）：EVO-07 的 dmg（`scripts/make-dmg.sh`；挂载卷验法=取出二进制配 `CONCORD_DATA_ROOT` 跑 smoke，
   因为挂载卷里没有同级 GameData）；`--version` 进 regress 第 15 条（新增出口没人常跑 = S-25 的形状）；
   EVO 主线整体收口判定（先答「还剩什么」）。
+
+## 第 55 轮（2026-11-15，修复轮）
+- 轮型：修复轮（无 brake / 无 attempts≥3 在办 / 无腐烂 / 距 AUDIT-51 四轮 / EVO 线用 2 轮）。主目标 **EVO-07 ④ dmg 分发**。
+  源码 2 提交 `10013d1`（+129 说明书）/ `b4672b5`（+5/−1 注释）。
+- **为什么是这段**：②About 与③数据根对话框都要新开 AppKit 面、本环境验证不了交互；dmg 有可观察判据——挂载后从卷里跑。
+- **最大的那条缺陷不是脚本，是说明书**：`dist/README.txt` 未跟踪、手工维护、停在 11-11，三处都已被后续版本推翻
+  （arm64 单架构 → universal；11 条 5 绿 6 红 → 14 条 13/1/0；全屏=放大 800×600 → 视口变大）。它是交付物里唯一给用户看的文档。
+  改为 `ConcordRTS/packaging/README-dist.txt` 入库，pack-dist ⑩ 每次覆盖写 `dist/`，make-dmg 再拷进 dmg。
+- **make-dmg.sh 的重点是跨机模拟**：挂载卷里跑通只证明本机能跑（包内 data-root 指针写着构建机绝对路径）。
+  造「别人机器」：拷包 → 指针改成不存在路径 → 重签 → 判 (a) 必须报 `data root NOT found`；(b) 数据树放成 .app 同级目录必须 `source=sibling`。
+- **三条实测推翻了三个原先的说法**：①数据根指针**优先于** `CONCORD_DATA_ROOT`（注释写反，`b4672b5` 只改注释）
+  ②无数据树时 `--smoke-test` 仍 **rc=0**，只打一行诊断——pack-dist 的 smoke 门禁对这类缺口天然无感 ③同级数据目录**不限名**，按内容判定。
+- **改判**：原计划「`--version` 进 regress 第 15 条」不做——pack-dist ⑨ 已在每个包上断过同一件事，
+  而 regress 跑的是无 BUILD-INFO 的裸二进制，塞进去只会得到恒真断言（§八.4）。
+- 质量四数：净增 **+134**（产品代码 +0）；90,715 / 42,542 / 30,794 持平；断言 0 组；TODO 0。
+- 清单：347 行 / 35 条 / 64KB，十项全绿。人工体检 3 处：路线图 dmg 口径过期；EVO-07 分段交付不许当整条结案；
+  **`decisions.note` 说「只留最近 4 轮 51~54」，而 `recent` 里躺的是 32~35**——门禁只量形状，不读 note 是否属实。
+- dist：`b4672b5 2026-11-15T17:09:39 regress=pass13/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0
+  pack=incremental+lipo-universal dmg=尤里红警-0.1.0-b4672b5.dmg foreign=ok wip=concurrent(15)`。
+- 下轮（56）：EVO 主线整体收口判定（①④ 已交，②③ 卡在「交互判据怎么做」，用 3 轮）；或离开 EVO 去
+  U-19/20/21/23 合并取证 / S-08 读数（出口解耦），看哪条先能拿到读数。
