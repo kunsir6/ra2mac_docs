@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v173",
-  "updated": "2026-11-16T04:05+08:00",
+  "version": "v174",
+  "updated": "2026-11-16T05:05+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -33,6 +33,21 @@
     "archive": "reports/queue-rules-archive.md（168 键原文）"
   },
   "tasks": [
+    {
+      "id": "S-39",
+      "title": "载入页的取证入口不在门禁里（呈现冒烟只手工跑）",
+      "detail": "第 67 轮登记：U 线卡了六轮的说法是「拿不到真实窗口的载入帧」，实测 `CONCORD_LOADING_PRESENTATION_ONLY=1 --loading-smoke-test` 就能抓 11 页 × 两尺寸的生产窗口位图；但它不在 regress 里，于是每轮都有人重新发明一次「不可得」（S-08 读数一直在文件里、M-13 通道一直在，同型第三次）。同时它把 12 份 BMP（23MB）写进源码树的 build/，绕过了 R50 的留存策略 → 落点应改到 regress 的 artifacts 目录。",
+      "root_cause": "判据存在但不在日常门禁里 = 事实的生产者与消费者之间缺一步（S-34/S-38 同型，但这次是「取证入口」）。",
+      "value": "A：U-19 的 HUD 取证下一步靠它；刚做完的槽位修复没有门禁兜住就等同于一次性检查。",
+      "cost": "低：regress 加一条 run_case（4 秒）+ 把 BMP 落点参数化。",
+      "roi": "A",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "pending",
+      "verify": "regress 出现第 17 条且 PASS；产物落在 regress artifacts 目录而不是 ConcordRTS/build/（跑完两轮后 build/ 不再新增 loading_*.bmp）。",
+      "report": "reports/FIX-67-载入画面缩略图铺满槽位与U20U21结案.md",
+      "thread": "取证门禁"
+    },
     {
       "id": "S-38",
       "title": "BUILD-STAMP 仍靠人手写（它却是「dist 是不是最新」的唯一判据）",
@@ -306,46 +321,31 @@
     {
       "id": "U-20",
       "title": "载入画面右下地图预览是否为空（真实窗口取证）",
-      "detail": "离屏 skirmish_loading.bmp 里 500,380-716,546 的框全黑，但 drawRuntimeCountryLoading 在 if (!loading.runtime) return; 之后才画 preview，离屏路径根本不执行那段，所以黑框不能作为缺陷证据。代码侧 decodeMapPreviewImage 走 summarizePackedSection(ini,'PreviewPack','lzo1x')，2peaks.map 的 [Preview] Size=0,0,150,90 + [PreviewPack] 解 base64 得 17030 字节、首 chunk 头 compressed=0x0b2d/uncompressed=0x2000（8192），按 5 个 chunk 解压正好 40500 = 150*90*3，格式自洽。需要用真实窗口抓载入第 6 阶段，确认预览与起始点标记是否画出来。",
+      "detail": "第 67 轮结案：不是空的。`CONCORD_LOADING_PRESENTATION_ONLY=1 --loading-smoke-test` 把**生产窗口**按 WM_PRINTCLIENT 抓成 11 页 × 800x600/640x480；槽位 (500,380)-(716,546) 非纯黑 99.7%、颜色数 419、两个起始点方块（蓝=startPosition 2 / 红=1）在位，地形/矿/水色阶可辨。原来的「黑框」来自离屏 skirmish_loading.bmp——那条路径在 `if (!loading.runtime) return;` 就退出，预览分支根本没执行（夹具形态，不是缺陷）。顺带：槽位是 216x166，而渲染把 150x90 等比缩成 216x130 居中，上下 18px 黑带在亮背景页（观察者/尤里）读作黑条 → 改为铺满（`d60b1c7`），并补槽位内容门禁（`6cab55d`）。attempts 一直是 0 而它在 R35/R51/R56 被降级/迁回共 3 次（R66 记的「attempts 与收口记录不符」同型，第三次）。",
       "root_cause": "取证前置未满足：离屏载入图的黑框不能当证据（decodeMapPreviewImage 在离屏路径根本不执行）；公共前置是真实开局取证通道（M-13/S-17），它仍被 unholy 段挡着",
       "value": "B：HUD 与呈现偏差是当前最主要的可见问题来源",
       "cost": "低：拿到真实开局图/原版对照后各约 30 分钟",
       "roi": "B",
       "complexity": "简单",
       "attempts": 0,
-      "status": "pending",
+      "status": "done",
       "verify": "真实窗口在第 6 阶段抓图，右下框内出现地形缩略图且含起始点方块标记；若仍为空，贴出 decodeMapPreviewImage 的 errorMessage 与 warning 原文再定性。",
-      "report": "",
+      "report": "reports/FIX-67-载入画面缩略图铺满槽位与U20U21结案.md",
       "thread": "UI 对账"
     },
     {
       "id": "U-21",
       "title": "主菜单右侧小屏与背景素材取证",
-      "detail": "menu.bmp 里右侧面板顶部小屏显示黄/红条纹块，与周围金属面板风格割裂；左侧背景是暗红地形噪点。需确认：小屏在原版该位是 YR logo 动画帧、载入图缩略还是地图预览；背景 632x568（<1024x768 分支）是否原版该用的素材，还是应该走 bkgdlgy 856x736。用 mix_exports 里可用素材逐一比色/比结构，给出『素材正确，只是缺动画』或『素材用错』的结论。",
-      "root_cause": "取证前置未满足：没有真实窗口素材对照，只能猜「缺动画」还是「素材用错」；公共前置是真实开局取证通道（M-13/S-17），它仍被 unholy 段挡着",
+      "detail": "第 67 轮结案：`--main-menu-ui-smoke-test` 的读数直接回答二选一——`video=static-fallback animationSequence=0->0 sideTopFrames=2 warningFrames=91 slotFrames=17`。面板/7 按钮/悬停态/版本号/底部描述栏逐项与零售布局一致（`退出游戏` 未被描述栏裁切，已逐像素看过）。结论：**素材正确，缺的是视频解码**；要真动画得接 Bink 解码器，那属独立条目，不在本条续命。",
+      "root_cause": "已确认：这块屏在零售里播 Bink 视频，本项目没有 Bink 解码器 → `video=static-fallback`、`animationSequence=0->0`；看到的「黄/红条纹」是 slot 动画素材里的一帧（`warningFrames=91` 斜条纹），不是错图。",
       "value": "B：HUD 与呈现偏差是当前最主要的可见问题来源",
       "cost": "低：拿到真实开局图/原版对照后各约 30 分钟",
       "roi": "B",
       "complexity": "简单",
       "attempts": 0,
-      "status": "pending",
+      "status": "done",
       "verify": "指出小屏当前 imageId 与原版应使用的 imageId；给出两张素材并排图；结论二选一（缺动画 / 素材错），不含推测。",
-      "report": "",
-      "thread": "UI 对账"
-    },
-    {
-      "id": "U-23",
-      "title": "shroud 边缘羽化宽度对比正式版",
-      "detail": "真实窗口截图里可见区边缘有约 30-40 逻辑像素的云状渐变带，比记忆中正式版更宽。--vision-smoke-test 报 Shroud blur exactCases=42 native2256x1504=yes twoPass=exact cropAndPadding=preserved resize=exact，说明模糊参数是照着某个参考实现写的。需要同一张地图、同一相机位置的原版画面做并排，量出正式版羽化宽度（像素）再决定是否收窄。",
-      "root_cause": "取证前置未满足：缺同图同相机的原版画面，羽化宽度无从量化；公共前置是真实开局取证通道（M-13/S-17），它仍被 unholy 段挡着",
-      "value": "B：HUD 与呈现偏差是当前最主要的可见问题来源",
-      "cost": "低：拿到真实开局图/原版对照后各约 30 分钟",
-      "roi": "B",
-      "complexity": "简单",
-      "attempts": 0,
-      "status": "pending",
-      "verify": "给出原版与当前的边缘剖面（逐像素亮度曲线）与羽化宽度数值；若差异 <4 px 判为一致并关闭。",
-      "report": "",
+      "report": "reports/FIX-67-载入画面缩略图铺满槽位与U20U21结案.md",
       "thread": "UI 对账"
     },
     {
@@ -682,7 +682,7 @@
   },
   "archive": {
     "path": "progress/queue-archive-202611.json",
-    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23）至 queue-archive-202611c.json ｜ 第 43~46 轮归档 4 条（S-17/S-21/M-30/S-13）同上",
+    "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23）至 queue-archive-202611c.json ｜ 第 43~46 轮归档 4 条（S-17/S-21/M-30/S-13）同上 ｜ 第 67 轮：U-23 移 deferred（出队，等价替换新登记 S-39）",
     "tasks_archived": 7
   },
   "decisions_archive": "progress/archive/queue-decisions-202611.json（第 30~47 轮）+ progress/archive/queue-decisions-202611c.json（第 48~55 轮）",
