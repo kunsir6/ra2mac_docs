@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": "v161",
- "updated": "2026-11-15T16:20+08:00",
+ "version": "v162",
+ "updated": "2026-11-15T17:22+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -216,16 +216,16 @@
   {
    "id": "EVO-07",
    "title": "首次启动引导 + dmg 分发：数据根缺失给可读提示，About 显示版本/架构/构建时间",
-   "detail": "三段执行（第 54 轮拆分，不许当成「一条做完」）：①**版本身份（已交付 `9477056`）**：`--version` 打印版本/架构/编译时刻 + 读包内 `Contents/Resources/BUILD-INFO.txt`（git 短 hash + 打包时刻），pack-dist 新增第 ⑨ 门禁断言「二进制报的行 == 包内文件」，专防「包换了、里面没换」。②About 面板：把这三字段画到屏幕上，属新开 AppKit 面。③数据根缺失对话框：说明缺什么 + 选目录/退出，属新开 AppKit 模态面。②③在本环境验证不了交互（不调 sendEvent + 无 Accessibility 授权），须单独出方案。④dmg：文档里写的是「dist/ 两份 thin 产物分别出」，实际已是 universal 单包——口径要一并改。",
+   "detail": "四段执行（R54 拆分，不许当「一条做完」）。①**版本身份（已交付 `9477056`，R54）**：`--version` 报版本/架构/编译时刻 + 包内 `Contents/Resources/BUILD-INFO.txt`；pack-dist ⑨ 断言二进制报的 package 行 == 包内文件。\n④**dmg（已交付 R55）**：`scripts/make-dmg.sh` 出 UDZO 并**挂载后重验 7 条**——universal / 两切片 minos==plist / `codesign --verify --strict` / package 行==BUILD-INFO / smoke rc=0 / 跨机模拟 (a) 无数据树必须报 `data root NOT found`、(b) 数据树放成同级目录必须 `source=sibling`；`pack-dist.sh --dmg` 串起。说明书改由 `ConcordRTS/packaging/README-dist.txt` 入库、每次打包覆盖写 `dist/README.txt`。\n②About 面板：把上面三字段画到屏幕上；③数据根缺失对话框：说明缺什么 + 选目录/退出。两者都要新开 AppKit 面，本环境验证不了交互（不调 sendEvent + 无 Accessibility），须先回答「交互判据怎么做」——与 C-01 同源。\nR55 顺带实测三条（已写进说明书）：数据根指针优先级**高于** `CONCORD_DATA_ROOT`（`RuntimeConfigPaths.cpp` 注释原本写反，已改）；无数据树时 `--smoke-test` 仍 rc=0（静默，这正是 ③ 要补的）；同级数据目录**不限名**，判据是同时含 `local_data/` 与 `RedAlert2/`。",
    "root_cause": "ON-1-02 只打印搜索过的路径，命令行看得懂、双击 .app 的人看不懂；About 与 dmg 从未实现",
    "value": "S：双击 .app 是用户第一触点，数据根缺失现在是静默失败",
    "cost": "中：AppKit 对话框（说明+选目录+退出）+ dmg 脚本 + 内嵌版本常量，约 1 轮",
    "roi": "A",
    "complexity": "中等",
-   "attempts": 1,
+   "attempts": 2,
    "status": "pending",
-   "verify": "把数据根移走后双击 .app 弹出可读提示，选目录后能继续启动；dmg 挂载→拖入 Applications→双击能玩；About 三字段与 sha256/mtime 实测一致。",
-   "report": "reports/FIX-54-版本身份自证与打包链新门禁.md",
+   "verify": "②About 三字段上屏后与 `--version` 实测一致；③把数据根移走后双击 .app 出现可读提示、选目录后能继续启动。④已完成且可复算：`bash ra2mac_docs/scripts/make-dmg.sh` 全绿 + 挂载卷里 `--version` == BUILD-INFO。",
+   "report": "reports/FIX-55-dmg分发与说明书入库.md",
    "thread": "EVO 进化（能玩之后）"
   },
   {
@@ -560,42 +560,16 @@
   }
  ],
  "decisions": {
-  "note": "只留最近 4 轮决策（51/52/53/54）；历史见 queue-archive-202611.json 的 decisions_* 段与 decisions_2026* 键。",
+  "note": "每轮决策正文在 decisions_<日期>_r<轮次> 键里；本数组只放最近 1 轮摘录（旧 32~35 的摘录已移 queue-archive-202611c.json 的 decisions_recent_legacy）。",
   "recent": [
    {
-    "round": 32,
-    "date": "2026-11-14",
+    "round": 55,
+    "date": "2026-11-15",
     "lines": [
-     "候选根因三种改法相反时，先补的读数必须能「一次否掉三种」——本轮三条读数各否一条，第四种（样本是编的）才浮出来。",
-     "「目录里有没有这个条目」不能当「模式是否放宽」的证据：条目在装配期就按 Owner 过滤掉了，模式放宽的是可见性与工厂归属。",
-     "同一句断言里第二段仍红时（ownerFactory→unholy），说明它还有第二个编出来的前提；先确认每段的数据来源，再谈改产品。"
-    ]
-   },
-   {
-    "round": 33,
-    "date": "2026-11-14",
-    "lines": [
-     "「看着像重复」不等于重复：抽函数配平花括号再比，才知道 4 个里 3 个逐字相同、主函数已漂 8 处——分叉的副本比复制品更危险，它不报错，只会慢慢更落后。",
-     "删掉副本立刻链接失败（Undefined symbols: loadRuntimeTmpTileBytes）反而是铁证：那个目标从来只靠副本链得上，从没链接过 codec。",
-     "清偿轮也会带出行为变更：预览的解码立场随 codec 变了却没做产物级 A/B，只能记成「未验证的债」（S-19），不许写成「纯删除」。"
-    ]
-   },
-   {
-    "round": 34,
-    "date": "2026-11-14",
-    "lines": [
-     "清单里「缺根因/缺成本」的条目不能靠继续挂着解决：11 条同时缺根因的真相是它们共用同一个前置（真实开局取证通道），把前置写进 root_cause 并降 blocked，比再顺延一轮诚实。",
-     "上一轮给 S-19 估的「低：约 30 分钟」是没勘察就写的：MIX 里没有按名抽取工具、旧二进制要另建构建树。估值写成形容词（低/中/高）而不写依据，下一轮就会照着它排错序。",
-     "既有诊断结构里「reuseCachedFrame 已经算出来但没人累加」这种事，只能靠逐个读字段使用者发现——加计量前先问：这个量是不是已经算过一次了。"
-    ]
-   },
-   {
-    "round": 35,
-    "date": "2026-11-14",
-    "lines": [
-     "一个前置被拆成 8 份估值，8 条就都排在队里、都动不了——「同类成簇」在台账里的形态不是重复条目，是同一条链的断点被抄成 8 个「低/中成本」。",
-     "「有仪表无读数」有结构原因：出口只在真实窗口会话收尾、且 sessionFrames==0 直接 return；判「仪器已装」前先问「谁会调它」。",
-     "审计自己的口径也要固定：25 行窗口、且两侧都不是 fixture/smoke 才算产品侧，否则 125→139 这种数字变化会被读成代码退化。"
+     "交付物里的说明书也是产品：`dist/README.txt` 未跟踪、停在 11-11，三处（arm64 单架构 / 11 条 5 绿 6 红 / 全屏=放大）全被后续版本推翻——没人量它，它就一直撒谎。",
+     "「挂载卷里跑通」只证明本机能跑：包内 data-root 指针写着构建机绝对路径，本机必然命中且**优先于**环境变量。跨机必须造出来验——拷包、改指针、重签，再判「没数据树是否明确报错」与「同级目录是否 source=sibling」。",
+     "`--smoke-test` rc=0 不等于能玩：无数据树时它只打一行诊断照样 rc=0，pack-dist 的 smoke 门禁对这类缺口天然无感。",
+     "原计划「`--version` 进 regress 第 15 条」改判不做：pack-dist ⑨ 已在每个包上断过同一件事，而 regress 跑的是无 BUILD-INFO 的裸二进制，塞进去只会得到一条恒真断言。"
     ]
    }
   ]
@@ -693,6 +667,22 @@
    "pack-dist 查了 displayName/id/icon/minos/包内 smoke，唯独没有「plist 与包内二进制是否同一版」这条断言：与 MIN_MACOS 那课同源，只查一侧，另一侧是盲区。",
    "往已签名的包里写文件会让 ad-hoc seal 失效，必须重签并用 codesign --verify --strict 兜住，否则别的机器上才炸。",
    "「版本号可读」不值得为它全量重编 1652 个目标（4:17）：hash 走包内文件而不是编译定义。"
+  ]
+ },
+ "decisions_20261115_r55": {
+  "round": 55,
+  "date": "2026-11-15",
+  "type": "修复轮（主目标 EVO-07 ④ dmg 分发）",
+  "target": "包发给别人之后：能不能跑、是不是这一版、数据树放哪儿",
+  "findings": [
+   "dist/README.txt 是未跟踪的手工文件，停在 11-11：标题写 arm64 单架构、回归 5 绿 6 红、全屏=放大 800×600，三处都已被后续版本推翻。",
+   "dmg 是另一层容器，dist 对不等于 dmg 对：FAT / 两切片 minos / 验签 / 版本身份必须在挂载卷里重新验一遍。",
+   "跨机模拟必须自己造：包内 data-root 指针写的是构建机绝对路径，本机必然命中，且优先级高于 CONCORD_DATA_ROOT（注释原本写反）。",
+   "无数据树时 --smoke-test 仍 rc=0，只打一行 [config] data root NOT found：pack-dist 的 smoke 门禁对这类缺口无感。"
+  ],
+  "rejected": [
+   "把 1.6GB 数据树塞进 dmg",
+   "`--version` 进 regress 第 15 条（会变成恒真断言）"
   ]
  }
 }
