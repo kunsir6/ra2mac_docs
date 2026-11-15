@@ -1,0 +1,35 @@
+{
+ "note": "第 41/43~46 轮归档 4 条（S-17/S-21/M-30/S-13）；第 56 轮归档 2 条（M-31/S-22），等价替换本轮新增 S-29/S-30",
+ "tasks": [
+  {
+   "id": "M-31",
+   "title": "legacy 存档的字符串手术被载入拒绝（invalid behavior record）",
+   "detail": "整链路 legacy 段把 v14 库存档改 Version=10 再删五段瞬态，期望载入清回基线；实测载入整体失败，12 个数字全是手术前弄脏的值。 [第38轮结案]",
+   "root_cause": "未定：可能 Behaviors 记录布局随版本演进，也可能载入对版本/段不一致的拒绝文案过粗",
+   "value": "中：S-17 接进 regress 的下一道门",
+   "cost": "低：造一份真 v10 夹具，一次运行即可分流",
+   "roi": "A",
+   "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "该段载入成功且 12 个瞬态集合回到基线；失败文案能区分版本不符/记录损坏",
+   "report": "reports/FIX-37-遭遇战整链路的两道假门与读档残留特效.md",
+   "thread": "persistence-roundtrip"
+  },
+  {
+   "id": "S-22",
+   "title": "regress 12 条不覆盖混合编队收敛",
+   "detail": "M-25 的试改让 12E1_2MTNK_tank_first 从 PASS 变 arrival_timeout，而 regress.sh 仍 11/1/0 一字未变 → 一个能让混合编队彻底不收敛的改动可以通过唯一那道门。 ｜ 第 43 轮落地：regress.sh 第 13 条 `compactgroups`（CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY=1，0.7s/7 场景），known-red 前缀 `Compact groups: 1 failed; 3MTNK_3SHAD: ground_final_not_compact`。**DoD 偏差（不改原文）**：PASS 仍是 11 而不是 12——该条首跑即红（3MTNK_3SHAD 预存红），不硬凑；第二条 DoD「重放 M-25 试改」未做（要整编源码、会与并发 WIP 冲突），改为两道负向验证（换首个失败场景 / 只改计数 → 均 cause-changed）。",
+   "root_cause": "CONCORD_COMMAND_SMOKE_COMPACT_GROUPS_ONLY 冒烟一直存在但没接进门禁；regress 只跑 command 主档。",
+   "value": "A：往后每一轮的「无回归」声明都建立在被证伪的门禁上。",
+   "cost": "低：regress.sh 加一条 + 首跑若红则登记 known-red 前缀；接入前先量单次耗时。",
+   "roi": "A",
+   "complexity": "简单",
+   "attempts": 1,
+   "status": "done",
+   "thread": "S-回归门禁",
+   "verify": "regress 输出 PASS=12，新增一条覆盖 arrival_timeout / ground_final_not_compact；把 M-25 的试改重放一次能被判红",
+   "report": "reports/FIX-43-regress接入混合编队收敛门禁.md"
+  }
+ ]
+}

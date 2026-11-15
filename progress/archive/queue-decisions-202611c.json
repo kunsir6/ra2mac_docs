@@ -1,0 +1,110 @@
+{
+ "note": "第 48~55 轮逐轮决策原文（第 56 轮审计从 queue.json 内联键迁出）",
+ "rounds": {
+  "r49": {
+   "round": "49",
+   "type": "修复轮 / 复杂项方案轮（产品代码零改动）",
+   "target": "M-25 的方案级收口",
+   "findings": [
+    "语义定稿：载具可进入「只站友军步兵」的格，到达（含目标格）时由运动层把步兵挤到邻格——两半一起才算修完（判据 smoke 的文件头早就写下了这条规范）。",
+    "顺序写死：S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层（可选）。A 必须在 S-28 进 HEAD 后才允许提交，否则是 R44/R48 的第三次复现。",
+    "M-25 attempts 2->3（第 44/48 两轮都动过手未结案），按 §六.4② 拆出前置 S-28；S-28 占 unit-behavior 第 4/4 个子项，此后禁开第 5 个。",
+    "S-28 刻意设计成单 TU 且不落 RuntimeSessionWorld.cpp——该文件此刻有 282 行并发 WIP（advanceRuntimeMoveBehavior 就在里面）。",
+    "回归基线 12/1/0（20261115-085843），command 前缀未变，compactgroups 13/13。",
+    "接缝否定（本轮唯一一手证据）：第一版把挤压挂在 applyRuntimeMovePathResult 的 goalAdjusted 分支，compactgroups 13/13 与 tank_first settled=1870 均未变，但 CONCORD_SQUEEZE_TRACE 在三条冒烟零触发 → 该联合状态在当前覆盖里从不出现；S-28 必须挂移动推进侧。改法整文件回退。"
+   ],
+   "kept": "M-28/M-26 不碰（并发 WIP）；S-24 仍 blocked（判据 .inl 仍未跟踪，07:04）；S-25 仍 deferred",
+   "next": "第 50 轮 = 产品行为轮，先做 S-28（挤压原语）；深水区连续两轮无产品行为变化，不许再写方案轮"
+  },
+  "r50": {
+   "round": "50",
+   "type": "清偿轮（§零.3 attempts≥3 + §六.5 换赛道）",
+   "target": "S-27 留存策略（真删 6.1GB）+ unit-behavior 主线收口判定",
+   "findings": [
+    "S-27 落地：regress.sh 保留「每天首跑 + 最近 20 次」、pack-dist.sh 的 .archive 保留最近 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB），合计释放 6.1GB。只删严格匹配 YYYYMMDD-HHMMSS 的目录，known-red.tsv 等同目录文件不碰。",
+    "S-28 未做的实测理由：advanceRuntimeMoveBehavior(World.cpp:27776) 与 setRuntimeObjectCell(:13057) 都在并发会话 678 行 WIP 的 RuntimeSessionWorld.cpp 里；arm 侧 ninja -n 要 1642 目标全量（.ninja_deps 截断），两次迭代吃掉 20 分钟。按 §六.3② 收口而不是赌第四次。",
+    "unit-behavior 判 blocked：子项 4/4 已满、产品行为变化 0 次；三次失败指向同一结构事实（前提在别人的 WIP 里）。S-28 移 deferred，重开条件写在那里。",
+    "清单治理：queue 的 decisions_2026* 14 键 10KB（与 R42 归档 RUNLOG 同族）→ 归档 12 键到 progress/archive/queue-decisions-202611.json，主清单留指针，只留 R48/R49/R50。",
+    "体检发现 1 处悬空引用：fix-plan 的 M-25 行引用 reports/M-25-载具被友军步兵挡死-根因与否定.md，该文件是并发会话的未跟踪文件（不在 HEAD），未代提交。",
+    "回归基线与收口均 12/1/0（20261115-103004 / 103452），command 前缀逐字未变；dist 复用两切片重新 lipo + pack。"
+   ],
+   "kept": "M-28/M-26 不碰（并发 WIP）；S-24 仍 blocked；C-02i 仍 blocked（C-02 主线已收口，重开要走 movement-stall 新线）",
+   "next": "第 51 轮 = 审计轮（AUDIT-46 后满五轮）；审计后候选 M-27（侧栏等级星，从未实现）或 EVO-07（数据根提示+About），两条都与并发 WIP 无交集"
+  },
+  "r51": {
+   "round": 51,
+   "date": "2026-11-15",
+   "type": "审计轮（§零.4，AUDIT-46 后整五轮）",
+   "target": "对账：blocked 重开条件逐条复查 + 账目一致性 + 度量口径固定为 HEAD",
+   "findings": [
+    "头条：11 条 blocked 里 6 条的等门条件已在上游满足（U-19/20/21/23 的真实开局门 R38 就开了；S-08/EVO-06 的 ①M-30 已 R37 绿）。blocked 变成了免死金牌——新增纪律：每审计轮复查重开条件。",
+    "账目 4 处错误：S-27 交付后计划/队列两侧都没回写（报告说已落地，计划写待修复）；已完成清单尾部两条重复；1 条引用不在 HEAD（未跟踪文件，旧检查判工作区永远为真）；ON-5-02b 的 thread 自指。",
+    "度量口径：前三轮「大文件行数」读工作区（含并发 WIP），按 HEAD 统计三文件 90,611/42,542/30,794 与 AUDIT-46 完全持平。本轮起口径固定 git show HEAD:<file>。",
+    "门禁九→十（refs-head），负向验证时第一版把 reports/*.md 通配当路径误报 1 条，已排除。",
+    "近 5 轮 test:0/fix:1 → §八.3 比例闸首次解除；近 60 提交 test:30/fix:11=2.73×（AUDIT-46 3.10×）。"
+   ],
+   "kept": "不批量改 6 条 blocked 的状态（改状态=改排序，属修复轮）；不动打包链；unit-behavior 不再碰",
+   "next": "R52 产品行为轮取 M-27（侧栏等级星）；R53 EVO-07；U-19/20/21/23 合并成一轮取证；S-19 建议移 deferred"
+  },
+  "r52": {
+   "round": 52,
+   "date": "2026-11-15",
+   "type": "修复轮（主目标 M-27，侧栏老兵角标）",
+   "target": "M-27 偷星后建造栏不显示等级星",
+   "findings": [
+    "奖励侧本来就是对的：渗透 Factory=InfantryType/UnitType/AircraftType 后 RuntimeSpySystemState 打 owner×类别布尔，applyRuntimeProducedObjectVeterancy 读的就是它；缺的是侧栏绘制点（建造按钮循环从不看 veteran）。",
+    "计划里 M-27 的 DoD「给兵营设 veterancy=2」数据前提不存在——产品没有建筑级等级，属第三次「把功能没有的性质写进验收」（M-29/M-30 同型），按 §八.2 记断言纠正并改判。",
+    "判据用逐像素三连比对（基线/拿到奖励/清掉）：基线↔拿到必须变、基线↔清掉必须逐像素相同，实测 appearedPixels=24 restoredDiff=0，24 像素证明走的是 pips 图集而不是 V 字形兜底。",
+    "夹具坑：侧栏步兵页按「有对应工厂」过滤，这条夹具基地只有一座部署好的 MCV，步兵页为空 → 第一版直接红在 no visible infantry cameo；改为按 M-15 的 addRuntimeObjectInstanceForOwner 路径注入己方兵营（不手搓实例）。",
+    "veteran 标志用间谍系统自己的 save/load 格式写，不新增测试专用 setter：格式漂了会以 spy veteran fixture rejected 明确报错，而不是静默变绿。",
+    "回归 12/1/0（13 条，零 RED-NEW），command 前缀逐字未变，compactgroups 13/13；dist 重编 b08e13c（含并发 41 行 WIP，stamp 已标）。"
+   ],
+   "kept": "并发会话在 RuntimeShell.cpp 的 41 行 WIP 零触碰（按 hunk 只提交自己的 3 段）；国家自带老兵不走这枚角标；精英叠星未做（数据层没有该路径）",
+   "next": "R53 取 EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并一轮真实窗口取证；BUILDING_READY 子冒烟可接 regress 第 14 条（现绿，1.4s）"
+  },
+  "r53": {
+   "round": 53,
+   "date": "2026-11-15",
+   "type": "修复轮（主目标 S-20，对战 wire 编解码器收口）",
+   "target": "S-20 多机对战两份大端字节编解码器已漂开",
+   "findings": [
+    "两份不是复制品是已分叉：错误文案前缀不同、require() 只有一侧带下溢守卫、方法集不同（writeBool vs writeByteVector/readArray）。",
+    "原估值里「合并必然改错误文案，须先取得允许改文案的窗口」不成立——把前缀做成读取器构造参数 label，每条既有错误字符串逐字节不变，无断言纠正；成本 中→低-中。",
+    "合并后「两实现对敲」的 DoD 自我作废（只剩一份实现），改用改动前后输出逐字对比：五条对战冒烟 IDENTICAL-OUTPUT。",
+    "这条 wire 路径此前零日常门禁（13 条里没有一条走它）：分叉不会编译报错，只会联机时对面拒收。新增 regress 第 14 条 multiplayer，0.07s。",
+    "偏离 R52 的「R53 取 EVO-07」：EVO-07 需要新开 AppKit 模态面，而本项目不调 sendEvent、Accessibility 未授权，交互路径无法验证 → 按「复杂项单独成轮先写方案」降级，估值重估见 FIX-53 报告 §六。",
+    "回归 13/1/0（14 条，零 RED-NEW），command 前缀逐字未变，compactgroups 13/13；dist 更新到 6efad17（含并发 11 项 WIP，stamp 已标）。"
+   ],
+   "kept": "并发 WIP 11 文件（RuntimeShell.cpp +41 / World.cpp +282 等）零触碰；多机对战 match setup 侧仍只有不在 regress 的冒烟覆盖（第 14 条只兜 snapshot 半边）；共享 codec 的「金样字节」断言未做（要挂 WIP 文件）",
+   "next": "R54 先做 EVO-07 的无交互两件（About 版本/架构/构建时间 + dmg，可用读常量+hdiutil 验证）；EVO-07 弹窗部分单独出方案；U-19/20/21/23 合并一轮取证"
+  },
+  "r54": {
+   "round": 54,
+   "date": "2026-11-15",
+   "type": "修复轮（主目标 EVO-07 第一步：版本身份）",
+   "target": "dist 拷到别的机器上以后无法回答「这是哪一版」",
+   "findings": [
+    "身份只存在于包外：判「dist 是否最新」一直靠 dist/BUILD-STAMP.txt，而它是包外的旁挂文件——包一被拷走，判据就断。",
+    "pack-dist 查了 displayName/id/icon/minos/包内 smoke，唯独没有「plist 与包内二进制是否同一版」这条断言：与 MIN_MACOS 那课同源，只查一侧，另一侧是盲区。",
+    "往已签名的包里写文件会让 ad-hoc seal 失效，必须重签并用 codesign --verify --strict 兜住，否则别的机器上才炸。",
+    "「版本号可读」不值得为它全量重编 1652 个目标（4:17）：hash 走包内文件而不是编译定义。"
+   ]
+  },
+  "r55": {
+   "round": 55,
+   "date": "2026-11-15",
+   "type": "修复轮（主目标 EVO-07 ④ dmg 分发）",
+   "target": "包发给别人之后：能不能跑、是不是这一版、数据树放哪儿",
+   "findings": [
+    "dist/README.txt 是未跟踪的手工文件，停在 11-11：标题写 arm64 单架构、回归 5 绿 6 红、全屏=放大 800×600，三处都已被后续版本推翻。",
+    "dmg 是另一层容器，dist 对不等于 dmg 对：FAT / 两切片 minos / 验签 / 版本身份必须在挂载卷里重新验一遍。",
+    "跨机模拟必须自己造：包内 data-root 指针写的是构建机绝对路径，本机必然命中，且优先级高于 CONCORD_DATA_ROOT（注释原本写反）。",
+    "无数据树时 --smoke-test 仍 rc=0，只打一行 [config] data root NOT found：pack-dist 的 smoke 门禁对这类缺口无感。"
+   ],
+   "rejected": [
+    "把 1.6GB 数据树塞进 dmg",
+    "`--version` 进 regress 第 15 条（会变成恒真断言）"
+   ]
+  }
+ }
+}
