@@ -778,3 +778,19 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   ②判据（格子级）绿与回归（编队级）绿是两条独立证据，缺一条就不许出结论；这也再次说明 `regress.sh`
   13 条里 `compactgroups` 是这一族唯一在线的探测器。
 - 下轮：M-25 单独成轮**先写方案**；`unit-behavior` 只剩 1 个子项槽位，下一轮给不出方案级结论就整线收口。
+
+## 第 49 轮（2026-11-15，修复轮 / 复杂项方案轮）
+
+- 轮型：修复轮（无 brake / 无腐烂预算；距 AUDIT-46 三轮）。**主目标 M-25 的方案级收口**，**产品代码零改动**、
+  源码仓库零提交（HEAD 仍 `8e62b4d`）。回归基线 `12/1/0`（`20261115-085843`），`command` 前缀未变。
+- **语义定稿**（不再重新发明）：`RuntimeVehicleInfantryPassThroughSmoke.inl` 的文件头早就写下了规范——
+  「载具可进入只站友军步兵的格，到达时由运动层把步兵挤开」。拆成两句：①进入 ②清场，**两半一起才成立**。
+  R44 只做 ①（放行无挤压）→ `tank_first` 转红；R48 做 ① 的窄化版（只放行停着的步兵）→ 同一处仍红。
+- **顺序写死**：S-28 挤压原语（前置）→ A 通行放行 → C 分配器分层（可选）。**A 必须在 S-28 进 HEAD 之后才允许提交**。
+- **M-25 attempts 2→3**，按 §六.4② 拆出前置 **S-28**（`runtimeDisplaceFriendlyInfantryFromCell`，单 TU，
+  半径 1~2 不许更大、落位走 `setRuntimeObjectCell`、`nextRepathTick=tick+2` 防两车互挤）；S-28 占 unit-behavior 第 4/4 槽位。
+- **为什么本轮不出产品行**：起点 `advanceRuntimeMoveBehavior`（`RuntimeSessionWorld.cpp:27776`）正好在并发会话的
+  282 行 WIP 里，而 A 段单独提交必红（R48 实测）——在「必红的一半」和「没做」之间选没做，并把顺序写进台账。
+- 质量四数：净增 **0**；90,652(+41) / 42,542 / 31,050(+256)——**增量全属并发 WIP**；断言 0 / 产品 0；TODO 0。
+- 清单九项全绿（fix-plan ~310 行 / queue 35 条 / 5 类）；新增 S-28 ↔ 归档 M-22（1:1）。
+- dist：源码未变 ⇒ 复用两切片重新 lipo + pack-dist，stamp 标 `pack=reused-slices`。
