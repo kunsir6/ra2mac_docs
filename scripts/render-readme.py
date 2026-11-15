@@ -119,10 +119,15 @@ def pretty_stamp(stamp):
 
 
 def build_block(latest, base, known_red_path):
+    """返回 (段内容, 是否降级)。降级 = 本机没有可用的回归产物。
+
+    降级要能被调用方看见：静默产出一句「未生成」和静默产出一句旧数字一样坏，
+    区别只是前者至少是真话——但打包脚本得知道自己在带一句真话还是一句实话实说的空话。
+    """
     regress = load_regress(latest, base)
     rows = load_known_red(known_red_path) if known_red_path else None
     if regress is None and rows is None:
-        return [FALLBACK]
+        return [FALLBACK], True
 
     out = []
     if regress is None:
@@ -152,7 +157,7 @@ def build_block(latest, base, known_red_path):
         for rid, status, prefix in rows:
             suffix = "" if prefix else "（未钉前缀：只判红）"
             out.append("· `%s` —— %s%s" % (rid, status, suffix))
-    return out
+    return out, regress is None
 
 
 def render(src_text, block):
@@ -180,7 +185,7 @@ def main():
     known_red = args.known_red if args.known_red is not None else os.path.join(base, "known-red.tsv")
 
     src_text = open(args.src, encoding="utf-8").read()
-    block = build_block(args.latest, base, known_red)
+    block, degraded = build_block(args.latest, base, known_red)
     rendered = render(src_text, block)
     if rendered is None:
         sys.stderr.write("render-readme: %s 里没有 %s / %s 标记\n" % (args.src, BEGIN, END))
@@ -212,6 +217,10 @@ def main():
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(rendered_text)
     print("readme    回归现状段 %d 行 ← %s" % (len(block), os.path.basename(args.src)))
+    if degraded:
+        sys.stderr.write(
+            "readme    WARN 本机没有可用的回归产物（%s），说明书写的是「未生成」而不是旧数字\n" % base)
+        return 3
     return 0
 
 

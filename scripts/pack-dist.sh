@@ -333,11 +333,12 @@ say "version   --version package 行与 BUILD-INFO.txt 一致"
 #    实测两次翻车：R59 手工改对（14 条），R60 加第 16 条就变成「共 15 条：13 绿」。
 README_SRC="$SRC_REPO/packaging/README-dist.txt"
 if [ -f "$README_SRC" ]; then
-    python3 "$(dirname "$0")/render-readme.py" --in "$README_SRC" --out "$OUT/README.txt" || {
-        echo "pack-dist: 说明书生成失败（render-readme.py），不出一份可能说谎的 README" >&2
-        exit 1
-    }
-    say "readme    $OUT/README.txt ← packaging/README-dist.txt（回归现状段现场生成）"
+    python3 "$(dirname "$0")/render-readme.py" --in "$README_SRC" --out "$OUT/README.txt" || rc=$?
+    case "${rc:-0}" in
+        0) say "readme    $OUT/README.txt ← packaging/README-dist.txt（回归现状段现场生成）" ;;
+        3) say "readme    $OUT/README.txt（WARN：本机没跑过回归，回归现状段写的是「未生成」）" ;;
+        *) echo "pack-dist: 说明书生成失败（render-readme.py rc=${rc}），不出一份可能说谎的 README" >&2; exit 1 ;;
+    esac
 else
     echo "pack-dist: 缺 packaging/README-dist.txt（dist/README.txt 会停在旧版本）" >&2
     exit 1
