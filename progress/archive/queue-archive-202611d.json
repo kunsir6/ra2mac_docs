@@ -1,0 +1,20 @@
+{
+ "note": "queue 已结案条目的等价归档（§一.6：新增 N 条须同时归档 N 条已结案）。",
+ "tasks": [
+  {
+   "id": "S-35",
+   "title": "战役「动作类型白名单」两份拷贝已漂开（现已收敛为一处）",
+   "detail": "RuntimeCampaignCoverage.h 一份 inline + RuntimeShell.cpp:14471 一份（R58 df8c421 新增，只被 --campaign-smoke-test 两处断言调用）；case 集差 8 型（shell 缺 13/39/43/49/50/58/59/64）。第 62 轮删 shell 副本、两处改调 header inline，dup-scan 146/13 → 136/3。",
+   "root_cause": "同一份「哪些 action type 受支持」被复制两处；差值不是刻意分类",
+   "value": "A：同一事实三处，只改一处不报错（与 MIN_MACOS、EVO-07 ⑨ 同型）",
+   "cost": "低（实测）：删副本 + 两处调用替换 + 一行 include",
+   "roi": "B",
+   "complexity": "中等",
+   "attempts": 1,
+   "status": "done",
+   "verify": "dup-scan 产品侧 ≤3 组；regress 16 条三态不变；--campaign-smoke-test 输出与改动前逐字一致（已验证）",
+   "report": "reports/FIX-62-清偿轮-白名单去重与主线账目压缩.md",
+   "thread": "campaign-coverage"
+  }
+ ]
+}
