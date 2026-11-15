@@ -331,7 +331,7 @@ run_case interaction 300 ""                                     "--interaction-s
 run_case command     300 ""                                     "--command-smoke-test"
 run_case build       300 ""                                     "--build-smoke-test"
 run_case campaign    300 ""                                     "--campaign-smoke-test"
-run_case result      300 ""                                     "--result-presentation-smoke-test"
+run_case result      300 "CONCORD_SMOKE_ARTIFACT_DIR=$ART/result" "--result-presentation-smoke-test"
 # 第 12 条（S-17）：真遭遇战整链路。它才是「遭遇战能不能开起来」的门，
 # skirmish 那条只验 UI。第 38 轮 M-31 夹具修正后首次整条 rc=0。
 run_case skirmishbuild 300 ""                                   "--skirmish-build-smoke-test"

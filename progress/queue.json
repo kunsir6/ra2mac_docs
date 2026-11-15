@@ -51,14 +51,14 @@
   {
    "id": "S-40",
    "title": "其余冒烟仍把产物写进源码/数据树（result_*.bmp、issue22_15_*）",
-   "detail": "第 68 轮实测：`ConcordRTS-GameData/build/` 里有 result_mission_victory.bmp / result_mission_defeat.bmp / result_players_allied.bmp，`ConcordRTS/build/issue22_15_vehicle_terrain_slope/` 也在。与 S-39 同型（硬编码相对路径 `build/`），但 S-39 只治了载入冒烟那一段——按 §四.1「一个主目标」不许顺手扩大范围，故单独立条。",
+   "detail": "第 68 轮实测：`ConcordRTS-GameData/build/` 里有 result_mission_victory.bmp / result_mission_defeat.bmp / result_players_allied.bmp，`ConcordRTS/build/issue22_15_vehicle_terrain_slope/` 也在。与 S-39 同型（硬编码相对路径 `build/`），但 S-39 只治了载入冒烟那一段——按 §四.1「一个主目标」不许顺手扩大范围，故单独立条。 同轮结案：落点抽成 runtime/host/diagnostics/RuntimeSmokeArtifacts.h（专用 env > CONCORD_SMOKE_ARTIFACT_DIR > 历史默认），result/slope 改用；两棵树 bmp 实测 0（755abf2）。",
    "root_cause": "写盘点各自硬编码相对路径 `build/`，没有统一出口；regress 的 cwd 是数据根 → 产物落进数据树，且完全绕开 R50 的留存策略（regress 只轮转 progress/regress/<stamp>）。",
    "value": "B：磁盘占用 + 「数据树里混进生成物」会让人误以为它是数据的一部分（S-33 类误导）。",
    "cost": "低-中：result 冒烟两处 + issue22 目录一处改调 runtimeSmokeArtifactPath；但该 helper 现在住在 ui/loading/diagnostics/RuntimeCountryLoadingSmoke.inl 里，要先抽成公共诊断头。",
    "roi": "B",
    "complexity": "简单",
-   "attempts": 0,
-   "status": "pending",
+   "attempts": 1,
+   "status": "done",
    "verify": "连跑 regress 两轮后 ConcordRTS/build/ 与 ConcordRTS-GameData/build/ 都不再新增产物；生成物只出现在本轮 artifacts。",
    "report": "reports/FIX-68-载入页呈现冒烟进回归门禁.md",
    "thread": "取证门禁"

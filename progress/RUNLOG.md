@@ -1227,3 +1227,25 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - regress 16 条 `14/2/0` 逐条不变。
 - 清单 234 行 / 41 条 / 70KB / rules 5 类 / 十三项全绿；登记 S-39（载入呈现冒烟进门禁），等价出队 U-23；UI 对账主线判 done。
 - 下轮（68）：S-39（4 秒的门禁）→ U-19（HUD 对账，需世界帧）；M-03 只剩一次机会。
+
+## 第 68 轮（2026-11-16，修复轮）S-39：取证通道进门禁，产物挪出源码树
+
+- 轮型：修复轮（无 brake / 无 attempts≥3 在办 / 腐烂未触发 / 距 AUDIT-66 两轮 / M-03 已在 R65 换过赛道）。
+- **S-39 结案**：regress 第 17 条 `loadingpages`（`CONCORD_LOADING_PRESENTATION_ONLY=1`）——真建生产窗口，
+  `WM_PRINTCLIENT` 抓 11 页 × 800x600/640x480，断言槽位内容（非纯黑≥50%/颜色≥24），**0.56 秒**。
+  它兜住 R67 的缩略图铺满修复：没有门禁，槽位退回等比缩放留黑带不会有人被提醒。
+- **产物落点 `f0c8f06`**：新增 `runtimeSmokeArtifactPath()`（认 `CONCORD_SMOKE_ARTIFACT_DIR`，默认仍 `build/`），
+  三处写盘点改用它。原本接进门禁后 14 张 BMP 会落到数据树的 `build/`，每轮 23MB 且绕开 R50 留存策略。
+  源码树 `build/` 31MB→**6.4MB**（`rm` 掉 14 张历史残留，剩下的 `issue22_15_*` 归 S-40）。
+- 同型第四次：S-08 / M-13 / S-38 / S-39 都是「事实的生产者存在，入口不在清单里」。下轮遇「拿不到 X」
+  先搜 `CONCORD_*` 开关与冒烟入口。
+- **伴生小项 S-40 同轮做完（`755abf2`）**：result 冒烟仍写 `GameData/build/`（5 张）、slope 仍写
+  `ConcordRTS/build/issue22_15_*`——落点抽成 `runtime/host/diagnostics/RuntimeSmokeArtifacts.h`
+  （专用 env > `CONCORD_SMOKE_ARTIFACT_DIR` > 历史默认），两处改用。实测两棵树的 bmp **均为 0**。
+- 质量四数：源码 **+48/−7**（4 文件，全在 diagnostics）；90,635（+2）/ 42,542 / 31,056；
+  断言 0 / 新增门禁 1；TODO 0。产品行为改动 0 行——本轮只加门禁与改落点。
+- regress **17 条 `15/2/0`**（15 绿、2 known-red 不变、0 RED-NEW）；清单 239 行 / 41 条 / 66KB / 十三项全绿；
+  登记 S-40，按 §一.6 与 S-39 出队等价替换（另归档 S-35 到 queue-archive-202611d）。
+- 没做：U-19（前置是世界帧；实测 `skirmishbuild` 只打 metadata 行、`attest` 只写日志不落图 →
+  **HUD 帧仍无出口**，下轮第一件事是定这个出口的形状）、M-03（只许先补逐帧对账，时间不够，不做一半）。
+- 下轮（69）：M-03 最后一次机会；U-19 先验 `--skirmish-build-smoke-test` 能否出世界帧。

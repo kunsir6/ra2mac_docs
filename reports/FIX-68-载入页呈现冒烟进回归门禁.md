@@ -86,39 +86,62 @@ S-38（脚本手上已有全部数值）、S-39（取证入口一直在）。共
 
 | 指标 | 本轮 | 变化 |
 |---|---|---|
-| ① 净增行数（源码，`git diff --shortstat 6cab55d..HEAD`） | **+19 / −5**（1 个文件） | 全部在 diagnostics |
-| ② 最大文件行数 | `RuntimeShell.cpp` **90,633** / `RuntimeMapRenderer.cpp` 42,542 / `RuntimeSessionWorld.cpp` 31,056 | 三者**零变化**（helper 落在 `.inl` 里，没进 90k 那个文件） |
+| ① 净增行数（源码，`git diff --shortstat 6cab55d..HEAD`） | **+48 / −7**（4 个文件，含新增 1 个头） | 全部在 diagnostics |
+| ② 最大文件行数 | `RuntimeShell.cpp` **90,635** / `RuntimeMapRenderer.cpp` 42,542 / `RuntimeSessionWorld.cpp` 31,056 | `RuntimeShell` **+2**（一个 include + 两行默认路径，没加函数体） |
 | ③ 断言 vs 产品代码 | 新增断言 **0**，新增门禁 1 条（`run_case`）；产品行为改动 **0 行** | 本轮不改行为，只加门禁 + 改产物落点 |
 | ④ TODO/FIXME | **0**（`RuntimeShell.cpp`） | 无增减 |
 
 单次改动没有让任何 >8,000 行的文件净增 >50 行——`RuntimeShell.cpp` 一行没动。
 
-## 五、本轮没做什么 / 遗留什么债 / 放弃了什么
+## 五、伴生小项 S-40：其余冒烟的产物也挪出树（同一主目标）
+
+主目标落得比预算早（S-39 两小时内的动作实际只花了 10 分钟），于是把同一主目标的另一半做完：
+`result` 冒烟仍写 `ConcordRTS-GameData/build/`（5 张 `result_*.bmp`），`slope` 冒烟仍写
+`ConcordRTS/build/issue22_15_vehicle_terrain_slope/`——两处都是各自硬编码默认路径。
+
+**改法**（`755abf2`）：落点抽成 `src/runtime/host/diagnostics/RuntimeSmokeArtifacts.h`，三级优先：
+
+```
+① 各冒烟专用 env（CONCORD_RESULT_PRESENTATION_OUTPUT / CONCORD_VEHICLE_TERRAIN_SLOPE_OUTPUT）—— 不动
+② CONCORD_SMOKE_ARTIFACT_DIR —— regress 指到本轮 artifacts
+③ 历史默认值 —— 手工单跑与改前逐字一致
+```
+
+**验证**：`--only loading,result,loadingpages` 之后
+
+```
+源码树 ConcordRTS/build/*.bmp        0
+数据树 ConcordRTS-GameData/build/*.bmp  0
+本轮 artifacts/{result,loadingpages}   5 + 14 张
+```
+
+顺带把两处历史残留清掉（`ConcordRTS/build/` 14 张 / `build/` 根 14 张，合计约 50MB）。
+**没做**：`attest` 的 `onscreen-attest.log`（在 artifacts 里）、`smoke/` 目录与
+`runtime_computer_ai_smoke.ini`（不是 BMP，且不随轮次增长）——不在本条范围内。
+
+## 六、本轮没做什么 / 遗留什么债 / 放弃了什么
 
 **没做**
-- U-19（HUD 逐项对账）：它的前置（真实开局帧）本轮只打通了「载入页」这一段，**不是 HUD 帧**。
-  `loadingpages` 给的是载入页，HUD 要的是世界帧 + 侧栏，两者不同源。下一轮要先确认
-  `--skirmish-build-smoke-test`（R38 起能到 `objects=14`）能不能出帧。
+- U-19（HUD 逐项对账）：它的前置是**世界帧**，本轮打通的是「载入页帧」。实测
+  `--skirmish-build-smoke-test` 只打印 `metadata=yes freshStartup=yes ...`，
+  `--onscreen-attest-smoke` 只写 `onscreen-attest.log`、不落图 —— 也就是说 HUD 帧这条链
+  **仍然没有出图入口**。下一轮要先给世界帧造一个出口（S-41 候选），否则 U-19 会重复 S-39 之前的形态。
 - M-03（空转重绘，第 3 轮机会）：计划里写明「只许先补画面签名 vs 实际像素逐帧对账」，
   这是一次中等量级的计量改动，本轮剩余时间不够把它做到「读数可信」，**没有开工比开一半好**。
 
 **遗留债**
-- **S-40（本轮新登记）**：其余冒烟仍在往树里写产物。实测 `ConcordRTS-GameData/build/` 里有
-  `result_mission_victory.bmp` / `result_mission_defeat.bmp` / `result_players_allied.bmp`，
-  `ConcordRTS/build/issue22_15_vehicle_terrain_slope/` 也在。它们与 S-39 同型，
-  但**不在本轮主目标里**——按 §四.1「一个主目标」，只做了载入那一段，剩下的登记成条目。
-- `regress.sh` 的 `pick_evidence` 在第 17 条上抓到的是第一行 per-country 输出而不是末行汇总
-  （三态判定不受影响，红绿来自退出码；只是证据列可读性差）。**没改**：本机 `sed`/`grep` 是 shim，
-  改取证据逻辑要连带重验 17 条的证据列，收益不抵风险。
+- HUD 帧无出口（见上，U-19 的前置）。本轮**没有**登记成条目，因为它的判据形状还没想清楚
+  （是「给 skirmishbuild 加一个 --frame <path>」还是「给 attest 扩一条世界帧」），
+  下一轮第一件事就是定这个形状——按 `§八.1`，验收条件写不出来就不许动手。
 
 **放弃**
-- 不把 `runtimeSmokeArtifactPath` 做成通用工具（`RuntimeCountryLoadingSmoke.inl` 之外还有两处
-  写盘：frame-stability 用注入的 `directory`、result 冒烟直接写 `build/`）。抽公共头会牵连
-  frame-stability 的注入契约，S-40 一并做更划算。
-- 不顺手把 `GameData/build/` 里的 result 产物删掉：它们不是本轮 `rm` 的对象（没有刷新机制，
-  下一轮还会重生成），删了只是让账更难看。
+- `regress.sh` 的 `pick_evidence` 在第 17 条上抓到的是第一行 per-country 输出而不是末行汇总
+  （三态判定不受影响，红绿来自退出码；只是证据列可读性差）。**没改**：改取证据逻辑要连带重验
+  17 条的证据列，收益不抵风险。
+- 没有把 `runtimeSmokeArtifactPath` 强推给所有写盘点（只改了 result / slope / loading 三处 +
+  一条公共头）。其余写盘点要么已经参数化、要么写的是非 BMP 的日志与 ini，不值得为统一而统一。
 
-## 六、清单体检（一、7）
+## 七、清单体检（一、7）
 
 | 项 | 结果 |
 |---|---|
@@ -132,13 +155,13 @@ S-38（脚本手上已有全部数值）、S-39（取证入口一直在）。共
 | 重复条目 | 0 |
 | attempts 与收口记录 | S-39 attempts=0 → done（一次做成）；M-03 仍 2；M-25 3 但已 blocked 出队 |
 
-## 七、两级计数
+## 八、两级计数
 
 - 条目级：M-03 **attempts=2**（下一次若仍无产品行为变化 → `§六.3` 整体收口）；C-02i=2（blocked）；M-25=3（blocked，已收口）。
 - 主线级：`取证门禁` **1/4 子项、1 轮 → done**（S-39 已交付）；`M-03 空转重绘` 2/4 子项、2 轮（在办，剩 2 轮）；
   `清单治理` / `交付` / `UI 对账` / `unit-behavior` 等均已满额或 done。
 
-## 八、dist（十二）
+## 九、dist（十二）
 
 见 `dist/BUILD-STAMP.txt`，收口时由 `pack-dist.sh` 第 ⑫ 步自己写。本轮有 C++ 改动（诊断侧），
 两架构都要重编，arm64 与 x86_64 各一次 + lipo + adhoc 重签。
