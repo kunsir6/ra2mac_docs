@@ -1037,3 +1037,22 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - **交付**：arm + x86_64 增量 → `lipo-universal.sh`（双切片 minos=12.0）→ `pack-dist.sh`；
   Rosetta 单独验 x86_64 切片（`--smoke-test` 与 `paradropsel` 均 rc=0）；`dist` = `e382dae`。
 - 提交：src `e382dae`；docs `268b62a`。（不 push，按约定由人推。）
+
+## 第 61 轮（2026-11-15，审计轮）EVO 主线收口 + 重复代码可复现归因
+
+- 轮型：**审计轮**（`§零.4` 距 AUDIT-56 整五轮）+ `§零.1` 的 EVO 主线整体收口判定。源码 0 提交，`reports/AUDIT-61.md`。
+- **EVO 判 done**：子项 4/4 用满、①④ 已交付且可复算（`pack-dist ⑨` 逐包断身份）；②③ 要新开 AppKit 模态面、
+  本项目不调 `sendEvent` → 本环境无交互判据，三次跳票后移 `deferred.md`，重开条件 = **C-01 落地后**。
+  代价：无数据树时仍只有一行诊断、无 About 面板。**这是本轮唯一「账目动作先于指标」的判断。**
+- **S-24 补判 done**：前置（`.inl` 进 HEAD）已随 R58 `782e194` 成立，regress 第 15 条 `vehiclepass` 在跑、
+  红项带前缀 —— 「门开了却挂 blocked」第三次（AUDIT-56 §3.2 是第二次）。新规则：blocked 前置必须可 grep。
+- **重复代码第一次做到可复现**：`dup-scan.py --ref b4672b5` 在上一轮 HEAD 上跑出 **138/3**，与 AUDIT-56 逐字一致；
+  当前 HEAD **146/13** → **+8/+10 组全部归因 `df8c421`**：它在 `RuntimeShell.cpp:14471` 新增第三份「动作类型白名单」，
+  与 `RuntimeCampaignCoverage.h` 两个 inline 版本构成三份，且三份 case 集**已经不同** → 登记 **S-35**。
+- 质量四数：R57~R60 净增 **+1769/−33**（产品 ≈+1256，R58 一轮吃掉 96%）；90,757 / 42,542 / 31,056（+42/0/+262）；
+  近 5 轮 test:2 / fix:1 = **2.0×（触发）**，60 提交 25:9 = 2.78×；TODO 0。
+- 清单：383 行 / 38 条 / 59KB / rules 5 类 / 十三项门禁全绿。**人工体检 1 处矛盾**（S-24 状态与 DoD）。
+  另记：**18 条 pending/blocked 在 queue 有全字段、plan 无行**（AUDIT-56 时 5 条）——结论改为「两份台账必然漂移，
+  plan 该只留排序与主线账目」，属单独一轮的清偿活，本轮不动。
+- regress `PASS=14 KNOWN-RED=2 RED-NEW=0` / **16 条**（21:54:40）；构建树两目录 clean，AUDIT-56 的两笔债（WIP / `.ninja_deps`）已结清。
+- 下轮（62）**清偿轮**：比例闸触发禁新增断言；删/合对象 = S-35 的三份白名单 + R58 净增最大的两个越线文件。
