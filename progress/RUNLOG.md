@@ -1014,3 +1014,26 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - 清单：358 行 / 35 条 / 61KB / v164；S-29 S-30 转 done、attempts 0→1；本轮无新增条目。
 - 下轮（58）：EVO-07 ②③ 判 blocked（要新开 AppKit 模态面，本环境无 sendEvent 验不了）；
   U-19/20/21/23 合并一轮真窗口取证；S-24 的前置 `.inl` 在 678 行 WIP 里，先判归属。
+
+## 第 60 轮（2026-11-15，修复轮）M-26 结案：伞兵下落过程中可选
+
+- 轮型：**修复轮**（单点，用户当场上报）。前置问题「原版伞兵下落中能否选中」由用户当场答：**能选**。
+- **根因推翻原假设**：M-26 记的是「hit test 坐标口径错位（视觉带 z 偏移、命中框用地面脚点）」。
+  实测不是——airborne 的拾取本来正常（`RuntimeAirbornePickingOrderSmoke` 早已覆盖跳喷飞行体的
+  投影/命中/深度排序）。真因是 `cleanRuntimeSelection()` **每拍**把 `mission=="ParadropDrop"`
+  从 `selectedObjectIds` 里删掉：点击那条路（`runtimePlayerLocalSelectable`）并不过滤它，
+  所以点击确实进了列表，播完一帧、tick 收尾就被踢出——**「看起来像命中框问题、实际是选中生命周期问题」**。
+  框选 `runtimeObjectCanBeBoxSelected()` 另有同一处排除。
+- **改法**：删 `cleanRuntimeSelection` 与 `runtimeObjectCanBeBoxSelected` 的 ParadropDrop 分支，
+  **保留命令锁**（`runtimeObjectCanMove` / `runtimePlayerActorTemporarilyCommandLocked`）：
+  下落中可选中（能看血量/编队），落地那一刻 `SuperWeaponSupportAircraft.inl` 把 airborne 置 false、
+  mission 换回 Guard 之后才可下令。支援飞机（SupportFlightEast/West）继续排除。
+- **判据可反刷绿**（本轮重点）：`RuntimeParatrooperTargetSmoke` 追加 —— 下落中 localSelectable/box 为真
+  → 走 UI 真实入口 `applyRuntimePlayerSelection` → **跑满一整拍仍在选中** → 移动令 `acceptedCount==0`；
+  27 场景（9 单位 × 15/30/60Hz）全过。把旧行为改回去重建即红在
+  `E1/15Hz selection erased while still descending`（rc=1），恢复后 rc=0。
+- **门禁**：regress 接第 16 条 `paradropsel`（120s 上限，实测 2s）；全量 `13 PASS / 2 KNOWN-RED / 0 RED-NEW`
+  （两条 known-red 是既有的 slave miner 与 M-25 载具穿步兵，与本轮无关）。
+- **交付**：arm + x86_64 增量 → `lipo-universal.sh`（双切片 minos=12.0）→ `pack-dist.sh`；
+  Rosetta 单独验 x86_64 切片（`--smoke-test` 与 `paradropsel` 均 rc=0）；`dist` = `e382dae`。
+- 提交：src `e382dae`；docs `268b62a`。（不 push，按约定由人推。）
