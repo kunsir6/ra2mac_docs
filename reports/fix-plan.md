@@ -14,19 +14,18 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 51 轮，2026-11-15）收口摘要 —— 审计轮（§零.4，AUDIT-46 后整五轮）**
-> 1. 轮型：审计轮。产品代码零改动、零断言、源码仓库零提交。报告 `reports/AUDIT-51.md`。
-> 2. **上轮结论**：S-27 留存策略落地（释放 7.3GB）；unit-behavior 主线判 blocked（4/4 子项、产品行为 0 次）。
-> 3. **本轮变化（头条）**：**blocked 不是「完毕」，是「等一个条件」——而条件开了没人回头**。11 条 blocked 里
->    **6 条的等门条件已在上游轮次满足**（U-19/U-20/U-21/U-23 的真实开局门 R38 就开了；S-08/EVO-06 的 ①M-30 已 R37 绿）。
->    另查出 3 处账目错误：S-27 在计划里仍写「待修复」而报告已交付、已完成清单尾部两条重复、1 条引用不在 HEAD。
-> 4. 质量四数（自 AUDIT-46 起 4 轮）：源码净增 **+14**（`8e62b4d` 单文件），另 3 轮零源码提交；
->    90,652 / 42,542 / 31,050 三文件持平；断言 0 / 产品 +14；TODO 0。近 60 提交 test:30/fix:11 = **2.73×**（AUDIT-46 3.10×）。
->    **近 5 轮 test:0 / fix:1 → §八.3 比例闸首次解除**，下轮起可以新增断言。
-> 5. 清单：fix-plan 343 行 / queue 61KB / 34 条 / 5 类；门禁 **九项 → 十项**（新增 `refs-head`：引用必须落在 docs HEAD 里）。
-> 6. dist：HEAD 未变（`8e62b4d`），复用两切片重新 lipo + pack（见报告 §六 的「包与 HEAD 之间隔着 678 行 WIP」风险）。
-> 7. **下轮起手（第 52 轮）**：产品行为轮，取 **M-27（侧栏等级星，从未实现）** 或 **EVO-07（数据根提示 + About）**；
->    两轮内不要再排基建/可观测性（比例闸刚解除，窗口应该给产品行为）。
+> **本轮（第 52 轮，2026-11-15）收口摘要 —— 修复轮（主目标 M-27）**
+> 1. 轮型：修复轮（无 brake / attempts≥3 / 腐烂；距 AUDIT-51 一轮）。报告 `reports/FIX-52-偷星后建造栏补老兵角标.md`。
+> 2. **上轮结论**：11 条 blocked 里 6 条等门条件早已满足，新增「每审计轮复查重开条件」纪律。
+> 3. **本轮变化**：M-27 结案——侧栏建造按钮补上按 owner×类别显示的老兵 chevron（`dba2daf`），
+>    判据是逐像素三连比对（基线/拿到奖励/清掉），`appearedPixels=24 restoredDiff=0`（`b08e13c`）。
+> 4. **断言纠正一处**：M-27 原 DoD「给兵营设 `veterancy=2`」不成立——产品没有「建筑身上的等级」，
+>    偷星是 `RuntimeSpySystemState` 上的 owner×类别布尔，验收按真实数据模型改判。
+> 5. 质量四数：净增 **+215**（产品 +104 / 断言 +111）；90,715(+104) / 42,542 / 30,794；断言 1 组 / 产品 +104；TODO 0。
+> 6. 回归 `12/1/0` 不变（13 条，零 RED-NEW）；`command` 前缀逐字未变，`compactgroups` 13/13。
+> 7. 清单：fix-plan 341 行 / queue 34 条 / 63KB / 5 类；十项门禁全绿；顺带清掉已完成段尾两条重复。
+> 8. **下轮起手（第 53 轮）**：EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并成一轮真实窗口取证；
+>    把 `BUILDING_READY` 子冒烟接成 regress 第 14 条（现在绿，1.4s）。
 
 ---
 
@@ -266,7 +265,7 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）：
 
-**S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）｜炮塔/炮管共享挂载几何与候选帧绘制（`04e366d` −36，清偿）｜动画层解析四份副本收成一份（`1563d7a` −67，清偿）
+**M-27 偷星后建造栏补老兵角标（第 52 轮，`dba2daf` + `b08e13c`：奖励早已生效（`applyRuntimeProducedObjectVeterancy` 读 `spies.hasVeteranProduction`），缺的是侧栏绘制点——建造按钮循环从不看 veteran；新增 `runtimeSidebarItemProducesVeterans` + 左下角 chevron（pips 图集，取不到退 `V`），判据为逐像素三连比对 `appearedPixels=24 / restoredDiff=0`。**DoD 改判**：原文「给兵营设 veterancy=2」的数据前提不存在（无建筑级等级），按 owner×类别改判）｜S-27 回归产物与旧交付包没有保留策略（第 50 轮：`regress.sh` 收尾「每天首跑 + 最近 20 次」、`pack-dist.sh` 的 `.archive` 留 5 个；实测目录 157→25（3.5GB→516MB）、包 42→5（3.6GB→481MB）；顺带清掉打包链无策略的 `.bak`（14 份 1.4GB→189MB）并固化成 `scripts/lipo-universal.sh`（备份+lipo+重签+逐切片 minos 校验）。**合计释放 7.3GB**。⚠ 本轮审计发现这条交付后计划/队列两侧都没回写，状态一直停在「待修复/pending」——已修正）｜S-23 飞行器落地礼让地面单位（第 47 轮：`runtimeJumpjetShouldLand` 加一道认领检查——本格被另一地面单位的 `Move` 目标占着时推迟落地，认领消失后照常落；`compactgroups` 13/13 全绿、回归 `12/1/0`；收窄处=只认 `Move`，追击/AreaGuard 不参与，写进报告 §六）｜S-13 结构守卫在 macOS 上第一次能跑（第 45 轮：完整检查链只有 Windows 版——`Run-StructureChecks.ps1` 要 pwsh7+clang-cl+CTest，`--inventory` 由 `Get-TestInventory.ps1` 生成；本轮接上不需要构建产物的两段 `tools/structure/run.sh`（366 例夹具 1.4s + 例外表路径存在性），清掉 16 条死条目〔U-15 的两个 Raster 文件 15 条 + 第 39 轮自删探针 1 条〕；DoD 偏差=完整 scan 仍缺生产者，拆出 S-26）｜S-22 regress 第 13 条：混合编队收敛（第 43 轮接入 `compactgroups`，0.7s / 7 场景；失败文案带「N failed; 首个失败场景: 原因」，前缀连计数一起钉住，两个维度任一变化即 `cause-changed`；DoD「PASS=12」有偏差——该条首跑即红 `3MTNK_3SHAD`，已在摘要写清）｜S-21 重复代码口径落库（`scripts/dup-scan.py`，`--ref 77e75e7` 复现 140/5 并冻结基线；顺带查出「walk 撞构建目录」与「步长 10 别名盲区」两条散文里没有的口径）｜M-13 真实遭遇战开局取证通道（第 38 轮结案：判据「退出码 0 且 objects>0」由 `skirmishbuild` 长期满足，`objects=14`，随第 12 条进 regress）｜M-31 legacy 存档降版本没连记录形状一起降（`42db147`，夹具侧：v14 记录 16 字段带着 `moveSegmentFrom`，v9~v13 只认 12 → 载入拒绝是对的；截断后整条链路首次 rc=0）｜S-17 真遭遇战整链路进 regress（`docs:` 第 38 轮，第 12 条 `skirmishbuild`，首接即真绿 PASS=11）｜M-30 UnholyAlliance 的 MCV 发放不要求 techLevel（`d2fff47`，断言纠正：发放是开局生成，不是侧栏可造；整链路首过 option semantics）｜M-23 电脑开局 MCV「不展开」（`4abfee7`+`cc53d95`，断言纠正：请求被接受≠基地已存在，模式矩阵 35/35）
 
 更早 9 条（S-21 / S-16 / S-15 / S-14 / C-02h / C-02g / **M-22 游戏模式规则从归档读取** / 炮塔炮管共享几何 `04e366d` / 动画层四副本收一份 `1563d7a`）正文已压回
 `reports/archive/fix-plan-202611.md`，只留指针——按 §一.2「最近 10 条 done」口径（第 49 轮归档 M-22，等价替换新增的 S-28）。
@@ -285,6 +284,7 @@ M-26 / M-28 仍留在待修复表里但**不属于本线推进**：M-28 的前�
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 52 | 2026-11-15 | 偷星后建造栏补老兵角标；M-27 的 DoD 数据前提被改判（无建筑级等级） | `reports/FIX-52-偷星后建造栏补老兵角标.md` |
 | 51 | 2026-11-15 | 审计：11 条 blocked 里 6 条的等门条件早已满足（没人复查）；S-27 交付后两侧未回写；门禁九→十项（`refs-head`） | `reports/AUDIT-51.md` |
 | 50 | 2026-11-15 | 清偿：留存策略落地（regress 每天首跑+最近 20 次、`.archive` 留 5 个，释放 6.1GB）；unit-behavior 主线判 blocked | `reports/FIX-50-留存策略与M-25主线收口.md` |
 | 49 | 2026-11-15 | 方案：M-25 的挤压原语必须先于通行放行；M-25 attempts=3，拆出前置 S-28（unit-behavior 第 4/4 子项） | `reports/FIX-49-M-25方案-挤压原语与通行放行的顺序.md` |

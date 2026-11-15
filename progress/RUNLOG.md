@@ -856,3 +856,29 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
   用户双击到的包与 HEAD 源码之间隔着别人 678 行未提交改动。stamp 记了 `wip=concurrent(11)`，但它不是门禁。
 - 下轮（52）：**产品行为轮**，取 M-27（侧栏等级星，从未实现）；R53 取 EVO-07；U-19/20/21/23 合并成一轮取证；
   S-19 连续 18 轮未动（成本被 AUDIT-34 抬过一次）建议移 `deferred.md`。
+
+## 第 52 轮（2026-11-15，修复轮）
+
+- 轮型：**修复轮**（无 brake / attempts≥3 / 腐烂；距 AUDIT-51 一轮；§八.3 比例闸已解除）。主目标 **M-27**。
+  报告 `reports/FIX-52-偷星后建造栏补老兵角标.md`。
+- **M-27 结案**（`dba2daf` 产品 +104 / `b08e13c` 断言 +111）：奖励侧本来就是对的——
+  `applyRuntimeProducedObjectVeterancy` 读的就是 `spies.hasVeteranProduction(owner, 类别)`；缺的是**侧栏绘制点**，
+  建造按钮循环从不看 veteran。新增 `runtimeSidebarItemProducesVeterans` + 左下角 chevron（pips 图集，取不到退 `V`）。
+- **DoD 改判**（§八.2 断言纠正）：M-27 原文「给兵营设 `veterancy=2`」的数据前提**不存在**——产品里没有「建筑身上的等级」，
+  偷星是 `RuntimeSpySystemState` 上的 owner×类别布尔。这是第三次同型错误（M-29 把侧栏可造当模式发放、
+  M-30 把 techLevel 当发放前提），已写进报告 §三.2。
+- 判据是**逐像素三连比对**（基线 → 拿到奖励 → 清掉），不是「代码跑过」：
+  `Sidebar veteran badge: cameo=E1 appearedPixels=24 restoredDiff=0`（24 px = 8×5 chevron 的非透明部分，
+  证明走的是图集而不是兜底字形）。
+- 夹具坑（第一版就撞上）：侧栏步兵页按「有对应工厂」过滤，而这条夹具的基地只有一座部署好的 MCV，
+  步兵页是空的 → `no visible infantry cameo`。改按 M-15 的 `addRuntimeObjectInstanceForOwner` 注入己方兵营
+  （不手搓实例，M-11 的教训）。veteran 标志用间谍系统自己的 `save/load` 格式写，不加测试专用 setter。
+- 质量四数：净增 **+215**（删除 0）；`RuntimeShell.cpp` 90,611 → **90,715**(+104)，其余两个大文件持平；断言 1 组 / 产品 +104；TODO 0。
+- 回归 `12/1/0`（13 条，零 RED-NEW），`command` 前缀逐字未变，`compactgroups` 13/13。
+- 清单：fix-plan 339 行 / queue 35 条 / 65KB / 5 类，十项门禁全绿；顺带删掉「已完成」段尾 `04e366d`/`1563d7a` 两条重复。
+- dist **重编**：arm 全量（`.ninja_deps` 又截断，1642 目标）+ x86_64 增量（2 目标，2:34）→ lipo-universal（双切片 minos 12.0）
+  → pack-dist，`b08e13c 2026-11-15T13:10:26 regress=pass12/known1/new0 arch=arm64+x86_64 minos=12.0 icon=96.2 rosetta=rc0 pack=full-rebuild wip=concurrent(11)`。
+- 并发 WIP：`RuntimeShell.cpp` 仍有 41 行未提交（按 hunk 只提交自己的 3 段，逐文件核对过）；
+  **dist 里的二进制包含那 41 行**，stamp 已标 `wip=concurrent(11)`——这条风险与 R51 一致，仍未消除。
+- 下轮（53）：EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并一轮真实窗口取证；
+  `BUILDING_READY` 子冒烟可接 regress 第 14 条（现绿，约 1.4s）。
