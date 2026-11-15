@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v171",
-  "updated": "2026-11-16T03:10+08:00",
+  "version": "v172",
+  "updated": "2026-11-16T03:27+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -33,6 +33,21 @@
     "archive": "reports/queue-rules-archive.md（168 键原文）"
   },
   "tasks": [
+    {
+      "id": "S-38",
+      "title": "BUILD-STAMP 仍靠人手写（它却是「dist 是不是最新」的唯一判据）",
+      "detail": "第 65 轮打包后实测：pack-dist 只写 BUILD-INFO 与 README，BUILD-STAMP 是操作者手写的一行。本轮那份文件在打包完成后仍停在上一轮的 73be404/R64，直到手工覆盖才与 HEAD 一致。",
+      "root_cause": "§十二.5 把「覆盖写 BUILD-STAMP」写成了对人的动作而不是脚本的收尾，而它又是判断 dist 新鲜度的唯一依据——忘了写 = 门禁看的那一行在说谎，且没有人会被提醒。与 S-34（说明书手写）同一形态。",
+      "value": "A：dist 新鲜度判据本身不可信时，所有「dist 是最新」的结论都不成立。",
+      "cost": "低：pack-dist 收尾已有 hash/时间/arch/minos/icon/buildtree 全部在手上；regress 三态从 latest.txt 读；只有 rosetta 那项要新增一次 `arch -x86_64 --smoke-test`（约 1s，本来每轮手工跑）。",
+      "roi": "A",
+      "complexity": "简单",
+      "attempts": 0,
+      "status": "pending",
+      "verify": "打包后不手工写任何文件，dist/BUILD-STAMP.txt 的首字段 == git -C ConcordRTS rev-parse --short HEAD；改个已知字段（如 icon 阈值）重跑 pack-dist，stamp 跟着变；没有 latest.txt 时 regress= 写 unknown 而不是抄旧值。",
+      "report": "reports/FIX-65-说明书里的回归现状改为生成.md",
+      "thread": "交付"
+    },
     {
       "id": "ON-5-02b",
       "title": "30 分钟存活：主菜单挂机 + 世界（补齐时长与菜单档）",
@@ -647,7 +662,8 @@
           "根因不是「忘了改」，是生产者（regress.sh）与消费者（说明书）之间缺生成步骤；S-33 的处置只到「手工核一次」，与 S-37/MIN_MACOS 的「只查一次不是门禁」同形态，第三次。",
           "降级必须可见：生成器无回归产物时返回 3 并在 stderr 说话，pack-dist 翻成 WARN 继续出包（说明书此刻说的是真话），其它非 0 一律 exit 1。",
           "刻意没做：把「dist/README.txt 与最近一次回归不一致」加进 ledger-check——每轮中途回归已跑、打包在收口，这条有 20 分钟合法红窗，会变成恒真噪声（与 build-health 分母同坑）。",
-          "零 C++：产品代码净增 0，三条大文件行数逐字持平；regress 16 条 14/2/0 逐条不变。"
+          "零 C++：产品代码净增 0，三条大文件行数逐字持平；regress 16 条 14/2/0 逐条不变。",
+          "打包收尾实测发现：BUILD-STAMP 仍是人手写（pack-dist 不写），本轮那份在打包完成后还停在上一轮的 73be404/R64 → 登记 S-38（与 S-34 同一形态：可验证事实靠人写）；按等价替换把 S-08 行出队。"
         ]
       },
       {
