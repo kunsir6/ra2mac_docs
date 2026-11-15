@@ -29,6 +29,7 @@ VERSION="0.1.0"
 MIN_MACOS="12.0"
 ICON_SOURCE="$SRC_REPO/packaging/icon-source.png"
 DRY_RUN=0
+MAKE_DMG=0
 
 usage() {
     cat <<'EOF'
@@ -40,6 +41,7 @@ usage: pack-dist.sh [options]
   --bundle-id <id>    CFBundleIdentifier（默认 org.concord.rts.yuri）
   --version <semver>  CFBundleShortVersionString（默认 0.1.0）
   --icon-source <png> 图标源图（默认 ConcordRTS/packaging/icon-source.png）
+  --dmg               出完 .app 顺手出 dmg（调 make-dmg.sh，挂载后逐条验）
   --dry-run           只打印将要做的事
 EOF
     exit 2
@@ -54,6 +56,7 @@ while [ $# -gt 0 ]; do
         --bundle-id)   BUNDLE_ID="$2"; shift 2 ;;
         --version)     VERSION="$2"; shift 2 ;;
         --icon-source) ICON_SOURCE="$2"; shift 2 ;;
+        --dmg)         MAKE_DMG=1; shift ;;
         --dry-run)     DRY_RUN=1; shift ;;
         -h|--help)     usage ;;
         *) echo "pack-dist: unknown argument: $1" >&2; usage ;;
@@ -299,6 +302,27 @@ VERSION_LINE="$("$APP/Contents/MacOS/concord_runtime" --version 2>/dev/null | se
     exit 1
 }
 say "version   --version package 行与 BUILD-INFO.txt 一致"
+
+# ⑩ 说明书随包走：dist/README.txt 是给「拿到这个包的人」看的，不是给构建机看的。
+#    它以前是手工维护的、长期停在 11-11（写着 arm64 单架构、11 条回归 5 绿 6 红、
+#    全屏=放大 800×600），三处都已被后续版本推翻——用户读到的说明书在撒谎。
+#    现在只有一个源：ConcordRTS/packaging/README-dist.txt（入库、进得去 review），
+#    每次打包覆盖写到 dist/，make-dmg.sh 再把它拷进 dmg 里。
+README_SRC="$SRC_REPO/packaging/README-dist.txt"
+if [ -f "$README_SRC" ]; then
+    cp "$README_SRC" "$OUT/README.txt"
+    say "readme    $OUT/README.txt ← packaging/README-dist.txt"
+else
+    echo "pack-dist: 缺 packaging/README-dist.txt（dist/README.txt 会停在旧版本）" >&2
+    exit 1
+fi
+
+# ⑪ 可选：顺手出 dmg（--dmg）。默认不出——dmg 是分发动作，不是每轮构建动作；
+#    但一旦要出就必须是「挂载后逐条验过」的那一份，所以只允许走 make-dmg.sh。
+if [ "$MAKE_DMG" = 1 ]; then
+    echo "== 出 dmg =="
+    bash "$(dirname "$0")/make-dmg.sh" --app "$APP" --out "$OUT" --data-root "$DATA_ROOT"
+fi
 
 echo "== 完成 =="
 say "app       $APP"
