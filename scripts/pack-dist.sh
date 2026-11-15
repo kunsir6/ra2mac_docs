@@ -28,6 +28,7 @@ VERSION="0.1.0"
 # 声明低于实际 minos：老系统能装、一启动就崩。两边都错。
 MIN_MACOS="12.0"
 ICON_SOURCE="$SRC_REPO/packaging/icon-source.png"
+ROUND="unset"
 DRY_RUN=0
 MAKE_DMG=0
 
@@ -41,6 +42,7 @@ usage: pack-dist.sh [options]
   --bundle-id <id>    CFBundleIdentifier（默认 org.concord.rts.yuri）
   --version <semver>  CFBundleShortVersionString（默认 0.1.0）
   --icon-source <png> 图标源图（默认 ConcordRTS/packaging/icon-source.png）
+  --round <label>     BUILD-STAMP 里的轮次标签（默认 unset；它是任务标签，不是事实）
   --dmg               出完 .app 顺手出 dmg（调 make-dmg.sh，挂载后逐条验）
   --dry-run           只打印将要做的事
 EOF
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
         --bundle-id)   BUNDLE_ID="$2"; shift 2 ;;
         --version)     VERSION="$2"; shift 2 ;;
         --icon-source) ICON_SOURCE="$2"; shift 2 ;;
+        --round)       ROUND="$2"; shift 2 ;;
         --dmg)         MAKE_DMG=1; shift ;;
         --dry-run)     DRY_RUN=1; shift ;;
         -h|--help)     usage ;;
@@ -88,10 +91,13 @@ say "bundle-id $BUNDLE_ID"
 #   只报不拦：状态坏不等于这份二进制是旧的（它可能五分钟前刚编完），
 #   但「坏着还继续打包」这件事必须出现在屏幕上，否则下一轮又会把 4:17 当常态。
 BUILD_HEALTH="$PROJECT_ROOT/ra2mac_docs/scripts/build-health.sh"
+BUILD_STATE="unknown"
 if [ -x "$BUILD_HEALTH" ]; then
     if HEALTH_OUT="$(bash "$BUILD_HEALTH" 2>&1)"; then
+        BUILD_STATE=clean
         say "buildtree clean"
     else
+        BUILD_STATE=warn
         say "buildtree WARN —— 构建树不是 clean 状态（详见下方）"
         # 不用 grep/sed：本机两者是 shim，多模式会静默返回空（regress.sh 的同一条约束）。
         H_LINE=0
@@ -176,6 +182,8 @@ sh "$SRC_REPO/packaging/make-app-bundle.sh" \
 #     不必再回头翻 dist/BUILD-STAMP.txt（包被拷到别的机器上就翻不到了）。
 #     单行，第一个字段与 BUILD-STAMP 的 short-hash 同源。
 APP_ARCHS="$(lipo -archs "$APP/Contents/MacOS/concord_runtime" 2>/dev/null | tr ' ' '+' || echo unknown)"
+# 归一化成 arm64+x86_64 固定序：stamp 是给人做 diff 的，字段顺序随 lipo 输出变会制造噪声。
+if [ "$APP_ARCHS" = "x86_64+arm64" ]; then APP_ARCHS="arm64+x86_64"; fi
 PACK_HASH="$(git -C "$SRC_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 PACK_DIRTY=""
 if [ -n "$(git -C "$SRC_REPO" status --porcelain 2>/dev/null | head -1)" ]; then
@@ -247,16 +255,19 @@ dump('$APP','$VERIFY_DIR/icon.png');
 dump('$GENERIC_BUNDLE','$VERIFY_DIR/generic.png');
 'ok'" >/dev/null 2>&1 || { echo "pack-dist: 取图标失败（JXA/AppKit 不可用）" >&2; exit 1; }
 
-python3 - "$VERIFY_DIR/icon.png" "$VERIFY_DIR/generic.png" <<'PY'
+ICON_MEAN="$(python3 - "$VERIFY_DIR/icon.png" "$VERIFY_DIR/generic.png" <<'PY'
 import sys
 from PIL import Image, ImageChops, ImageStat
 real, generic = (Image.open(p).convert("RGB").resize((256, 256)) for p in sys.argv[1:3])
 diff = ImageStat.Stat(ImageChops.difference(real, generic)).mean
 mean = sum(diff) / 3
-print(f"  icon      diff-vs-generic={mean:.1f}/255  (阈值 >8 判定系统已采用自定义图标)")
 if mean <= 8:
     sys.exit("pack-dist: 系统仍显示通用占位图标（自定义 icns 未被 IconServices 采用）")
+print(f"{mean:.1f}")
 PY
+)" || exit 1
+[ -n "$ICON_MEAN" ] || { echo "pack-dist: 图标比对没给出数值" >&2; exit 1; }
+say "icon      diff-vs-generic=${ICON_MEAN}/255  (阈值 >8 判定系统已采用自定义图标)"
 
 # ⑦ 验证 C：最低系统版本「声明 == 实际」。
 #
@@ -349,6 +360,62 @@ fi
 if [ "$MAKE_DMG" = 1 ]; then
     echo "== 出 dmg =="
     bash "$(dirname "$0")/make-dmg.sh" --app "$APP" --out "$OUT" --data-root "$DATA_ROOT"
+fi
+
+# ⑫ BUILD-STAMP：它是「dist 是不是最新」的**唯一判据**（§十二.5），却一直是
+#    打包完由人手工覆盖写的一行。第 65 轮实测：打完包、包都验完了，这份文件仍停在
+#    上一轮的 73be404/R64——门禁看的那一行在说谎，而且没有任何东西会提醒。
+#    与 S-34（说明书的回归现状靠手写）同一形态：可验证的事实不能让"记得回写"来保证。
+#
+#    regress= 只认「本次源码 + 干净树」测出来的那一跑：latest.txt 的 source 与
+#    当前 HEAD 不一致（或树脏）时写 stale@<hash>，**不抄上一跑的三态**。
+#    这与 regress.sh 的 WARN 两向判据同源：抄旧值比留空更危险，因为它看上去是真的。
+REG_LATEST="$PROJECT_ROOT/ra2mac_docs/progress/regress/latest.txt"
+read_kv() {
+    [ -f "$1" ] || return 0
+    tr ' ' '\n' < "$1" | awk -F= -v k="$2" '$1==k {print $2; exit}'
+}
+REG_TRIPLE="unknown"
+REG_NOTE=""
+if [ -f "$REG_LATEST" ]; then
+    R_SRC="$(read_kv "$REG_LATEST" source)"
+    R_PASS="$(read_kv "$REG_LATEST" pass)"
+    R_KNOWN="$(read_kv "$REG_LATEST" knownred)"
+    R_NEW="$(read_kv "$REG_LATEST" new)"
+    if [ -z "$R_SRC" ] || [ -z "$R_PASS" ]; then
+        REG_TRIPLE="unknown"
+        REG_NOTE="latest.txt 字段不全"
+    elif [ "$R_SRC" = "$PACK_HASH" ] && [ -z "$PACK_DIRTY" ]; then
+        REG_TRIPLE="pass${R_PASS}/known${R_KNOWN}/new${R_NEW}"
+    else
+        REG_TRIPLE="stale@${R_SRC}"
+        REG_NOTE="最近一跑测的是 ${R_SRC}，不是当前 HEAD（或树脏）"
+    fi
+fi
+
+# 交叉切片单独验（§十二.2）：只跑本机原生架构是盲区。有 x86_64 切片就必须过
+# Rosetta 冒烟，且只在这一步失败时**不出包**——一个「最新但有一半打不开」的包
+# 比一个旧包更糟。
+ROSETTA="n/a"
+case "$APP_ARCHS" in
+    *x86_64*)
+        if arch -x86_64 "$BINARY" --smoke-test >/dev/null 2>&1; then
+            ROSETTA="rc0"
+        else
+            echo "pack-dist: x86_64 切片 Rosetta --smoke-test 失败（交叉切片是盲区，这一条必须过）" >&2
+            exit 1
+        fi
+        ;;
+esac
+
+WIP_LABEL=none
+if [ -n "$PACK_DIRTY" ]; then WIP_LABEL=wip; fi
+STAMP_LINE="$PACK_HASH $(date '+%Y-%m-%dT%H:%M:%S') regress=$REG_TRIPLE arch=$APP_ARCHS minos=$DECLARED_MIN icon=$ICON_MEAN rosetta=$ROSETTA buildtree=$BUILD_STATE wip=$WIP_LABEL round=$ROUND"
+printf '%s\n' "$STAMP_LINE" > "$OUT/BUILD-STAMP.txt"
+say "stamp     $OUT/BUILD-STAMP.txt"
+say "          $STAMP_LINE"
+if [ -n "$REG_NOTE" ]; then
+    say "          WARN：regress=$REG_TRIPLE —— ${REG_NOTE}"
 fi
 
 echo "== 完成 =="
