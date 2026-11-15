@@ -1,7 +1,7 @@
 {
   "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
-  "version": "v158",
-  "updated": "2026-11-15T11:50+08:00",
+  "version": "v159",
+  "updated": "2026-11-15T13:20+08:00",
   "root": "/Users/zhenglk/AiProjects/ra2mac",
   "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
   "rules": {
@@ -402,10 +402,10 @@
       "cost": "中：要新写一条侧栏角标绘制 + 一条「建筑是否带级」的取证",
       "roi": "B",
       "complexity": "中等",
-      "attempts": 0,
-      "status": "pending",
-      "verify": "给兵营设 veterancy=2 后重绘侧栏，断言该 build button 的角标区域出现星形像素（或 lastSidebarVeterancyBadges == 2），且等级回落后角标消失。",
-      "report": "",
+      "attempts": 1,
+      "status": "done",
+      "verify": "给兵营设 veterancy=2 后重绘侧栏，断言该 build button 的角标区域出现星形像素（或 lastSidebarVeterancyBadges == 2），且等级回落后角标消失。 ｜ 第 52 轮结案（DoD 改判）：产品里没有「建筑身上的等级」——偷星是 RuntimeSpySystemState 上的 owner×类别布尔，按真实模型改成「基线/拿到奖励/清掉」三连逐像素比对，实测 appearedPixels=24 restoredDiff=0（dba2daf 产品 + b08e13c 断言）。",
+      "report": "reports/FIX-52-偷星后建造栏补老兵角标.md",
       "thread": "sidebar-veterancy"
     },
     {
@@ -664,5 +664,21 @@
     ],
     "kept": "不批量改 6 条 blocked 的状态（改状态=改排序，属修复轮）；不动打包链；unit-behavior 不再碰",
     "next": "R52 产品行为轮取 M-27（侧栏等级星）；R53 EVO-07；U-19/20/21/23 合并成一轮取证；S-19 建议移 deferred"
+  },
+  "decisions_20261115_r52": {
+    "round": 52,
+    "date": "2026-11-15",
+    "type": "修复轮（主目标 M-27，侧栏老兵角标）",
+    "target": "M-27 偷星后建造栏不显示等级星",
+    "findings": [
+      "奖励侧本来就是对的：渗透 Factory=InfantryType/UnitType/AircraftType 后 RuntimeSpySystemState 打 owner×类别布尔，applyRuntimeProducedObjectVeterancy 读的就是它；缺的是侧栏绘制点（建造按钮循环从不看 veteran）。",
+      "计划里 M-27 的 DoD「给兵营设 veterancy=2」数据前提不存在——产品没有建筑级等级，属第三次「把功能没有的性质写进验收」（M-29/M-30 同型），按 §八.2 记断言纠正并改判。",
+      "判据用逐像素三连比对（基线/拿到奖励/清掉）：基线↔拿到必须变、基线↔清掉必须逐像素相同，实测 appearedPixels=24 restoredDiff=0，24 像素证明走的是 pips 图集而不是 V 字形兜底。",
+      "夹具坑：侧栏步兵页按「有对应工厂」过滤，这条夹具基地只有一座部署好的 MCV，步兵页为空 → 第一版直接红在 no visible infantry cameo；改为按 M-15 的 addRuntimeObjectInstanceForOwner 路径注入己方兵营（不手搓实例）。",
+      "veteran 标志用间谍系统自己的 save/load 格式写，不新增测试专用 setter：格式漂了会以 spy veteran fixture rejected 明确报错，而不是静默变绿。",
+      "回归 12/1/0（13 条，零 RED-NEW），command 前缀逐字未变，compactgroups 13/13；dist 重编 b08e13c（含并发 41 行 WIP，stamp 已标）。"
+    ],
+    "kept": "并发会话在 RuntimeShell.cpp 的 41 行 WIP 零触碰（按 hunk 只提交自己的 3 段）；国家自带老兵不走这枚角标；精英叠星未做（数据层没有该路径）",
+    "next": "R53 取 EVO-07（数据根缺失提示 + About，S 级首触点）；U-19/20/21/23 合并一轮真实窗口取证；BUILDING_READY 子冒烟可接 regress 第 14 条（现绿，1.4s）"
   }
 }
