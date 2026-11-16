@@ -14,21 +14,24 @@
 > 性价比 — **S**（半天内可见用户价值）＞**A**（清掉一条 known-red 或解掉一类卡点）＞**B**（体验打磨）＞**C**（基建/可观测性，回报延迟）。
 > 主线计数 — 同一条产品线拆出的全部子项算一条主线，**≤4 子项 / ≤4 轮**，拆新 ID 不重置计数。
 >
-> **本轮（第 69 轮，2026-11-16）收口摘要 —— 重排轮（修复轮途中触发 §七）**
-> 1. 轮型：开轮判修复轮，T+30 三条候选的根因假设**全部被实测推翻** → 按 §七.2 转重排，只做诊断 + 重排。
-> 2. 旧顺序错在哪：R68 把「U-19 前先验 `--skirmish-build-smoke-test` 能不能出世界帧」写成了**一句前置验证**，
->    实测它是**要新建一条呈现通道**——该冒烟全程无 `CreateWindow`/`WM_PRINTCLIENT`/渲染调用
->    （`renderCheck=0.00ms` 就是因为那段没跑），17 条 smoke 的 artifacts 里零张世界帧。
-> 3. 三条否决：①FPS 叠加层「默认常显」早在 `c1ccfe6`(11-12) 改为 opt-in，UI-01 §3.1 是死结论；
->    ②遭遇战国家列 `???` 是 Random 旗 `rani.shp` 的**位图内容**（`grep '???'` 零命中、`flagFor` 非空才 blit）；
->    ③放建筑 `placementSearch=1553ms` 出自诊断兜底路径，证不了用户路径会卡。
-> 4. **登记 U-24 世界帧出口**（收益 A / 成本 中 / 中等，1 轮）：验收=一条命令出不带窗口的真实开局 800×600 BMP，
->    图里侧栏 168px / 资金数字 / 建筑 / 单位都在，且按像素数而非文件存在判。等价归档 S-24。
-> 5. **M-03 按 §六.5 换赛道暂停**（连续 2 轮无产品行为变化）；再启必须 §六.3 三选一，不许第四次「先补对账」。
-> 6. 质量：净增 **0/0**（源码无改动）；90,635 / 42,542 / 31,056 零变化；断言 0/0；TODO 0。清单 239 行 / 41 条 / 66KB 全绿。
-> 7. **欠账（下轮必须还）**：连续第 4 轮无产品行为变化——U-24 下轮必须真的出图，否则按 §六.3 收口 U 线。
+> **本轮（第 70 轮，2026-11-16）收口摘要 —— 修复轮（用户报障：战斗内 ESC 菜单与战斗冲突）**
+> 1. 轮型：修复轮。起点是用户报障「战斗中点 esc 呼出菜单，战斗显示跟菜单显示包括声音有冲突」，
+>    上轮刚登记的 U-24（世界帧出口）本轮只兑现了「菜单态」那一半，世界态仍缺。
+> 2. 根因一条：打开菜单只改了 `runtimeMenuOpen` 标志，没让它接管画面与声音——①底色只盖
+>    `contentRect`（底部留 32px 动作条余量），地图视口高度却是满的 → 800×600 下底部 632×32=**20224**
+>    像素仍是战场；②`setRuntimeMenuOpen` 不碰音频，8 条 SFX 通道池与 EVA 通道自主播完，与菜单按钮音叠播。
+> 3. 改法（产品 15 行）：底色改盖满 `clientRect`；打开时 `stopRuntimeSfxPlayback` +
+>    `muteRuntimeEvaPlaybackPreservingSubtitle`。**音乐不动**（零售菜单不打断 BGM），已写进注释防后人顺手停掉。
+> 4. 判据 `menumodal`（regress 第 18 条，0 秒）：品红哨兵法——整屏刷哨兵→画菜单→数残留，不需要原版对照图。
+>    先红后绿实测：修前 20224 / liveSfxChannels=2 / evaStopped=no → 修后 0 / 0 / yes。
+> 5. 质量：净增 **+193/−1**（新冒烟 155 行 + 分派样板 21 + 产品 15）；`RuntimeShell.cpp` 90,635→90,672（+37<50）；
+>    断言 1 条（4 判据）vs 产品 15 行；TODO 0。regress **18 条 16/2/0**。
+> 6. **下轮起手**：U-24 世界态帧（本次只解决菜单态）；遗留：多人开菜单是否该停本地音效未验证（见 FIX-70 §五）。
+> 7. 提交：`5e28fcd`(fix) / `d01fb3b`(test)。
 
 > **历史收口摘要索引（一行一轮，原文见 `reports/fix-plan-archive.md`）**：
+> R69 重排：三条候选（FPS 常显 / 国家列 ??? / 放建筑 1553ms）的根因假设全被实测推翻；U-19 的真前置是**新建**
+> 世界帧通道（`skirmishbuild` 全程不建窗口不出帧）→ 登记 U-24，M-03 按 §六.5 暂停｜
 > R68 修复：S-39 结案（载入页呈现冒烟进 regress 第 17 条 `loadingpages`，0.56s）+ 产物落点收成
 > `RuntimeSmokeArtifacts.h`（源码树 `build/` 31MB→6.4MB，`f0c8f06`/`755abf2`）｜
 > R67 修复：U 线取证入口实测一直存在（`CONCORD_LOADING_PRESENTATION_ONLY`），U-20/U-21 结案、
@@ -55,7 +58,6 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | S-38 | BUILD-STAMP 仍靠人手写 | 第 65 轮打包后实测：包都验完了，`dist/BUILD-STAMP.txt` 仍停在上一轮的 `73be404/R64`，直到手工覆盖才与 HEAD 一致 | `§十二.5` 把「覆盖写 BUILD-STAMP」写成了**对人的动作**而不是脚本的收尾，而它又是判断 dist 新鲜度的唯一依据 → 忘了写 = 门禁看的那一行在说谎，且没有人会被提醒。与 S-34（说明书手写）同一形态 | **A**：dist 新鲜度判据本身不可信时，所有「dist 是最新」的结论都不成立 | 低：hash/时间/arch/minos/icon/buildtree 全在脚本手上；regress 三态从 `latest.txt` 读；新增一次 `arch -x86_64 --smoke-test`（约 1s，本来每轮手工跑） | **A** | 简单 | 1 | **已完成（第 66 轮，`f0826d5`）**：`pack-dist` 新增第 ⑫ 步自写；icon 比对改为回传数值；`regress=` 只认「HEAD + 干净树」那一跑，否则 `stale@<hash>` + WARN；x86_64 切片补 Rosetta 冒烟且失败不出包 | 不手工写任何文件时 stamp 首字段 == `git rev-parse --short HEAD`（实测 `6aa4673`）；`latest.txt` 的 source 不符 → `stale@`（已先红后绿）；无 `latest.txt` → `unknown` 而非抄旧值 | `reports/AUDIT-66.md` |
 | S-39 | 载入页的取证入口不在门禁里 | U 线卡了六轮的说法是「拿不到真实窗口的载入帧」，而 `CONCORD_LOADING_PRESENTATION_ONLY=1 --loading-smoke-test` 一直能抓 11 页 × 两尺寸的生产窗口位图；但它是**手工跑**的，regress 里没有这一条，且 14 张 BMP 硬编码写进源码树 `build/` | 判据存在但不在日常门禁 = 事实的生产者与消费者之间缺一步。与 S-08（读数一直在文件里）、M-13（通道一直在）、S-38（脚本手上已有数值）同一形态，**第四次** | **A**：U-19 的 HUD 取证下一步就靠它；且 R67 那条产品修复（铺满槽位）没有门禁兜住就没意义 | 低：一条 `run_case`（实测 0.56s）+ 把落点参数化（一个 helper） | **A** | 简单 | 1 | **已完成（第 68 轮，`f0c8f06` + `a30ea22`）**：`runtimeSmokeArtifactPath()` 认 `CONCORD_SMOKE_ARTIFACT_DIR`（默认仍 `build/`），regress 第 17 条 `loadingpages` 把它指到本轮 artifacts；源码树 `build/` 31MB→6.4MB | regress 出现第 17 条且 PASS；跑完 `ConcordRTS/build/` 不再新增 `loading_*.bmp`（实测 14 张落进 `artifacts/loadingpages`） | `reports/FIX-68-载入页呈现冒烟进回归门禁.md` |
-| S-40 | 其余冒烟仍把产物写进源码/数据树 | 实测 `ConcordRTS-GameData/build/` 有 `result_mission_victory.bmp` / `result_mission_defeat.bmp` / `result_players_allied.bmp`，`ConcordRTS/build/issue22_15_vehicle_terrain_slope/` 也在；与 S-39 同型但**不在同一主目标**内 | 写盘点各自硬编码相对路径 `build/`，没有统一出口；regress 的 cwd 是数据根 → 产物落进数据树，且绕开 R50 的留存策略 | **B**：磁盘占用 + 「数据树里混进生成物」会让人误以为它是数据的一部分 | 低-中：result 冒烟两处 + issue22 目录一处改调 `runtimeSmokeArtifactPath`，但 helper 现在在 loading 的 `.inl` 里，要先抽成公共诊断头 | **B** | 简单 | 1 | **已完成（第 68 轮，`755abf2`，伴生小项）**：落点抽成 `runtime/host/diagnostics/RuntimeSmokeArtifacts.h`（专用 env > `CONCORD_SMOKE_ARTIFACT_DIR` > 历史默认），result/slope 两处改用；实测两棵树的 bmp 均为 0，产物全在本轮 artifacts | 连跑 regress 两轮后 `ConcordRTS/build/` 与 `GameData/build/` 都不再新增产物；生成物只出现在本轮 artifacts | `reports/FIX-68-载入页呈现冒烟进回归门禁.md` §五 |
 | M-19 | `NATBNK` 没有 temperate 美术 | `body=0x0 frame=0x0`，`2 loaded, 0 missing` 却什么都画不出来；`2peaks.map` 是 TEMPERATE | 资产缺口：`NewTheater=yes` 但导出集只有 `art/snow/natbnk.shp` | 中：任何「建筑可见/可点/有影子」的断言在该图上不可满足 | 补 temperate 变体，或让冒烟换图 | **C** | 简单 | 0 | 待修复（不阻塞门禁） | `2peaks.map` 上该建筑 `structureNoArt=0` 且 `drawn>0` | `reports/FIX-10-阴影掩码四桶与结构自证帧.md` §2 |
 | S-19 | 地图预览产物的旧/新 A/B 没做 | 第 33 轮把 `MapPreviewExporter` 的分叉解码器换成 `RuntimeTmpCodec`（−647 行），但预览产物**没做逐字节对比** | `/tmp/tiles` 能从 `--extract-map-tiles` 抽到 213 块瓦片，但 `--export-map-tmp-preview` 卡在 `failed to open file: …/isotem.pal`（该调色板只在归档里） | 中：不做完，「删了 647 行且行为不变」这句话就不成立；做完全轮结论才闭环 | **高**（第 34 轮推翻上一轮的「30 分钟」：无按名抽取 MIX 的 CLI，要自己实现 Westwood CRC；旧二进制要另建构建树整编） | **B**（原 A，因成本翻倍而降） | 中等 | 0 | 待修复（前置=MIX 按名抽取 + 第二构建树） | `isotem.pal` 落进 palette-dir 后，`git show b2ebc4c^:src/assets/preview/MapPreviewExporter.cpp` 编旧二进制，两次 `--export-map-tmp-preview` 的 PPM **sha256 相同** | `reports/FIX-34-地图预览自带第二份TMP解码器.md` §四 |
 | S-29 | regress 报告不记源码版本 | `report.md` 只记二进制 sha256(前16)+mtime，判不出「这个二进制是不是 HEAD 编的」；R55 实测 arm64 半边落后 16 小时正是这类盲区 | 判据只写「测了哪个二进制」，没写「对应哪个 commit」；编译时刻与 `git log -1 --format=%ci` 一比即知，但这个比较没人做 | **A**：让「回归 13/1/0」绑定具体 HEAD，否则 BUILD-STAMP 的 regress= 可能是别的树测的 | 低：报告头 3 行（取 `--version` 的 compiled + 与 HEAD 提交时刻比，落后打 WARN） | **A** | 简单 | 1 | **已完成**（`regress.sh`：`source <hash>[+WIP]` + dirty 数 + 自报 compiled；实测直接照出 R56 那 8082s 偏差） | 报告头出现 `source: <hash> compiled=<时刻>`；换回旧二进制必须打 WARN 而不是静默通过 | `reports/FIX-57-构建与回归的自证门禁.md` §二 |
@@ -115,8 +117,9 @@
 | UI 对账 | 4/4（U-20 done、U-21 done、U-23 移出、U-19 未做） | 1（R67） | **done** | 一轮关掉三条：U-20 缩略图一直画得出来（旧的「黑框」是离屏夹具形态）、U-21 右屏是 Bink 视频的 static-fallback、U-23 缺原版同图同相机画面不可判。代价：HUD 逐项对账（U-19）没做，它的前置「载入页取证」本轮打通但**没进门禁** → 另开**独立**条目 S-39（新线「取证门禁」1 子项，不占本线第 5 格） | FIX-67 |
 | 取证门禁 | 1/4（S-39 done） | 1（R68） | **done（1 轮关掉唯一子项）** | 把「载入页取证入口」从手工跑变成 regress 第 17 条（0.56s），并把产物落点从源码树挪到本轮 artifacts。价值不在这一条本身，而在它是 U-19 的**前置**：下一条要用真实帧的条目不必再论证一次「拿不到」。代价：只覆盖载入页，世界帧/HUD 仍无帧 | FIX-68 |
 | 世界帧出口 | 1/4（U-24） | 1（R69） | **在办** | U-19 卡了 8 轮的真前置：世界路径根本没有出帧通道（不是入口没接进门禁）。成本从「一句验证」修正为「1 轮新建宿主」。代价：它是 B 级可观测性基建，本身不改用户可见行为，只能靠「解锁 U-19」兑现 | FIX-69 |
+| 战斗内菜单 | 1/1（S-41 done） | 1（R70） | **done** | 用户报障直接结案：画面盖满 + 在播音效停掉，一轮关掉两个表现面（同根因）。代价：多人开菜单也会停本地音效，该行为未验证；小窗口黑边与菜单边框混在一起，判据分不开 | FIX-70 |
 
-**仍在办的主线：世界帧出口（U-24，1 轮 / 1 子项，R69 登记）；M-03 空转重绘按 §六.5 暂停（2 轮 / 2 子项，再启需 §六.3 三选一）**。**`交付` 线第 66 轮补行后判 done（2 子项 / 2 轮）**：S-33 与 S-38 是同型缺陷，都由脚本生成取代人手复制。其余 M-25 / S-28 / C-02i / EVO-07 ②③ / M-28 全在 `progress/deferred.md`，重开条件写在那里。
+**仍在办的主线：世界帧出口（U-24，1 轮 / 1 子项，R69 登记，R70 只兑现菜单态）；M-03 空转重绘按 §六.5 暂停（2 轮 / 2 子项，再启需 §六.3 三选一）**。**`交付` 线第 66 轮补行后判 done（2 子项 / 2 轮）**：S-33 与 S-38 是同型缺陷，都由脚本生成取代人手复制。其余 M-25 / S-28 / C-02i / EVO-07 ②③ / M-28 全在 `progress/deferred.md`，重开条件写在那里。
 **已满额、不许再开第 5 个子项**：C-02（9）、unit-behavior（4）、S-回归门禁（4）、skirmish-mode-rules（4）。
 
 
@@ -125,6 +128,12 @@
 条目正文（S-01~S-14、M-01~M-21、C-02a~C-02h 的读数与改法）已归档 →
 `reports/archive/fix-plan-202611.md`（第 1~24 轮原文 164 行）。
 最近 10 条已完成（一行一条，详情查归档与对应报告）；**第 69 轮等价归档 S-24**（载具穿步兵冒烟进门禁，R61 补判 done）→ `reports/FIX-43-regress接入混合编队收敛门禁.md` §六、`reports/archive/fix-plan-202611.md`：
+
+**S-41 战斗内 ESC 菜单只做了一半模态（第 70 轮结案，`5e28fcd` + `d01fb3b`**：用户报「战斗显示跟菜单显示包括声音有冲突」。
+画面：底色只盖 `contentRect`（底部留 32px 动作条余量），而地图视口高度是满的 → 800×600 下底部 632×32=20224 像素仍是战场；
+声音：`setRuntimeMenuOpen` 不碰音频，8 条 SFX 通道池与 EVA 通道自主播完，与菜单按钮音叠播。底色改盖满 `clientRect` +
+打开时 `stopRuntimeSfxPlayback` + `muteRuntimeEvaPlaybackPreservingSubtitle`（音乐不动）。判据 `menumodal` 用**品红哨兵法**
+数残留像素，先红（20224 / 2 / no）后绿（0 / 0 / yes）。**等价归档 S-40**（诊断产物落点统一，R68 结案）→ `reports/FIX-68` §二）｜
 
 **U-20 载入画面右下预览是否为空（第 67 轮结案，`d60b1c7` + `6cab55d`**：不是空的——`CONCORD_LOADING_PRESENTATION_ONLY=1
 --loading-smoke-test` 抓生产窗口，槽位非纯黑 99.7%、颜色 419、两个起始点方块在位；顺带发现槽位是 216x166 而缩略图被等比缩成
@@ -170,6 +179,7 @@ animationSequence=0->0`，素材正确、缺的是 Bink 解码，不再是「素
 
 | 轮 | 日期 | 主题 | 报告 |
 |---|---|---|---|
+| 70 | 2026-11-16 | 修复（用户报障）：战斗内 ESC 菜单的模态性只做了一半——底色只盖 contentRect，底部 632×32 仍是战场（哨兵实测 20224）；`setRuntimeMenuOpen` 不碰音频，SFX/EVA 与菜单按钮音叠播。底色盖满 + 打开时停两路音频；新增 regress 第 18 条 `menumodal`（哨兵法，先红后绿） | `reports/FIX-70-战斗内菜单的模态性.md` |
 | 69 | 2026-11-16 | 重排（`§七`：三条候选假设全被推翻）：U-24「世界帧出口」才是 U-19 的真前置——`skirmishbuild` 全程不建窗口不出帧，17 条 smoke 零张世界帧；M-03 按 `§六.5` 暂停；UI-01 §3.1（FPS 常显）标废弃（已于 `c1ccfe6` 修掉） | `reports/FIX-69-重排-世界帧出口才是U19的前置.md` |
 | 68 | 2026-11-16 | 修复：S-39 结案——载入页呈现冒烟进 regress 第 17 条（0.56s，兜住 R67 的槽位修复）；`runtimeSmokeArtifactPath()` 把 14 张 BMP 挪到本轮 artifacts（源码树 build/ 31MB→6.4MB）；登记 S-40 | `reports/FIX-68-载入页呈现冒烟进回归门禁.md` |
 | 67 | 2026-11-16 | 修复：U 线取证通道（入口一直存在，第六轮才发现）→ U-20/U-21 结案、U-23 移 deferred；产品修复：载入页缩略图铺满 216x166 槽位（去黑带）+ 槽位内容门禁；登记 S-39 | `reports/FIX-67-载入画面缩略图铺满槽位与U20U21结案.md` |

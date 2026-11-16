@@ -1273,3 +1273,24 @@ fix-plan 167 行 / queue 35 条 / rules 5 类 / `ledger-check.sh` 六项全绿�
 - **欠账**：连续第 4 轮无产品行为变化（R65 起）。下轮 U-24 必须真的出图，否则按 `§六.3` 收口 U 线。
 - dist：`755abf2 2026-11-16T07:25:05 regress=pass15/known2/new0 arch=arm64+x86_64 minos=12.0 icon=96.2
   rosetta=rc0 buildtree=clean wip=none round=R69`（无源码改动，仍重跑 lipo+重签+pack 确保 dist 与 HEAD 一致）。
+
+## 第 70 轮（2026-11-16，修复轮）用户报障：战斗内 ESC 菜单的模态性只做了一半
+
+- 报障原话：「战斗中点 esc，呼出战斗中的菜单。战斗显示跟菜单显示包括声音是有冲突的。」
+- 根因一条：打开菜单只改了 `runtimeMenuOpen` 标志，没让它接手画面与声音。
+  ①画面：`drawRuntimeMenuOverlay` 底色只盖 `contentRect`，而 contentRect 底部留了 32px 动作条余量；
+  地图视口高度却是满的（只减侧栏 168）→ 800×600 下底部 `632×32 = 20224` 像素仍是战场。
+  ②声音：`setRuntimeMenuOpen` 在音频路径上零命中；主循环的 `tickAccumulator=0` 只挡住「新音效」，
+  已经在播的 8 条 SFX 通道池与 EVA 专用通道会自主播完，和菜单自己的按钮音（另一个设备接缝）叠播。
+- 改法（产品 15 行，`5e28fcd`）：底色改盖满 `clientRect`（侧栏随后由 `drawRuntimeMenuSidebarBackground` 重画成菜单皮肤）；
+  `open && !wasOpen` 时 `stopRuntimeSfxPlayback` + `muteRuntimeEvaPlaybackPreservingSubtitle`。
+  **音乐刻意不动**——零售选项菜单不打断 BGM，注释里写死理由防后人顺手停掉。
+- 判据（`d01fb3b`，regress 第 18 条 `menumodal`，0 秒）：**品红哨兵法**——整屏刷哨兵色→画菜单→数残留像素。
+  先红后绿（同一份冒烟只切产品代码）：修前 `bottomStripLeak=20224 liveSfxChannels=2 evaStopped=no`，
+  修后 `0 / 0 / yes`。20224 与几何推导（632×32）逐像素对上。
+  诚实边界：声音判据断言的是「通道簿记被清」，不声称测到真实音频输出（无人值守收不了音）。
+- 质量四数：净增 **+193/−1**（新冒烟 155 行 + env 分派样板 21 + 产品 15）；`RuntimeShell.cpp` 90,635→90,672（+37，低于 50 行说明线）；
+  断言 1 条（4 判据）vs 产品 15 行；TODO 0。regress **18 条 16/2/0**。
+- 遗留：①U-24 世界态帧仍缺（本轮只拿到「菜单态」帧，`artifacts/menumodal/ingame_menu_800x600.bmp` 是首张可判读的战斗内菜单帧）；
+  ②多人对局开菜单也会停本地音效，该行为未验证，下次多人报障先当第一嫌疑；③小窗口下 `bkgdsm` 小于 contentRect，
+  盖满后「菜单边框」与「没盖住」在判据上分不开。

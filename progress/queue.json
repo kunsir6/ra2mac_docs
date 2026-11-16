@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
  "version": "v175",
- "updated": "2026-11-16T07:35+08:00",
+ "updated": "2026-11-16T08:50+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -33,6 +33,21 @@
   "archive": "reports/queue-rules-archive.md（168 键原文）"
  },
  "tasks": [
+  {
+   "id": "S-41",
+   "title": "战斗内 ESC 菜单只做了一半模态（画面漏 32px 条带 + 在播音效不停）",
+   "detail": "用户 2026-11-16 报「战斗中 ESC 呼出菜单，战斗显示与菜单显示（含声音）冲突」。修前：①drawRuntimeMenuOverlay 底色只盖 contentRect，contentRect 底部留 32px 动作条余量，而地图视口高度是满的 → 800x600 下底部 632x32=20224 像素仍是战场；②setRuntimeMenuOpen 完全不碰音频，8 条 SFX 通道池与 EVA 专用通道自主播完，与菜单自己的按钮音叠播。第 70 轮结案：底色改盖满客户区；打开时 stopRuntimeSfxPlayback + muteRuntimeEvaPlaybackPreservingSubtitle（音乐不动=零售行为）。",
+   "root_cause": "打开菜单只改了 runtimeMenuOpen 标志，没有让它接管画面与声音：暂停只管住「新音效」（tick 驱动），管不住已在播的设备侧通道。",
+   "value": "A：用户直接报障；两层界面同屏 + 两路声音叠放是观感与听感的硬伤。",
+   "cost": "低：产品代码 15 行；判据 1 条门禁 4 个判据（哨兵像素 + 通道簿记）。",
+   "roi": "A",
+   "complexity": "简单",
+   "attempts": 1,
+   "status": "done",
+   "verify": "regress 第 18 条 menumodal PASS，读数 bottomStripLeak=0 / liveSfxChannels=0 / evaStopped=yes；负向（切回旧代码）实测 20224 / 2 / no。",
+   "report": "reports/FIX-70-战斗内菜单的模态性.md",
+   "thread": "战斗内菜单"
+  },
   {
    "id": "S-39",
    "title": "载入页的取证入口不在门禁里（呈现冒烟只手工跑）",

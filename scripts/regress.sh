@@ -42,7 +42,7 @@ usage() {
 ConcordRTS 回归编排器
   --only id[,id]   只跑指定用例（core menu loading loadingpages skirmish attest render
                    interaction command build campaign result skirmishbuild
-                   compactgroups vehiclepass paradropsel）
+                   compactgroups vehiclepass paradropsel menumodal）
   --bin <path>     指定被测二进制（默认 build-product-arm/concord_runtime）
   --out <dir>      指定输出目录（默认 progress/regress/<时间戳>）
   -h               本帮助
@@ -371,6 +371,12 @@ run_case paradropsel 120 "CONCORD_COMMAND_SMOKE_PARATROOPER_TARGET_ONLY=1" "--co
 # 等比缩放留黑带也不会有人被提醒。产物落点由 CONCORD_SMOKE_ARTIFACT_DIR 指到本轮 artifacts，
 # 否则每跑一次就往源码树堆 23MB（S-39 的另一半）。
 run_case loadingpages 300 "CONCORD_LOADING_PRESENTATION_ONLY=1 CONCORD_SMOKE_ARTIFACT_DIR=$ART/loadingpages" "--loading-smoke-test"
+# 第 18 条（第 69 轮，用户报「战斗中 ESC 菜单与战斗显示/声音冲突」）：模态菜单。
+# 三条判据一次跑完 —— ①在播的 8 条战斗音效通道与 EVA 通道被清空（它们不归 tick 管，
+# 暂停不会让它们安静）②整屏没有战斗像素残留（用哨兵色数，不是跟参考图比）
+# ③关掉菜单不把音频簿记重新点亮。修前实测 bottomStripLeak=20224（=632x32，正好是
+# contentRect 底部留的 32px 动作条余量那条）、liveSfxChannels=2；修后两者都归零。
+run_case menumodal 120 "CONCORD_COMMAND_SMOKE_MENU_MODAL_ONLY=1 CONCORD_SMOKE_ARTIFACT_DIR=$ART/menumodal" "--command-smoke-test"
 
 TOTAL=$((PASS_N + KNOWN_N + NEW_N))
 printf '\n-- 汇总 -- PASS=%s KNOWN-RED=%s RED-NEW=%s  共 %s 条\n' "$PASS_N" "$KNOWN_N" "$NEW_N" "$TOTAL"
