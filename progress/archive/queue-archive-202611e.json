@@ -1,0 +1,17 @@
+[
+ {
+  "id": "ON-5-02b",
+  "title": "主菜单挂机 30 分钟（静态菜单 + 光标收敛器每帧跑）",
+  "detail": "第 71 轮完成菜单档：包内二进制 + `CONCORD_PRESENT_STATS_UNTIL_SEC=1800` + `/usr/bin/time -l`，1800.01s 退出码 0，paints=23436（13.02/s）、user CPU 204.36s（11.4%）、peaks footprint 157.66 MiB。**世界档拆出 ON-5-02c**（世界 60fps/16.5%，与菜单 13fps/11.4% 不是同一条曲线）。覆盖范围偏差：主菜单 Bink 在本平台不支持（只有提取首帧），所以测的是静态菜单那条路径，不是视频播放。",
+  "root_cause": "长时挂机只覆盖过世界视图 10 分钟；菜单路径（Bink 首帧 + 告警灯动画）每帧重建 AppKit 对象，与 S-18 同族且从未进过台架",
+  "value": "A：S-18 的 37GB 就漏在菜单动画路径上，30 分钟台架是它唯一的回归门",
+  "cost": "中：两条 1800 秒台架 = 65 分钟墙钟，单轮只能跑一条；不改代码",
+  "roi": "A",
+  "complexity": "简单",
+  "attempts": 1,
+  "status": "done",
+  "verify": "1800 秒 EXIT=0（实测 1800.01s/EXIT=0）；footprint 峰值增长 < 5 MiB（实测 +16 KB，157.65→157.66 MiB）；paints 速率无单调衰减（13.39→13.02/s，24 个采样点无趋势）",
+  "report": "reports/ON-5-02b-主菜单挂机三十分钟.md",
+  "thread": "ON-5-存活"
+ }
+]

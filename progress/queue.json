@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": "v176",
- "updated": "2026-11-16T10:05+08:00",
+ "version": "v177",
+ "updated": "2026-11-16T12:45+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -94,17 +94,17 @@
    "thread": "交付"
   },
   {
-   "id": "ON-5-02b",
-   "title": "30 分钟存活：主菜单挂机 + 世界（补齐时长与菜单档）",
-   "detail": "ON-5-02a 只做了世界视图 10 分钟。本条补齐：① 世界 30 分钟；② 主菜单挂机 30 分钟（菜单有 Bink 首帧与告警灯动画，是另一条代码路径）。两条都用 CONCORD_PRESENT_STATS_UNTIL_SEC=1800 + /usr/bin/time -l 跑，记 paints / CPU / 峰值 RSS，重点看 RSS 是否单调上升。",
-   "root_cause": "长时挂机只覆盖过世界视图 10 分钟；菜单路径（Bink 首帧 + 告警灯动画）每帧重建 AppKit 对象，与 S-18 同族且从未进过台架",
-   "value": "A：S-18 的 37GB 就漏在菜单动画路径上，30 分钟台架是它唯一的回归门",
-   "cost": "中：两条 1800 秒台架 = 65 分钟墙钟，单轮只能跑一条；不改代码",
+   "id": "ON-5-02c",
+   "title": "世界挂机 30 分钟（ON-5-02b 拆出的世界档）",
+   "detail": "世界视图 1800 秒台架：`CONCORD_PRESENT_STATS=1 CONCORD_PRESENT_STATS_UNTIL_SEC=1800` + `/usr/bin/time -l`，与菜单档同法。世界是 60 fps、每拍重绘（R68 实测 59.9 fps / CPU 16.5%），单位时间进 `present` 的次数是菜单的 4.6 倍，所以两条不能互相外推。可后台跑，但**期间不许跑构建与 regress**（污染 CPU/RSS 读数）。",
+   "root_cause": "世界路径 30 分钟从未跑过：ON-5-02a 只到 10 分钟（RSS 341→342 MiB），而 S-18 的 autoreleasepool 泄漏在每帧路径上，10 分钟窗口不足以照出 MB/分钟级的慢漏",
+   "value": "A：与菜单档同一目的——S-18 类泄漏唯一的长时间回归门；世界路径每拍都过 present，是当年 `syncGlobalCursorForPointer` 漏在 pool 外的主要放大点",
+   "cost": "低：一条 30 分钟台架，不改代码",
    "roi": "A",
    "complexity": "简单",
    "attempts": 0,
    "status": "pending",
-   "verify": "两条各 1800 秒，EXIT=0；RSS 增长 < 5 MiB；帧率无单调衰减。",
+   "verify": "1800 秒 EXIT=0；footprint 峰值增长 < 5 MiB（用 vmmap 采样斜率判，不用 maxRSS）；帧率无单调衰减（对照 R68 的 59.9 fps）",
    "report": "",
    "thread": "ON-5-存活"
   },
@@ -680,8 +680,22 @@
   }
  ],
  "decisions": {
-  "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键，e：R65~66）。",
+  "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键，e：R65~66，f：R67~70b 部分，g：r61/r62 顶层键 + R67/R68）。",
   "recent": [
+   {
+    "round": "71",
+    "date": "2026-11-16",
+    "type": "台架轮（队列首条 ON-5-02b 的菜单档）+ 台账健身",
+    "lines": [
+     "轮型：台架轮，不改代码。队列首条 ON-5-02b 只做**菜单档**（1800 秒 EXIT=0），世界档拆 ON-5-02c——两条曲线不同（世界 60fps/16.5%，菜单 13fps/11.4%），不能互相外推。",
+     "结论：菜单路径 30 分钟无泄漏。footprint 24 个采样点恒定 119.3M、峰值 157.66 MiB（10 秒短跑对照 157.65 MiB，+16 KB）；`maxRSS` 314→353 MiB 是高水位线口径含可回收页，**不能当增长率**（已写进报告 §三，防下一轮误判）。",
+     "顺手照出两件未定性的：①主菜单 Bink 在本平台不支持、只有提取首帧 → 这条台架覆盖的是「静态菜单 + 光标收敛器每帧跑」，不是「视频在放」；②静态主菜单仍 13.02 paints/s（23436/1800s，redundant=0）——不泄漏，但用 11.4% CPU 画一张不动的图，与 M-03 同族另一条路径。",
+     "台账健身（兑现 R70b 决策①②）：RUNLOG 第 25~59 轮原文迁 `progress/archive/RUNLOG-202611-r25-r59.md`（1297→301 行、116KB→31KB，字节红线 94% 解除）；U-19 补进 fix-plan §一（此前只在「四、主线账目」出现），估值/验收/前置（U-24）齐全。",
+     "没构建、没跑 regress、dist 保持 `ac45ada`。理由：台架测的就是 CPU 与 RSS，并发负载会直接污染读数——这是 S-18 的 37GB 唯一能复现的地方，读数脏了整轮白跑。",
+     "规则债：`rules.commit`「近 4 轮 fix ≤1 → 下轮必须产出产品行为变化」本轮触发（R68/R69/R70/R70b 只有 R70 一条 fix），台架轮未兑现 → **R72 必须产出用户可观察的产品行为变化**。候选 C-02i（奴隶矿工交付段）/ M-28（工程师晃动）的重开条件都要求**先落只读读数定性**，不许直接改。",
+     "下轮（72）：ON-5-02c（世界档）可后台跑，与产品修复并行；若并行，台架与构建必须错开时段。"
+    ]
+   },
    {
     "round": "70b",
     "date": "2026-11-16",
@@ -694,62 +708,13 @@
      "dist 开轮落后两个提交（755abf2 vs d01fb3b），由本轮补齐 arm→x86_64→lipo→签名→pack-dist，门禁逐条复验通过。",
      "没做：U-24（同文件同构建树，硬上即冲突）、RUNLOG 归档（搬移期间被追加会丢行）。"
     ]
-   },
-   {
-    "round": 68,
-    "date": "2026-11-16",
-    "type": "修复轮（取证通道进门禁）",
-    "lines": [
-     "轮型：修复轮（无 brake / 无 attempts≥3 在办 / 腐烂未触发 / 距 AUDIT-66 两轮）。",
-     "S-39 结案：regress 第 17 条 loadingpages（CONCORD_LOADING_PRESENTATION_ONLY=1，真建生产窗口抓 11 页×两尺寸，0.56s）；它兜住 R67 的缩略图铺满修复。",
-     "产物落点 f0c8f06：runtimeSmokeArtifactPath 认 CONCORD_SMOKE_ARTIFACT_DIR，14 张 BMP 从源码树挪到本轮 artifacts（build/ 31MB→6.4MB）。",
-     "登记 S-40（其余冒烟仍写树：GameData/build/result_*.bmp、build/issue22_15_*），按 §一.6 与 S-39 出队等价替换；条目数 41→41。",
-     "没做：U-19（它的前置是世界帧，不是载入帧）、M-03（只许先补逐帧对账，时间不够，宁可不做也不做一半）。",
-     "下轮：M-03 最后一次机会；U-19 先验 skirmishbuild 能否出世界帧。"
-    ]
-   },
-   {
-    "round": 67,
-    "date": "2026-11-16",
-    "type": "修复轮（U 线取证通道 + 一条真产品修复）",
-    "lines": [
-     "轮型：修复轮。卡了六轮的「拿不到真实载入帧」实测一直存在（CONCORD_LOADING_PRESENTATION_ONLY=1），与 S-08/M-13 同型。",
-     "U-20 结案：槽位非纯黑 99.7%、颜色 419——缩略图一直画得出来，旧「黑框」是离屏夹具提前退出。",
-     "产品修复 d60b1c7：槽位实测 216x166，渲染却等比缩成 216x130 居中 → 上下 18px 黑带；改铺满后纯黑 21.7%→0.3%。门禁 6cab55d 补槽位内容判据。",
-     "U-21 结案（右屏是 Bink static-fallback）；U-23 移 deferred（缺原版同图同相机画面）。登记 S-39（呈现冒烟进门禁）。",
-     "下轮：S-39 → U-19（需世界帧）；M-03 只剩一次机会。"
-    ]
    }
   ]
  },
  "archive": {
   "path": "progress/queue-archive-202611.json",
-  "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23）至 queue-archive-202611c.json ｜ 第 43~46 轮归档 4 条（S-17/S-21/M-30/S-13）同上 ｜ 第 67 轮：U-23 移 deferred（出队，等价替换新登记 S-39）",
-  "tasks_archived": 7
+  "note": "第 25 轮清单治理前的全量快照（152 tasks / 168 rules / 9 段 decisions），只读追溯用 ｜ 第 30 轮归档 11 条 + 本轮归档 4 条（C-02d/e/f/g）见 queue-archive-202611b.json ｜ 第 37 轮归档 1 条（S-16）至 queue-archive-202611b.json ｜ 第 41 轮归档 2 条（M-22/M-23）至 queue-archive-202611c.json ｜ 第 43~46 轮归档 4 条（S-17/S-21/M-30/S-13）同上 ｜ 第 67 轮：U-23 移 deferred（出队，等价替换新登记 S-39） ｜ 第 71 轮：ON-5-02b（菜单档完成）归档至 queue-archive-202611e.json，等价替换新登记 ON-5-02c（世界档）",
+  "tasks_archived": 8
  },
- "decisions_archive": "progress/archive/queue-decisions-202611.json（第 30~47 轮）+ progress/archive/queue-decisions-202611c.json（第 48~55 轮）+ progress/archive/queue-decisions-202611f.json（第 65~67 轮）",
- "decisions_20261115_r61": {
-  "round": 61,
-  "date": "2026-11-15",
-  "type": "audit",
-  "lines": [
-   "EVO 主线整体收口判 done：①④ 交付、②③ 移 deferred（重开条件 = C-01），子项 4/4 用满不再开第 5 个。",
-   "S-24 门开了却挂 blocked 第三次 → 补判 done；新规则：blocked 前置必须写成可 grep 的断言。",
-   "重复代码 +8/+10 可复现归因（--ref b4672b5 = 138/3 == AUDIT-56）：df8c421 新增第三份动作类型白名单 → S-35。",
-   "比例闸触发（近 5 轮 test:2/fix:1）：R62 只许产品行为或清偿轮，禁新增断言。"
-  ]
- },
- "decisions_20261115_r62": {
-  "round": 62,
-  "date": "2026-11-15",
-  "type": "清偿轮",
-  "lines": [
-   "轮型：清偿轮（§五.2 腐烂预算 R57~60 +1769/−33 + 比例闸 2.0×）。KPI=净增≤0 且 regress 不退化，达成。",
-   "S-35 结案：删 RuntimeShell.cpp 的动作类型白名单副本（−140/+3），两处冒烟断言改调 RuntimeCampaignCoverage.h 的 inline 版本；--campaign-smoke-test 输出逐字不变，regress 14/2/0。",
-   "口径纠正：AUDIT-61 说的「三份」实为 2 份动作白名单 + 1 份事件白名单（Coverage.h:25 是 trigger event）。",
-   "拆分 S-36：coverage 侧多声明 13/39/43/49/50/58/59/64 八个执行器未实现的类型 → coverage 门禁漏报缺口，属断言纠正，单独一轮。",
-   "清单：八段主线收口 199 行 → 9 行账目表（原文进 reports/archive/fix-plan-mainlines-202611.md），fix-plan 377→201 行。"
-  ],
-  "next": "R63 起手：S-36 的 8 型 grep 级判定（断言纠正，可能让 campaign 门禁变红，需单独 commit）；或 S-08 帧诊断出口解耦（门已开，属可观察的产品行为）。"
- }
+ "decisions_archive": "progress/archive/queue-decisions-202611.json（第 30~47 轮）+ progress/archive/queue-decisions-202611c.json（第 48~55 轮）+ progress/archive/queue-decisions-202611f.json（第 65~67 轮）"
 }

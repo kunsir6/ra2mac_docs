@@ -1,0 +1,53 @@
+{
+ "decisions_20261115_r61": {
+  "round": 61,
+  "date": "2026-11-15",
+  "type": "audit",
+  "lines": [
+   "EVO 主线整体收口判 done：①④ 交付、②③ 移 deferred（重开条件 = C-01），子项 4/4 用满不再开第 5 个。",
+   "S-24 门开了却挂 blocked 第三次 → 补判 done；新规则：blocked 前置必须写成可 grep 的断言。",
+   "重复代码 +8/+10 可复现归因（--ref b4672b5 = 138/3 == AUDIT-56）：df8c421 新增第三份动作类型白名单 → S-35。",
+   "比例闸触发（近 5 轮 test:2/fix:1）：R62 只许产品行为或清偿轮，禁新增断言。"
+  ]
+ },
+ "decisions_20261115_r62": {
+  "round": 62,
+  "date": "2026-11-15",
+  "type": "清偿轮",
+  "lines": [
+   "轮型：清偿轮（§五.2 腐烂预算 R57~60 +1769/−33 + 比例闸 2.0×）。KPI=净增≤0 且 regress 不退化，达成。",
+   "S-35 结案：删 RuntimeShell.cpp 的动作类型白名单副本（−140/+3），两处冒烟断言改调 RuntimeCampaignCoverage.h 的 inline 版本；--campaign-smoke-test 输出逐字不变，regress 14/2/0。",
+   "口径纠正：AUDIT-61 说的「三份」实为 2 份动作白名单 + 1 份事件白名单（Coverage.h:25 是 trigger event）。",
+   "拆分 S-36：coverage 侧多声明 13/39/43/49/50/58/59/64 八个执行器未实现的类型 → coverage 门禁漏报缺口，属断言纠正，单独一轮。",
+   "清单：八段主线收口 199 行 → 9 行账目表（原文进 reports/archive/fix-plan-mainlines-202611.md），fix-plan 377→201 行。"
+  ],
+  "next": "R63 起手：S-36 的 8 型 grep 级判定（断言纠正，可能让 campaign 门禁变红，需单独 commit）；或 S-08 帧诊断出口解耦（门已开，属可观察的产品行为）。"
+ },
+ "recent_archive": [
+  {
+   "round": 68,
+   "date": "2026-11-16",
+   "type": "修复轮（取证通道进门禁）",
+   "lines": [
+    "轮型：修复轮（无 brake / 无 attempts≥3 在办 / 腐烂未触发 / 距 AUDIT-66 两轮）。",
+    "S-39 结案：regress 第 17 条 loadingpages（CONCORD_LOADING_PRESENTATION_ONLY=1，真建生产窗口抓 11 页×两尺寸，0.56s）；它兜住 R67 的缩略图铺满修复。",
+    "产物落点 f0c8f06：runtimeSmokeArtifactPath 认 CONCORD_SMOKE_ARTIFACT_DIR，14 张 BMP 从源码树挪到本轮 artifacts（build/ 31MB→6.4MB）。",
+    "登记 S-40（其余冒烟仍写树：GameData/build/result_*.bmp、build/issue22_15_*），按 §一.6 与 S-39 出队等价替换；条目数 41→41。",
+    "没做：U-19（它的前置是世界帧，不是载入帧）、M-03（只许先补逐帧对账，时间不够，宁可不做也不做一半）。",
+    "下轮：M-03 最后一次机会；U-19 先验 skirmishbuild 能否出世界帧。"
+   ]
+  },
+  {
+   "round": 67,
+   "date": "2026-11-16",
+   "type": "修复轮（U 线取证通道 + 一条真产品修复）",
+   "lines": [
+    "轮型：修复轮。卡了六轮的「拿不到真实载入帧」实测一直存在（CONCORD_LOADING_PRESENTATION_ONLY=1），与 S-08/M-13 同型。",
+    "U-20 结案：槽位非纯黑 99.7%、颜色 419——缩略图一直画得出来，旧「黑框」是离屏夹具提前退出。",
+    "产品修复 d60b1c7：槽位实测 216x166，渲染却等比缩成 216x130 居中 → 上下 18px 黑带；改铺满后纯黑 21.7%→0.3%。门禁 6cab55d 补槽位内容判据。",
+    "U-21 结案（右屏是 Bink static-fallback）；U-23 移 deferred（缺原版同图同相机画面）。登记 S-39（呈现冒烟进门禁）。",
+    "下轮：S-39 → U-19（需世界帧）；M-03 只剩一次机会。"
+   ]
+  }
+ ]
+}
