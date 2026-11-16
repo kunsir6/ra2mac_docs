@@ -1,7 +1,7 @@
 {
  "project": "ConcordRTS macOS 多平台支持（增量，不替代 Windows）",
- "version": "v175",
- "updated": "2026-11-16T08:50+08:00",
+ "version": "v176",
+ "updated": "2026-11-16T10:05+08:00",
  "root": "/Users/zhenglk/AiProjects/ra2mac",
  "repo": "/Users/zhenglk/AiProjects/ra2mac/ConcordRTS",
  "rules": {
@@ -682,6 +682,19 @@
  "decisions": {
   "note": "每轮决策正文只保留本轮一个键 + 上轮一个键；更早的在 progress/archive/queue-decisions-202611*.json（a：R30~47，b：R47 前，c：R48~56，d：r56 单键，e：R65~66）。",
   "recent": [
+   {
+    "round": "70b",
+    "date": "2026-11-16",
+    "type": "诊断轮（并发会话占同一工作区 → diagnose-only）+ 收口打包",
+    "lines": [
+     "开轮 3 分钟发现另一会话（Electron 88868，08:23 起）正在改源码并已 ninja 编译 → 按 rules.concurrency 转 diagnose-only，本轮不改产品代码；不 stash、不提交别人 WIP、不并发跑 regress（latest.txt 的 tmp+mv 会互踩）。",
+     "独立复验 R70 修复（包内二进制）：menumodal rc=0、bottomStripLeak=0、wholeClientLeak=0/480000、closeRestoresNothing=yes；红态 20224 与算术 632×32 一致。未独立重测红态（要 checkout 父提交重编，与并发构建抢树不值），记为未验证项。",
+     "内容体检三条（ledger-check 只查形状）：①RUNLOG 1296 行/113KB＝字节红线 94%，一两轮内必破 → 下轮开工先归档 R60 前分段；②U-19 已第二顺位却在 plan 无行，卡住自己「缺估值字段不许排序」的规则 → 下轮补 1 行；③在办 16 条无 plan 行里 8 条是镜像对、5 条 AUDIT-56 已登记，真新增只有 U-19 与 ON-3-01b。",
+     "锁的写法与实际脱节：progress/.active 仍是 2026-11-12 的 released，这次并发是靠 ps+mtime 看出来的。开轮第一件事应是「有没有活进程在改这棵树」，不是读锁文件。",
+     "dist 开轮落后两个提交（755abf2 vs d01fb3b），由本轮补齐 arm→x86_64→lipo→签名→pack-dist，门禁逐条复验通过。",
+     "没做：U-24（同文件同构建树，硬上即冲突）、RUNLOG 归档（搬移期间被追加会丢行）。"
+    ]
+   },
    {
     "round": 68,
     "date": "2026-11-16",
