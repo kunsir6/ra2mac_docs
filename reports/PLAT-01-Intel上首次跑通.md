@@ -1,7 +1,7 @@
 # PLAT-01 · 在 Intel x86_64 机器上第一次跑通
 
 > 结论先行：能在 Intel 上跑。旧结论「Intel 上还没跑成功过」的成因不是架构不支持，
-> 而是**打包链的最低系统版本口径**（minos 26.0 vs plist 12.0）与**两条冒烟探针用错时钟**
+> 而是**打包链的最低系统版本口径**（minos 26.0 vs plist 12.0）与**三条冒烟里四处时间起点用错时钟**
 > （墙钟 `GetTickCount64()` vs 呈现时钟 `presentationClock/uiClock`）。
 > 三处都钉死之后：Intel 本机回归 16 绿 / 2 已知红 / 0 新红，`dist/尤里红警.app` 打出
 > thin x86_64 包、双击出主菜单。
@@ -12,7 +12,7 @@
 |---|---|
 | CPU | Intel Core i7-9750H（x86_64） |
 | macOS | 26.7.3（25G342） |
-| 代码 | `ac45ada`（2026-11-17 22:57 快进拉取，79 提交） |
+| 代码 | `ac45ada`（2026-11-17 22:57 快进拉取，79 提交）；本轮两笔修复后 HEAD `7197257` |
 | 构建目录 | `ConcordRTS/build-product-x86`（cache 里的源码路径是本机路径，可增量） |
 | 配方 | `-DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCONCORD_APPLE_SOFTWARE_PRESENT=ON -DCONCORD_APPLE_METAL_PRESENT=OFF -DCMAKE_BUILD_TYPE=Release` |
 | 工具 | `/usr/local/bin/cmake` 4.4.4、`/usr/local/bin/ninja` 1.13.2 |
@@ -36,7 +36,7 @@ minos 26.0   sdk 26.5
 
 修法：重配 `-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0` 后全量重编（改这个变量会让所有 TU 失效）。
 
-### 2）两条冒烟探针用错时钟（这是「同一条坑」的第二次、第三次）
+### 2）三处冒烟、四个时间起点用错时钟（这是「同一条坑」的第 2~4 次）
 
 #### 2a 交互冒烟：tooltip 探针（恒红）
 
@@ -89,10 +89,47 @@ state.phaseStarted = GetTickCount64() - 1000;   // 想「把动画快进掉」
 修法（`src/ui/main_menu/RuntimeMainMenu.cpp:3249`）：起点改用 `state.presentationClock->nowMs()`；
 30 秒超时仍用墙钟（它自己前后一致，与动画无关）。
 
-> 判定纪律（第三次重申）：**探针写时间戳，必须和被测代码读的是同一只钟**。
+#### 2c skirmish 生命周期冒烟：同一处错位（本机是恒红）
+
+`RuntimeSkirmishWindowLifecycleSmoke` 的两处 `phaseStarted` 也写在墙钟上，
+而判定走 `WM_TIMER(2) → updateMenuTransition(*state, state->nowMs())`。
+
+先取证（探针只改起点并打印，不动判定逻辑）：
+
+```
+[lc-probe] visit=0 uiClock=313501633 gtc=313502454 gtc-now=821 duration=546
+           freshElapsed=0 wallStartElapsed=179
+[lc-probe] visit=2 uiClock=313502057 gtc=313502877 gtc-now=820 duration=546
+           freshElapsed=0 wallStartElapsed=180
+```
+
+两只钟差 **820ms**，「快进 1000ms」被这个差值吃掉后只剩 180ms：
+
+```
+elapsed = uiClock - (gtc - 1000) = 1000 - 820 = 180 < duration(546)
+```
+
+滑出动画永远走不完、窗口不被销毁 → `native timer completes close and detaches` **恒红**。
+反向取证：把起点给成 `state.nowMs()`（`freshElapsed=0`）时同一条断言当场报错，
+说明判据本身是活的、不是空断言。
+
+修法（`RuntimeSkirmishWindowLifecycleSmoke.inl:97/100`）：两处改用 `state.nowMs()`，
+保留 1000ms 快进（≥546 够用）。修前该断言失败 **2 次**（visit 0/2）→ 修后 **0 次**。
+
+> 一处自我更正：我第一遍是从 8 行截断日志里读的，把这条判成「靠无符号绕回才过的假绿」，
+> 实测是**恒红**。差值 820 小于 1000 不会绕回；要绕回得差值 > 1000。
+> 也就是说这条断言在两只机器上**不可能同时为真**——这正是它必须修的理由。
+
+诚实边界：这条冒烟整体仍 `rc=1`，红的是 `real minimize` / `menu owns a valid GDI object` /
+`native resize consumes same viewport controller` / `synchronous native capture change` /
+`parent-first destruction` 这些本机平台与 compat 层缺口（与时钟无关），
+且它本来就不在 regress 的 18 条里。
+
+> 判定纪律（第四次重申）：**探针写时间戳，必须和被测代码读的是同一只钟**。
 > 本项目现有两只钟——`GetTickCount64()`（墙钟）与 `presentationClock/uiClock`（呈现时钟），
-> 两者在本机差约 1 秒，且差值正负会随构建/机器变。凡是「差值为负 → 无符号绕回 → 假绿」的地方，
-> 都只会在一台机器上露出来，另一台永远是绿的。result 记分动画那次（`RuntimeShell.cpp:36978` 的注释）是第一次。
+> 两者在本机差 0.8~1 秒。差值会以两种方式毁掉判据：小于「快进量」时吃成不够（恒红），
+> 大于快进量时无符号绕回成天文数字（恒绿）。同一段代码在两只机器上不可能同时正确。
+> result 记分动画那次（`RuntimeShell.cpp:36978` 的注释）是第一次。
 
 
 ## 三、验收读数
@@ -105,6 +142,7 @@ state.phaseStarted = GetTickCount64() - 1000;   // 想「把动画快进掉」
 | 打包 | `pack-dist.sh --bin …/build-product-x86/concord_runtime` rc=0：minos 门禁一致、图标 diff 95.1/255、`--smoke-test` rc=0 |
 | 包身份 | `dist/尤里红警.app`｜`lipo -archs` = `x86_64`｜id `org.concord.rts.yuri`｜`LSMinimumSystemVersion=12.0` |
 | 双击启动 | `open dist/尤里红警.app` → 窗口标题 `Command & Conquer: Yuri's Revenge`，内容区完整渲染（YR 片头图、Westwood 标、七个中文按钮、右下「版本 1.001」）；证据 `progress/plat-01/menu-intel.png`（2184×1480，Retina 2x 抓图） |
+| 打包戳 | `dist/BUILD-STAMP.txt` = `7197257 … regress=pass16/known2/new0 arch=x86_64 minos=12.0 icon=95.1 rosetta=rc0 buildtree=clean wip=none`，无 WARN |
 
 ## 四、本机跑回归/打包必须显式传参（脚本默认值仍指 arm）
 
@@ -135,7 +173,8 @@ bash ra2mac_docs/scripts/pack-dist.sh \
 - **GUI 交互只验到「主菜单渲染 + 窗口响应」**：本机 Accessibility 未授权，
   合成点击/按键会被系统丢弃，所以「点进遭遇战」这一步走不了真鼠标；
   游戏侧链路靠 `skirmish/build/command` 等冒烟覆盖（本机全绿）。
-- 两处探针修复已随本轮提交（源码 `367d56a`）。`dist/BUILD-STAMP.txt` 里仍是提交前那次打包
-  写下的 `regress=stale@ac45ada+WIP`——二进制与回归结果同属这份源码，只是 stamp 记的是旧口径；
-  重跑一次 `pack-dist.sh` 即可消掉这个 WARN。
+- 四处时间起点已随本轮提交（源码 `367d56a` 三处 + `7197257` skirmish 一处），
+  `dist/BUILD-STAMP.txt` 已在 `7197257` 上重跑回归并重打包，`wip=none`、无 WARN。
+- 这四处修的都是**冒烟自己的起点**，产品代码零改动：产品侧两端本来就同源。
+  所以本轮的收益是「判据变真」，不是「功能变好」——不要把它记成功能修复。
 
